@@ -12,6 +12,7 @@
     "**/.github/**",
     "**/.turbo/**",
     "**/.vercel/**",
+    "**/.changeset/**/*.md",
     "**/dist/**",
     "**/node_modules/**"
   ],
