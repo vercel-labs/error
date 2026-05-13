@@ -1,0 +1,69 @@
+{
+  "name": "@vercel/error",
+  "version": "0.0.1",
+  "description": "Unified error primitives for humans and agents",
+  "author": "Vercel",
+  "repository": {
+    "url": "git+https://github.com/vercel-labs/error.git"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "provenance": true
+  },
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt .",
+    "prepublishOnly": "pnpm build",
+    "postinstall": "lefthook install || true",
+    "changeset": "changeset",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
+    "release": "pnpm build && changeset publish",
+    "validate": "pnpm run --parallel '/^(typecheck|lint|format|test)$/'"
+  },
+  "devDependencies": {
+    "@changesets/changelog-github": "0.6.0",
+    "@changesets/cli": "2.29.0",
+    "@types/node": "25.6.0",
+    "lefthook": "2.1.5",
+    "oxfmt": "0.44.0",
+    "oxlint": "1.59.0",
+    "tsdown": "0.21.7",
+    "typescript": "6.0.2",
+    "vitest": "4.1.4"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "default": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "default": "./dist/client.js",
+      "types": "./dist/client.d.ts"
+    },
+    "./server": {
+      "default": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    },
+    "./format": {
+      "default": "./dist/format.js",
+      "types": "./dist/format.d.ts"
+    }
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@10.32.1"
+}
