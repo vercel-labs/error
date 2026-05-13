@@ -1,7 +1,5 @@
 # @vercel/error
 
-> **Alpha** — This package is experimental and under active development. APIs may change. Feedback and bug reports are welcome.
-
 Structured error primitives for humans and agents.
 
 ## Table of contents
