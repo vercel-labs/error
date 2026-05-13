@@ -25,7 +25,7 @@ export type FromErrorResponseOptions = Omit<
  *
  * @example
  * ```ts
- * import { parseErrorResponse, fromErrorResponse } from '@vercel-labs/error/client';
+ * import { parseErrorResponse, fromErrorResponse } from '@vercel/error/client';
  *
  * const res = await fetch('https://api.vercel.com/v1/deployments');
  * if (!res.ok) {
