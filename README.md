@@ -107,7 +107,7 @@ Every `VercelError` field falls into one of three groups.
 
 | Field        | Type                                                 | Description                                                                                            |
 | ------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `metadata`   | `Record<string, SerializableValue>`                  | Structured context for debugging and logging. Supports arbitrary nesting. Never serialized to the wire |
+| `metadata`   | `Record<string, SerializableValue>`                  | Structured context for debugging and logging. Supports arbitrary nesting. Server-side only — excluded from HTTP error responses |
 | `attributes` | `Record<string, string \| number \| boolean \| ...>` | Flat key-value pairs for OpenTelemetry spans, Sentry tags, and metrics dashboards                      |
 | `requestId`  | `string`                                             | Correlation ID for tracing an error across services                                                    |
 | `cause`      | `unknown`                                            | Standard Error `cause` for chaining. Passed through to `super()` and walkable via `getRootCause`       |
