@@ -1,7 +1,7 @@
 {
   "name": "@vercel/error",
   "version": "0.0.2",
-  "description": "Unified error primitives for humans and agents",
+  "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
   "author": "Vercel",
   "repository": {
     "url": "git+https://github.com/vercel/error.git"
