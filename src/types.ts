@@ -13,7 +13,7 @@ export type SerializableValue =
 
 /**
  * Domain-specific structured context for debugging and logging.
- * Can contain arbitrarily nested values. Never serialized to the wire.
+ * Can contain arbitrarily nested values. Server-side only — excluded from HTTP error responses.
  *
  * Route to: serialization, logging, debugging tools.
  *
