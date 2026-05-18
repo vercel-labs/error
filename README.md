@@ -52,16 +52,16 @@ The rest follows from that:
 ## Quick start
 
 ```ts
-import { VercelError } from "@vercel/error";
+import { VercelError } from '@vercel/error';
 
-throw new VercelError("Database connection pool exhausted", {
-  code: "pool_exhausted",
-  scope: "database",
+throw new VercelError('Database connection pool exhausted', {
+  code: 'pool_exhausted',
+  scope: 'database',
   statusCode: 503,
-  reason: "All 20 connections are in use and none have been released.",
-  hint: "Consider using pgBouncer for connection pooling.",
-  fix: "Increase max_connections or add pgBouncer.",
-  link: "https://vercel.com/docs/storage/neon#connection-pooling",
+  reason: 'All 20 connections are in use and none have been released.',
+  hint: 'Consider using pgBouncer for connection pooling.',
+  fix: 'Increase max_connections or add pgBouncer.',
+  link: 'https://vercel.com/docs/storage/neon#connection-pooling',
 });
 ```
 
@@ -117,10 +117,10 @@ Every `VercelError` field falls into one of three groups.
 `createErrors` defines a scoped error namespace for a service or module. Every error created through the factory gets the scope injected automatically. The `report` callback defaults to `console.error` when not provided.
 
 ```ts
-import { createErrors } from "@vercel/error";
+import { createErrors } from '@vercel/error';
 
 const errors = createErrors({
-  scope: "database",
+  scope: 'database',
   report: (error) => sentry.captureException(error),
 });
 ```
@@ -134,9 +134,9 @@ The factory returns three methods:
 | `report(message, options?)` | Create, report via the callback, and return |
 
 ```ts
-errors.create("Connection failed", { code: "conn_failed" });
-errors.raise("Timeout", { code: "timeout" }); // throws
-errors.report("Pool exhausted", { code: "pool_exhausted" }); // reports + returns
+errors.create('Connection failed', { code: 'conn_failed' });
+errors.raise('Timeout', { code: 'timeout' }); // throws
+errors.report('Pool exhausted', { code: 'pool_exhausted' }); // reports + returns
 ```
 
 ### Factory-level attributes and metadata
@@ -145,15 +145,15 @@ Set attributes and metadata at the factory level. These merge with per-error val
 
 ```ts
 const errors = createErrors({
-  scope: "billing",
-  attributes: { "service.name": "billing-api" },
-  metadata: { region: "us-east-1" },
+  scope: 'billing',
+  attributes: { 'service.name': 'billing-api' },
+  metadata: { region: 'us-east-1' },
 });
 
-errors.create("Charge failed", {
-  code: "charge_failed",
-  attributes: { "stripe.error": "card_declined" },
-  metadata: { customerId: "cus_123" },
+errors.create('Charge failed', {
+  code: 'charge_failed',
+  attributes: { 'stripe.error': 'card_declined' },
+  metadata: { customerId: 'cus_123' },
 });
 // attributes: { 'service.name': 'billing-api', 'stripe.error': 'card_declined' }
 // metadata: { region: 'us-east-1', customerId: 'cus_123' }
@@ -164,24 +164,24 @@ errors.create("Charge failed", {
 Pass `ErrorClass` to create instances of a custom subclass. Type inference flows through, so `create`, `raise`, and `report` all return your subclass type.
 
 ```ts
-import { VercelError, createErrors } from "@vercel/error";
-import type { VercelErrorOptions } from "@vercel/error";
+import { VercelError, createErrors } from '@vercel/error';
+import type { VercelErrorOptions } from '@vercel/error';
 
 class DatabaseError extends VercelError {
   readonly retryable = true;
 
   constructor(message: string, options?: VercelErrorOptions) {
     super(message, options);
-    this.name = "DatabaseError";
+    this.name = 'DatabaseError';
   }
 }
 
 const errors = createErrors({
-  scope: "database",
+  scope: 'database',
   ErrorClass: DatabaseError,
 });
 
-const err = errors.create("Pool exhausted");
+const err = errors.create('Pool exhausted');
 err.retryable; // true, fully typed as DatabaseError
 ```
 
@@ -239,13 +239,13 @@ error: VercelError [database:pool_exhausted] Database connection pool exhausted
 The `@vercel/error/format` entry point exports functions for building custom formatted output outside of `VercelError`. Use these when formatting errors you don't own or building custom CLI output.
 
 ```ts
-import { frame, hint, fix, link } from "@vercel/error/format";
+import { frame, hint, fix, link } from '@vercel/error/format';
 
-const output = frame("Build failed: missing entry point", [
-  "No index.ts or index.js found in the src/ directory.",
-  hint("Check your tsconfig.json paths configuration."),
+const output = frame('Build failed: missing entry point', [
+  'No index.ts or index.js found in the src/ directory.',
+  hint('Check your tsconfig.json paths configuration.'),
   fix('Create src/index.ts or update the "main" field in package.json.'),
-  link("https://vercel.com/docs/builds#entry-points"),
+  link('https://vercel.com/docs/builds#entry-points'),
 ]);
 
 console.error(output);
@@ -258,7 +258,7 @@ All format functions are nil-safe: pass `undefined` or `null` and they return `u
 `errorResponse` builds a complete HTTP error response with content negotiation. It returns `{ status, body, headers }` for use with any framework.
 
 ```ts
-import { errorResponse } from "@vercel/error/server";
+import { errorResponse } from '@vercel/error/server';
 
 const { status, body, headers } = errorResponse(error);
 return new Response(body, { status, headers });
@@ -288,13 +288,13 @@ Without a signal (or without a request object), the response is always JSON.
 You can pass plain parameters instead of a `VercelError` instance.
 
 ```ts
-import { errorResponse } from "@vercel/error/server";
+import { errorResponse } from '@vercel/error/server';
 
 const { status, body, headers } = errorResponse({
   status: 429,
-  code: "rate_limited",
-  message: "Too many requests",
-  hint: "Wait 60 seconds before retrying.",
+  code: 'rate_limited',
+  message: 'Too many requests',
+  hint: 'Wait 60 seconds before retrying.',
 });
 
 return new Response(body, { status, headers });
@@ -324,7 +324,7 @@ All fields except `message` are optional. When using a `VercelError`, `userMessa
 Use `wantsAnsi` directly when you need to check ANSI preference outside of `errorResponse`:
 
 ```ts
-import { wantsAnsi } from "@vercel/error/server";
+import { wantsAnsi } from '@vercel/error/server';
 
 if (wantsAnsi(request)) {
   // render ANSI-formatted output
@@ -340,9 +340,9 @@ Accepts a `Request`, any `HeadersLike` object, or `null`/`undefined`.
 `parseErrorResponse` validates that unknown data matches the `ErrorResponse` shape. Returns the validated response or `undefined` if invalid.
 
 ```ts
-import { parseErrorResponse } from "@vercel/error/client";
+import { parseErrorResponse } from '@vercel/error/client';
 
-const res = await fetch("/api/deploy");
+const res = await fetch('/api/deploy');
 if (!res.ok) {
   const parsed = parseErrorResponse(await res.json());
   if (parsed) {
@@ -356,15 +356,15 @@ if (!res.ok) {
 `fromErrorResponse` reconstructs a `VercelError` from a validated `ErrorResponse`. Use this at service boundaries when you want to re-throw, enrich, or chain an upstream error.
 
 ```ts
-import { parseErrorResponse, fromErrorResponse } from "@vercel/error/client";
+import { parseErrorResponse, fromErrorResponse } from '@vercel/error/client';
 
-const res = await fetch("https://api.vercel.com/v1/deployments");
+const res = await fetch('https://api.vercel.com/v1/deployments');
 if (!res.ok) {
   const parsed = parseErrorResponse(await res.json());
   if (parsed) {
     throw fromErrorResponse(parsed, {
       statusCode: res.status,
-      scope: "upstream",
+      scope: 'upstream',
       cause: new Error(`${res.url} returned ${res.status}`),
     });
   }
@@ -397,8 +397,8 @@ Two things to keep in mind:
 2. **Accept `VercelErrorOptions`** as the options type so your subclass stays compatible with `createErrors`.
 
 ```ts
-import { VercelError } from "@vercel/error";
-import type { VercelErrorOptions } from "@vercel/error";
+import { VercelError } from '@vercel/error';
+import type { VercelErrorOptions } from '@vercel/error';
 
 class NetworkError extends VercelError {
   readonly retryable: boolean;
@@ -408,13 +408,13 @@ class NetworkError extends VercelError {
     options?: VercelErrorOptions & { retryable?: boolean },
   ) {
     super(message, options);
-    this.name = "NetworkError";
+    this.name = 'NetworkError';
     this.retryable = options?.retryable ?? false;
   }
 }
 
-const error = new NetworkError("Connection refused", {
-  code: "conn_refused",
+const error = new NetworkError('Connection refused', {
+  code: 'conn_refused',
   retryable: true,
 });
 
