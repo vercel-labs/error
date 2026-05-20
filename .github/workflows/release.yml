@@ -6,12 +6,11 @@ name: Release
 # satisfies the "Commits must have verified signatures" repository rule
 # without any GPG key management or bypass exceptions.
 #
-# Publishing to npm is enabled via the npm Trusted Publisher mechanism.
-# The workflow filename (`release.yml`) is bound to the publisher config on
-# npm.com — renaming or replacing this file will break publishing until the
-# npm-side setting is updated to match.
-#
-# See https://docs.npmjs.com/trusted-publishers for the publisher binding.
+# Publishing to npm uses an automation token (NPM_TOKEN_ELEVATED).
+# We would prefer npm Trusted Publishing (provenance via OIDC), but npm
+# only supports it for public packages on public GitHub repos. Since this
+# is an internal private package, we fall back to token-based auth.
+# See https://docs.npmjs.com/trusted-publishers for details.
 
 on:
   push:
@@ -25,11 +24,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
     steps:
-      # Third-party actions in this privileged job are pinned to full
-      # commit SHAs so a moved tag or compromised upstream cannot inject
-      # code into a workflow holding contents:write + id-token:write.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -74,5 +69,5 @@ jobs:
           title: "chore: release"
           commitMode: github-api
         env:
-          NPM_CONFIG_PROVENANCE: "true"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_ELEVATED }}
