@@ -4,4 +4,4 @@
 
 ### Patch Changes
 
-- [#2](https://github.com/vercel/error/pull/2) [`5aa735a`](https://github.com/vercel/error/commit/5aa735a754b95c94e71e8c614c0f696c7084a153) Thanks [@runewolf7](https://github.com/runewolf7)! - Initial alpha release
+- [#2](https://github.com/vercel/error/pull/2) [`4aee822`](https://github.com/vercel/error/commit/4aee8229fb61cc48bc26815b58064c97a5030e60) Thanks [@runewolf7](https://github.com/runewolf7)! - Initial alpha release
