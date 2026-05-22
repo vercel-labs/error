@@ -1,16 +1,11 @@
 name: Release
 
-# Opens / updates a "chore: release" PR when changesets are queued on main.
-# Uses changesets/action with `commitMode: github-api`, so commits go through
-# the GitHub REST API and are auto-signed by GitHub's signing key. This
-# satisfies the "Commits must have verified signatures" repository rule
-# without any GPG key management or bypass exceptions.
-#
-# Publishing to npm uses an automation token (NPM_TOKEN_ELEVATED).
-# We would prefer npm Trusted Publishing (provenance via OIDC), but npm
-# only supports it for public packages on public GitHub repos. Since this
-# is an internal private package, we fall back to token-based auth.
-# See https://docs.npmjs.com/trusted-publishers for details.
+# Validates and publishes to npm on every push to main.
+# Uses npm Trusted Publishing (OIDC) -- no NPM_TOKEN secret needed.
+# Requires the package to be configured as a Trusted Publisher on npmjs.com
+# linked to this repo and workflow.
+# If the version in package.json is already on the registry, npm publish
+# will fail, signalling that a version bump is needed.
 
 on:
   push:
@@ -22,21 +17,21 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      id-token: write
+      
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           lfs: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: "pnpm"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -60,14 +55,5 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      - name: Create release PR or publish
-        uses: changesets/action@v1
-        with:
-          version: pnpm version-packages
-          publish: pnpm release
-          commit: "chore: release"
-          title: "chore: release"
-          commitMode: github-api
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN_ELEVATED }}
+      - name: Publish to npm
+        run: npm publish
