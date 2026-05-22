@@ -1,17 +1,17 @@
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-  entry: {
-    index: 'src/index.ts',
-    client: 'src/client.ts',
-    server: 'src/server.ts',
-    format: 'src/format.ts',
-  },
-  format: ['esm'],
-  fixedExtension: false,
+  clean: true,
   dts: {
     sourcemap: true,
   },
-  clean: true,
+  entry: {
+    client: 'src/client.ts',
+    format: 'src/format.ts',
+    index: 'src/index.ts',
+    server: 'src/server.ts',
+  },
+  fixedExtension: false,
+  format: ['esm'],
   sourcemap: true,
 });

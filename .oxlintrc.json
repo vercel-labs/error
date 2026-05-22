@@ -5,12 +5,19 @@
     "suspicious": "warn",
     "pedantic": "off",
     "perf": "warn",
-    "style": "warn",
-    "restrictions": "error",
+    "style": "off",
+    "restriction": "error",
     "nursery": "off"
   },
   "rules": {
     "no-unused-vars": "warn",
-    "no-console": "off"
+    "no-console": "off",
+    "no-undefined": "off",
+    "typescript/explicit-function-return-type": "off",
+    "no-rest-spread-properties": "off",
+    "no-use-before-define": "off",
+    "no-optional-chaining": "off",
+    "no-async-await": "off",
+    "no-plusplus": "off"
   }
 }

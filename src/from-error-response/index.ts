@@ -47,10 +47,10 @@ export function fromErrorResponse(
   return new VercelError(response.error.message, {
     ...options,
     code: response.error.code,
-    userMessage: response.error.message,
-    reason: response.error.reason,
-    hint: response.error.hint,
     fix: response.error.fix,
+    hint: response.error.hint,
     link: response.error.link,
+    reason: response.error.reason,
+    userMessage: response.error.message,
   });
 }

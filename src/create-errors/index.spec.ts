@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createErrors } from '.';
 import { VercelError } from '../vercel-error';
@@ -22,22 +22,22 @@ describe('createErrors', () => {
 
     it('merges default attributes', () => {
       const errors = createErrors({
-        scope: 'db',
         attributes: { 'service.name': 'postgres' },
+        scope: 'db',
       });
       const error = errors.create('fail', {
         attributes: { 'db.query': 'SELECT' },
       });
       expect(error.attributes).toEqual({
-        'service.name': 'postgres',
         'db.query': 'SELECT',
+        'service.name': 'postgres',
       });
     });
 
     it('merges default metadata', () => {
       const errors = createErrors({
-        scope: 'db',
         metadata: { pool: 'primary' },
+        scope: 'db',
       });
       const error = errors.create('fail', {
         metadata: { query: 'SELECT' },
@@ -57,11 +57,11 @@ describe('createErrors', () => {
 
     it('does not call the reporter', () => {
       const report = vi.fn();
-      const errors = createErrors({ scope: 'auth', report });
+      const errors = createErrors({ report, scope: 'auth' });
       try {
         errors.raise('denied');
       } catch {
-        // expected
+        // Expected
       }
       expect(report).not.toHaveBeenCalled();
     });
@@ -70,7 +70,7 @@ describe('createErrors', () => {
   describe('report', () => {
     it('calls custom reporter, creates and returns the error', () => {
       const report = vi.fn();
-      const errors = createErrors({ scope: 'analytics', report });
+      const errors = createErrors({ report, scope: 'analytics' });
       const error = errors.report('tracking failed');
 
       expect(error).toBeInstanceOf(VercelError);
@@ -79,7 +79,9 @@ describe('createErrors', () => {
     });
 
     it('defaults to console.error when no reporter provided', () => {
-      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // no-op
+      });
       const errors = createErrors({ scope: 'fallback' });
       const error = errors.report('something broke');
 
@@ -124,8 +126,8 @@ describe('createErrors', () => {
 
     it('creates instances of the custom class', () => {
       const errors = createErrors({
-        scope: 'db',
         ErrorClass: DatabaseError,
+        scope: 'db',
       });
       const error = errors.create('connection lost');
       expect(error).toBeInstanceOf(DatabaseError);
@@ -137,8 +139,8 @@ describe('createErrors', () => {
 
     it('raise throws the custom class', () => {
       const errors = createErrors({
-        scope: 'db',
         ErrorClass: DatabaseError,
+        scope: 'db',
       });
       try {
         errors.raise('pool exhausted');
@@ -151,9 +153,9 @@ describe('createErrors', () => {
     it('report returns the custom class', () => {
       const report = vi.fn();
       const errors = createErrors({
-        scope: 'db',
         ErrorClass: DatabaseError,
         report,
+        scope: 'db',
       });
       const error = errors.report('query timeout');
       expect(error).toBeInstanceOf(DatabaseError);
@@ -162,10 +164,10 @@ describe('createErrors', () => {
 
     it('merges attributes and metadata with custom class', () => {
       const errors = createErrors({
-        scope: 'db',
         ErrorClass: DatabaseError,
         attributes: { 'service.name': 'postgres' },
         metadata: { pool: 'primary' },
+        scope: 'db',
       });
       const error = errors.create('fail', {
         attributes: { 'db.query': 'SELECT' },
@@ -173,8 +175,8 @@ describe('createErrors', () => {
       });
       expect(error).toBeInstanceOf(DatabaseError);
       expect(error.attributes).toEqual({
-        'service.name': 'postgres',
         'db.query': 'SELECT',
+        'service.name': 'postgres',
       });
       expect(error.metadata).toEqual({
         pool: 'primary',

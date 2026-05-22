@@ -1,9 +1,9 @@
 import { VERCEL_ERROR_TAG } from '../constants';
 import { formatAuto } from '../format/index';
 import type {
-  VercelErrorOptions,
-  ErrorMetadata,
   ErrorAttributes,
+  ErrorMetadata,
+  VercelErrorOptions,
 } from '../types';
 
 /**
@@ -73,13 +73,11 @@ export class VercelError<TCode extends string = string> extends Error {
     this.attributes = options.attributes;
 
     Object.defineProperty(this, VERCEL_ERROR_TAG, {
-      value: true,
-      enumerable: false,
-      writable: false,
       configurable: false,
+      enumerable: false,
+      value: true,
+      writable: false,
     });
-
-    Error.captureStackTrace?.(this, this.constructor);
   }
 
   private static readonly JSON_EXCLUDE = new Set(['name', 'cause']);
@@ -93,8 +91,8 @@ export class VercelError<TCode extends string = string> extends Error {
    */
   toJSON(): Record<string, unknown> {
     return {
-      name: this.name,
       message: this.message,
+      name: this.name,
       ...(this.stack ? { stack: this.stack } : {}),
       ...Object.fromEntries(
         Object.entries(this).filter(

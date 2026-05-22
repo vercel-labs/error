@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { getRootCause } from '.';
 import { VercelError } from '../vercel-error';
@@ -25,15 +25,15 @@ describe('getRootCause', () => {
   it('handles VercelError cause chains', () => {
     const root = new VercelError('root', { code: 'root' });
     const wrapper = new VercelError('wrapper', {
-      code: 'wrapper',
       cause: root,
+      code: 'wrapper',
     });
     expect(getRootCause(wrapper)).toBe(root);
   });
 
   it('detects cycles and returns last visited', () => {
     const a: Record<string, unknown> = { message: 'a' };
-    const b: Record<string, unknown> = { message: 'b', cause: a };
+    const b: Record<string, unknown> = { cause: a, message: 'b' };
     a['cause'] = b;
     const result = getRootCause(a);
     expect(result).toBeDefined();

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { wantsAnsi } from '.';
 
@@ -52,8 +52,8 @@ describe('wantsAnsi', () => {
     expect(
       wantsAnsi(
         makeRequest({
-          'X-Error-Format': 'ansi',
           'User-Agent': 'Mozilla/5.0',
+          'X-Error-Format': 'ansi',
         }),
       ),
     ).toBe(true);
