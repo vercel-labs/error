@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { errorResponse } from '.';
 import type { ErrorResponse } from '../types';
@@ -17,8 +17,8 @@ describe('errorResponse', () => {
     it('returns status, body string, and headers', () => {
       const error = new VercelError('internal detail', {
         code: 'pool_exhausted',
-        userMessage: 'Service temporarily unavailable',
         statusCode: 503,
+        userMessage: 'Service temporarily unavailable',
       });
       const { status, body, headers } = errorResponse(error);
       expect(status).toBe(503);
@@ -55,11 +55,11 @@ describe('errorResponse', () => {
     it('includes reason, hint, fix, link when present', () => {
       const error = new VercelError('fail', {
         code: 'rate_limited',
-        userMessage: 'Too many requests',
-        reason: 'Per-IP limit exceeded',
-        hint: 'Consider using a rate limiter',
         fix: 'Wait and retry',
+        hint: 'Consider using a rate limiter',
         link: 'https://docs.example.com',
+        reason: 'Per-IP limit exceeded',
+        userMessage: 'Too many requests',
       });
       const parsed = parseBody(errorResponse(error).body);
       expect(parsed.error.reason).toBe('Per-IP limit exceeded');
@@ -82,12 +82,12 @@ describe('errorResponse', () => {
 
     it('excludes sensitive fields from body', () => {
       const error = new VercelError('Error', {
-        code: 'ERR',
-        scope: 'backend',
-        metadata: { userId: '123' },
         attributes: { 'db.query': 'SELECT' },
         cause: new Error('Cause'),
+        code: 'ERR',
+        metadata: { userId: '123' },
         requestId: 'req-abc',
+        scope: 'backend',
       });
       const parsed = JSON.parse(errorResponse(error).body) as Record<
         string,
@@ -112,9 +112,9 @@ describe('errorResponse', () => {
   describe('with plain params', () => {
     it('builds JSON response from plain params', () => {
       const { status, body, headers } = errorResponse({
-        status: 400,
         code: 'bad_request',
         message: 'Email is required',
+        status: 400,
       });
       expect(status).toBe(400);
       expect(headers['Content-Type']).toBe('application/json');
@@ -140,12 +140,12 @@ describe('errorResponse', () => {
     it('includes optional fields from plain params', () => {
       const parsed = parseBody(
         errorResponse({
-          status: 429,
           code: 'rate_limited',
-          message: 'Too many requests',
-          reason: 'Per-IP limit',
           fix: 'Wait',
           link: 'https://docs.example.com',
+          message: 'Too many requests',
+          reason: 'Per-IP limit',
+          status: 429,
         }).body,
       );
       expect(parsed.error.reason).toBe('Per-IP limit');
@@ -173,8 +173,8 @@ describe('errorResponse', () => {
     it('returns text/plain for curl', () => {
       const error = new VercelError('Build compilation failed', {
         code: 'compile_error',
-        userMessage: 'Something broke',
         reason: 'Bad things',
+        userMessage: 'Something broke',
       });
       const { body, headers } = errorResponse(
         error,
@@ -202,9 +202,9 @@ describe('errorResponse', () => {
     it('uses error.toString() for VercelError ANSI path', () => {
       const error = new VercelError('fail', {
         code: 'test_code',
-        userMessage: 'User-facing message',
-        reason: 'Detailed reason',
         fix: 'Do this to fix',
+        reason: 'Detailed reason',
+        userMessage: 'User-facing message',
       });
       const { body } = errorResponse(
         error,
@@ -218,10 +218,10 @@ describe('errorResponse', () => {
       const { body, headers } = errorResponse(
         {
           code: 'not_found',
-          message: 'Resource not found',
-          reason: 'ID does not exist',
           fix: 'Check the ID',
           link: 'https://docs.example.com',
+          message: 'Resource not found',
+          reason: 'ID does not exist',
         },
         makeRequest({ 'X-Error-Format': 'ansi' }),
       );
@@ -241,7 +241,7 @@ describe('errorResponse', () => {
     it('headers can be spread into Response constructor', () => {
       const error = new VercelError('fail', { code: 'err' });
       const { status, body, headers } = errorResponse(error);
-      const response = new Response(body, { status, headers });
+      const response = new Response(body, { headers, status });
       expect(response.status).toBe(500);
       expect(response.headers.get('Content-Type')).toBe('application/json');
     });

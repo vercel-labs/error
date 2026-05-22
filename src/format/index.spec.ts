@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { frame, hint, fix, link, formatAuto, detectFormat } from '.';
+import { detectFormat, fix, formatAuto, frame, hint, link } from '.';
 
 describe('format', () => {
   describe('fix', () => {
@@ -85,11 +85,11 @@ describe('format', () => {
   describe('formatAuto', () => {
     it('renders error with auto-detected format', () => {
       const result = formatAuto({
-        name: 'VercelError',
-        message: 'Pool exhausted',
-        reason: 'All connections in use.',
         fix: 'Add pgBouncer.',
         link: 'https://vercel.com/docs',
+        message: 'Pool exhausted',
+        name: 'VercelError',
+        reason: 'All connections in use.',
       });
       expect(result).toContain('error:');
       expect(result).toContain('VercelError');
@@ -99,8 +99,8 @@ describe('format', () => {
 
     it('renders header only when no context fields', () => {
       const result = formatAuto({
-        name: 'VercelError',
         message: 'simple',
+        name: 'VercelError',
       });
       expect(result).toContain('error:');
       expect(result).toContain('VercelError');
@@ -109,10 +109,10 @@ describe('format', () => {
 
     it('includes scope and code in qualifier', () => {
       const result = formatAuto({
-        name: 'VercelError',
-        message: 'fail',
-        scope: 'auth',
         code: 'rate_limited',
+        message: 'fail',
+        name: 'VercelError',
+        scope: 'auth',
       });
       expect(result).toContain('error:');
       expect(result).toContain('VercelError [auth:rate_limited]');
@@ -120,10 +120,10 @@ describe('format', () => {
 
     it('includes hint in output', () => {
       const result = formatAuto({
-        name: 'VercelError',
-        message: 'setTimeout not available',
-        hint: 'Use the sleep function from the workflow package',
         fix: 'Replace setTimeout with await sleep(ms)',
+        hint: 'Use the sleep function from the workflow package',
+        message: 'setTimeout not available',
+        name: 'VercelError',
       });
       expect(result).toContain('hint: Use the sleep function');
       expect(result).toContain('fix: Replace setTimeout');
@@ -133,8 +133,8 @@ describe('format', () => {
   describe('formatAuto — tree structure', () => {
     it('includes spacer line between header and sections', () => {
       const result = formatAuto({
-        name: 'VercelError',
         message: 'fail',
+        name: 'VercelError',
         reason: 'Something broke',
       });
       const lines = result.split('\n');
@@ -145,10 +145,10 @@ describe('format', () => {
 
     it('uses arrow connectors for actionable items', () => {
       const result = formatAuto({
-        name: 'VercelError',
-        message: 'fail',
         fix: 'Do this',
         link: 'https://example.com',
+        message: 'fail',
+        name: 'VercelError',
       });
       if (result.includes('▸')) {
         expect(result).toContain('▸');
@@ -157,10 +157,10 @@ describe('format', () => {
 
     it('uses plain connectors for reason (non-actionable)', () => {
       const result = formatAuto({
-        name: 'VercelError',
-        message: 'fail',
-        reason: 'Context info',
         fix: 'Do this',
+        message: 'fail',
+        name: 'VercelError',
+        reason: 'Context info',
       });
       expect(result).toContain('Context info');
       expect(result).toContain('fix: Do this');
@@ -168,10 +168,10 @@ describe('format', () => {
 
     it('omits colon after qualifier in header', () => {
       const result = formatAuto({
-        name: 'VercelError',
-        message: 'fail',
-        scope: 'db',
         code: 'timeout',
+        message: 'fail',
+        name: 'VercelError',
+        scope: 'db',
       });
       expect(result).toContain('VercelError [db:timeout]');
       expect(result).not.toContain('[db:timeout]:');
@@ -179,8 +179,8 @@ describe('format', () => {
 
     it('uses colon after name when no qualifier', () => {
       const result = formatAuto({
-        name: 'VercelError',
         message: 'fail',
+        name: 'VercelError',
       });
       expect(result).toContain('VercelError:');
     });

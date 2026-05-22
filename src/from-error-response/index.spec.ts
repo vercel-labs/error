@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import assert from 'node:assert/strict';
+
+import { describe, expect, it } from 'vitest';
 
 import { fromErrorResponse } from '.';
 import type { ErrorResponse } from '../types';
@@ -15,11 +17,11 @@ describe('fromErrorResponse', () => {
   const fullResponse: ErrorResponse = {
     error: {
       code: 'rate_limited',
+      fix: 'Wait and retry with exponential backoff',
+      hint: 'Your IP has exceeded the hourly limit',
+      link: 'https://docs.example.com/rate-limits',
       message: 'Too many requests',
       reason: 'Per-IP limit exceeded',
-      hint: 'Your IP has exceeded the hourly limit',
-      fix: 'Wait and retry with exponential backoff',
-      link: 'https://docs.example.com/rate-limits',
     },
   };
 
@@ -49,12 +51,12 @@ describe('fromErrorResponse', () => {
   it('accepts additional options', () => {
     const cause = new Error('upstream failed');
     const error = fromErrorResponse(fullResponse, {
-      statusCode: 429,
-      scope: 'upstream',
-      cause,
-      requestId: 'req-abc',
-      metadata: { upstream: 'api.vercel.com' },
       attributes: { 'http.status': 429 },
+      cause,
+      metadata: { upstream: 'api.vercel.com' },
+      requestId: 'req-abc',
+      scope: 'upstream',
+      statusCode: 429,
     });
     expect(error.statusCode).toBe(429);
     expect(error.scope).toBe('upstream');
@@ -77,18 +79,18 @@ describe('fromErrorResponse', () => {
 
     const original = new VercelError('Internal: pool exhausted', {
       code: 'pool_exhausted',
-      userMessage: 'Service unavailable',
-      reason: 'All connections in use',
       fix: 'Add pgBouncer',
       link: 'https://docs.example.com',
+      reason: 'All connections in use',
       statusCode: 503,
+      userMessage: 'Service unavailable',
     });
 
     const { body } = errorResponse(original);
     const parsed = parseErrorResponse(JSON.parse(body));
-    expect(parsed).toBeDefined();
+    assert(parsed, 'parseErrorResponse should return a value for a valid body');
 
-    const reconstructed = fromErrorResponse(parsed!, { statusCode: 503 });
+    const reconstructed = fromErrorResponse(parsed, { statusCode: 503 });
     expect(reconstructed.code).toBe('pool_exhausted');
     expect(reconstructed.message).toBe('Service unavailable');
     expect(reconstructed.userMessage).toBe('Service unavailable');

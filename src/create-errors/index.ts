@@ -1,7 +1,7 @@
 import type {
-  VercelErrorOptions,
   ErrorAttributes,
   ErrorMetadata,
+  VercelErrorOptions,
 } from '../types';
 import { VercelError } from '../vercel-error';
 
@@ -103,9 +103,9 @@ export function createErrors<
 
     const mergedOptions: VercelErrorOptions<TCode> = {
       ...itemOptions,
-      scope: options.scope,
       attributes: mergedAttributes,
       metadata: mergedMetadata,
+      scope: options.scope,
     };
 
     return new ErrorClass(message, mergedOptions);

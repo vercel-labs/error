@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { VercelError } from '.';
 import { VERCEL_ERROR_TAG } from '../constants';
@@ -17,17 +17,17 @@ describe('VercelError', () => {
     it('creates with all options', () => {
       const cause = new Error('root cause');
       const error = new VercelError('operation failed', {
+        attributes: { 'http.method': 'POST' },
+        cause,
         code: 'OP_FAILED',
-        scope: 'auth',
-        statusCode: 500,
-        reason: 'Token expired',
         fix: 'Refresh the token',
         link: 'https://docs.example.com/errors/op-failed',
-        userMessage: 'Please try again',
-        requestId: 'req-123',
-        cause,
         metadata: { userId: '456' },
-        attributes: { 'http.method': 'POST' },
+        reason: 'Token expired',
+        requestId: 'req-123',
+        scope: 'auth',
+        statusCode: 500,
+        userMessage: 'Please try again',
       });
 
       expect(error.code).toBe('OP_FAILED');
@@ -45,12 +45,12 @@ describe('VercelError', () => {
 
     it('ignores reserved properties from options', () => {
       const error = new VercelError('test', {
-        // @ts-expect-error -- testing runtime safety
-        stack: 'fake stack',
         // @ts-expect-error
         message: 'fake message',
         // @ts-expect-error
         name: 'FakeName',
+        // @ts-expect-error -- testing runtime safety
+        stack: 'fake stack',
       });
       expect(error.message).toBe('test');
       expect(error.name).toBe('VercelError');
@@ -116,9 +116,9 @@ describe('VercelError', () => {
     it('includes all enumerable properties', () => {
       const error = new VercelError('test', {
         code: 'TEST_CODE',
-        scope: 'test-scope',
-        reason: 'test reason',
         metadata: { key: 'value' },
+        reason: 'test reason',
+        scope: 'test-scope',
       });
       const json = error.toJSON();
       expect(json['code']).toBe('TEST_CODE');
@@ -184,8 +184,8 @@ describe('VercelError', () => {
 
     it('includes scope and code when both present', () => {
       const error = new VercelError('failed', {
-        scope: 'auth',
         code: 'rate_limited',
+        scope: 'auth',
       });
       expect(error.toString()).toContain('VercelError [auth:rate_limited]');
     });
@@ -202,10 +202,10 @@ describe('VercelError', () => {
 
     it('renders context fields', () => {
       const error = new VercelError('failed', {
-        reason: 'Too many requests',
-        hint: 'Try using exponential backoff',
         fix: 'Use exponential backoff',
+        hint: 'Try using exponential backoff',
         link: 'https://docs.example.com/rate-limits',
+        reason: 'Too many requests',
       });
       const str = error.toString();
       expect(str).toContain('Too many requests');

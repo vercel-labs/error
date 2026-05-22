@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { parseErrorResponse } from '.';
 
@@ -16,19 +16,19 @@ describe('parseErrorResponse', () => {
     const result = parseErrorResponse({
       error: {
         code: 'rate_limited',
-        message: 'Too many requests',
-        reason: 'Per-IP limit exceeded',
         fix: 'Wait and retry',
         link: 'https://docs.example.com',
+        message: 'Too many requests',
+        reason: 'Per-IP limit exceeded',
       },
     });
     expect(result).toEqual({
       error: {
         code: 'rate_limited',
-        message: 'Too many requests',
-        reason: 'Per-IP limit exceeded',
         fix: 'Wait and retry',
         link: 'https://docs.example.com',
+        message: 'Too many requests',
+        reason: 'Per-IP limit exceeded',
       },
     });
   });
@@ -37,10 +37,10 @@ describe('parseErrorResponse', () => {
     const result = parseErrorResponse({
       error: {
         code: 'test',
-        message: 'Error',
-        reason: 'Valid',
         fix: 123,
         link: '   ',
+        message: 'Error',
+        reason: 'Valid',
       },
     });
     expect(result).toEqual({
@@ -89,8 +89,8 @@ describe('parseErrorResponse', () => {
       error: {
         code: 'test',
         message: 'Error',
-        requestId: 'req_123',
         metadata: { key: 'value' },
+        requestId: 'req_123',
       },
     });
     expect(result).toEqual({

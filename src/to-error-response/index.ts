@@ -1,4 +1,4 @@
-import { frame, hint, fix, link } from '../format/index';
+import { fix, frame, hint, link } from '../format/index';
 import { isVercelError } from '../is-vercel-error';
 import type { ErrorResponse, HeadersLike } from '../types';
 import type { VercelError } from '../vercel-error';
@@ -73,16 +73,16 @@ export function errorResponse(
         ]);
 
     return {
-      status: data.status,
       body: text,
       headers: { ...TEXT_HEADERS },
+      status: data.status,
     };
   }
 
   return {
-    status: data.status,
     body: JSON.stringify({ error: data.error }),
     headers: { ...JSON_HEADERS },
+    status: data.status,
   };
 }
 
@@ -102,7 +102,6 @@ function extractResponseData(
 ): ExtractedData {
   if (isVercelError(error)) {
     return {
-      status: error.statusCode ?? 500,
       error: {
         message: error.userMessage ?? error.message,
         ...(error.code ? { code: error.code } : {}),
@@ -111,11 +110,11 @@ function extractResponseData(
         ...(error.fix ? { fix: error.fix } : {}),
         ...(error.link ? { link: error.link } : {}),
       },
+      status: error.statusCode ?? 500,
     };
   }
 
   return {
-    status: error.status ?? 500,
     error: {
       message: error.message,
       ...(error.code ? { code: error.code } : {}),
@@ -124,5 +123,6 @@ function extractResponseData(
       ...(error.fix ? { fix: error.fix } : {}),
       ...(error.link ? { link: error.link } : {}),
     },
+    status: error.status ?? 500,
   };
 }

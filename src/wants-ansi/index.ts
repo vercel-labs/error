@@ -16,18 +16,26 @@ import type { HeadersLike } from '../types';
 export function wantsAnsi(
   requestOrHeaders?: Request | HeadersLike | null,
 ): boolean {
-  if (!requestOrHeaders) return false;
+  if (!requestOrHeaders) {
+    return false;
+  }
 
   const headers = _getHeadersLike(requestOrHeaders);
 
   const errorFormat = headers.get('x-error-format');
-  if (errorFormat === 'ansi') return true;
+  if (errorFormat === 'ansi') {
+    return true;
+  }
 
   const accept = headers.get('accept');
-  if (accept?.includes('text/plain+ansi')) return true;
+  if (accept?.includes('text/plain+ansi')) {
+    return true;
+  }
 
   const userAgent = headers.get('user-agent');
-  if (userAgent?.includes('curl/')) return true;
+  if (userAgent?.includes('curl/')) {
+    return true;
+  }
 
   return false;
 }

@@ -13,14 +13,16 @@ export function frame(
   sections?: (string | undefined | null | false)[],
 ): string {
   const { tree, color } = detectFormat();
-  return renderFrame({ header, sections, tree, color });
+  return renderFrame({ color, header, sections, tree });
 }
 
 /**
  * Format a string as a hint. Nil-safe — returns `undefined` if falsy.
  */
 export function hint(text: string | undefined | null): string | undefined {
-  if (!text) return undefined;
+  if (!text) {
+    return undefined;
+  }
   return `hint: ${text}`;
 }
 
@@ -28,7 +30,9 @@ export function hint(text: string | undefined | null): string | undefined {
  * Format a string as a fix suggestion. Nil-safe — returns `undefined` if falsy.
  */
 export function fix(text: string | undefined | null): string | undefined {
-  if (!text) return undefined;
+  if (!text) {
+    return undefined;
+  }
   return `fix: ${text}`;
 }
 
@@ -36,7 +40,9 @@ export function fix(text: string | undefined | null): string | undefined {
  * Format a URL as a link. Nil-safe — returns `undefined` if falsy.
  */
 export function link(url: string | undefined | null): string | undefined {
-  if (!url) return undefined;
+  if (!url) {
+    return undefined;
+  }
   return `read more: ${url}`;
 }
 
@@ -60,21 +66,27 @@ export function link(url: string | undefined | null): string | undefined {
  */
 export function detectFormat(): { tree: boolean; color: boolean } {
   try {
-    if (typeof process === 'undefined') return { tree: false, color: false };
-    if (process.env?.['NO_COLOR'] !== undefined)
-      return { tree: true, color: false };
-    if (process.env?.['FORCE_COLOR'] !== undefined)
-      return { tree: true, color: true };
+    if (typeof process === 'undefined') {
+      return { color: false, tree: false };
+    }
+    if (process.env?.['NO_COLOR'] !== undefined) {
+      return { color: false, tree: true };
+    }
+    if (process.env?.['FORCE_COLOR'] !== undefined) {
+      return { color: true, tree: true };
+    }
     if (process.stdout && 'isTTY' in process.stdout && process.stdout.isTTY) {
-      return { tree: true, color: true };
+      return { color: true, tree: true };
     }
   } catch {
-    return { tree: false, color: false };
+    return { color: false, tree: false };
   }
 
-  if (typeof window !== 'undefined') return { tree: false, color: false };
+  if (typeof window !== 'undefined') {
+    return { color: false, tree: false };
+  }
 
-  return { tree: false, color: false };
+  return { color: false, tree: false };
 }
 
 /**
@@ -92,7 +104,7 @@ export function formatAuto(error: ErrorShape): string {
     link(error.link),
   ];
 
-  return renderFrame({ header, sections, tree, color });
+  return renderFrame({ color, header, sections, tree });
 }
 
 // ---------------------------------------------------------------------------
@@ -111,22 +123,22 @@ interface ErrorShape {
 }
 
 const ANSI = {
-  reset: '\x1b[0m',
-  red: '\x1b[31m',
-  yellow: '\x1b[33m',
-  green: '\x1b[32m',
   bold: '\x1b[1m',
-  resetBold: '\x1b[22m',
   dim: '\x1b[2m',
+  green: '\x1b[32m',
+  red: '\x1b[31m',
+  reset: '\x1b[0m',
+  resetBold: '\x1b[22m',
   underline: '\x1b[4m',
+  yellow: '\x1b[33m',
 } as const;
 
 const BOX = {
+  corner: '╰──',
+  cornerArrow: '╰─▸',
   pipe: '│',
   tee: '├──',
   teeArrow: '├─▸',
-  corner: '╰──',
-  cornerArrow: '╰─▸',
 } as const;
 
 const ACTIONABLE_PREFIXES = ['hint: ', 'fix: ', 'read more: '] as const;
@@ -144,7 +156,9 @@ function buildHeader(error: ErrorShape, color: boolean): string {
     ? `error: ${error.name} [${qualifier}] ${error.message}`
     : `error: ${error.name}: ${error.message}`;
 
-  if (!color) return plain;
+  if (!color) {
+    return plain;
+  }
 
   const label = `${ANSI.red}${ANSI.bold}error:${ANSI.resetBold}`;
   const name = `${ANSI.red}${error.name}`;
@@ -194,7 +208,9 @@ function renderFrame({
   color,
 }: RenderFrameOptions): string {
   const items = filterSections(sections);
-  if (!items) return header;
+  if (!items) {
+    return header;
+  }
 
   if (!tree) {
     return [header, ...items.map((item) => `  ${item}`)].join('\n');
@@ -204,8 +220,8 @@ function renderFrame({
   const spacer = color ? `${ANSI.dim}${BOX.pipe}${ANSI.reset}` : BOX.pipe;
   const lines = [header, spacer];
 
-  for (let i = 0; i < items.length; i++) {
-    const actionable = isActionable(items[i]!);
+  for (const [i, item] of items.entries()) {
+    const actionable = isActionable(item);
     const connector = isLast(i)
       ? actionable
         ? BOX.cornerArrow
@@ -213,7 +229,7 @@ function renderFrame({
       : actionable
         ? BOX.teeArrow
         : BOX.tee;
-    const content = color ? colorizeLine(items[i]!) : items[i]!;
+    const content = color ? colorizeLine(item) : item;
     const styledConnector = color
       ? `${ANSI.dim}${connector}${ANSI.reset}`
       : connector;

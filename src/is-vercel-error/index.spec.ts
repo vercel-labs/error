@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { isVercelError } from '.';
 import { VERCEL_ERROR_TAG } from '../constants';
@@ -29,8 +29,8 @@ describe('isVercelError', () => {
     const crossRealmError = Object.create(Error.prototype);
     crossRealmError.message = 'cross-realm';
     Object.defineProperty(crossRealmError, VERCEL_ERROR_TAG, {
-      value: true,
       enumerable: false,
+      value: true,
     });
     expect(isVercelError(crossRealmError)).toBe(true);
   });
@@ -38,8 +38,8 @@ describe('isVercelError', () => {
   it('rejects objects with tag set to non-true value', () => {
     const fake = Object.create(Error.prototype);
     Object.defineProperty(fake, VERCEL_ERROR_TAG, {
-      value: 'yes',
       enumerable: false,
+      value: 'yes',
     });
     expect(isVercelError(fake)).toBe(false);
   });
