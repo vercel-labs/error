@@ -24,13 +24,5 @@
   "sortPackageJson": false,
   "tabWidth": 2,
   "trailingComma": "all",
-  "useTabs": false,
-  "overrides": [
-    {
-      "files": ["**/*.json", "**/*.jsonc"],
-      "options": {
-        "trailingComma": "none"
-      }
-    }
-  ]
+  "useTabs": false
 }

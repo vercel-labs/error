@@ -1,0 +1,5 @@
+{
+  "editor.formatOnSave": true,
+  "oxc.path.oxfmt": ".oxfmtrc.json",
+  "oxc.path.oxlint": ".oxlintrx.json"
+}
