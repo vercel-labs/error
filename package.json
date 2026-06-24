@@ -4,7 +4,7 @@
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
   "author": "Vercel",
   "repository": {
-    "url": "git+https://github.com/vercel/error.git"
+    "url": "git+https://github.com/vercel-labs/error.git"
   },
   "publishConfig": {
     "access": "restricted"

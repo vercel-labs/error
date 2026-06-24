@@ -5,6 +5,9 @@
 /**
  * Render a Unicode tree frame with auto-detected formatting.
  *
+ * Terminal control sequences in `header` and `sections` are stripped
+ * (see {@link sanitize}).
+ *
  * @param header - The main error message line
  * @param sections - Detail lines (falsy values are filtered out)
  */
@@ -13,37 +16,48 @@ export function frame(
   sections?: (string | undefined | null | false)[],
 ): string {
   const { tree, color } = detectFormat();
-  return renderFrame({ color, header, sections, tree });
+  return renderFrame({
+    color,
+    header: sanitize(header),
+    sections: sections?.map((s) => (typeof s === 'string' ? sanitize(s) : s)),
+    tree,
+  });
 }
 
 /**
  * Format a string as a hint. Nil-safe — returns `undefined` if falsy.
+ *
+ * Terminal control sequences in `text` are stripped (see {@link sanitize}).
  */
 export function hint(text: string | undefined | null): string | undefined {
   if (!text) {
     return undefined;
   }
-  return `hint: ${text}`;
+  return `hint: ${sanitize(text)}`;
 }
 
 /**
  * Format a string as a fix suggestion. Nil-safe — returns `undefined` if falsy.
+ *
+ * Terminal control sequences in `text` are stripped (see {@link sanitize}).
  */
 export function fix(text: string | undefined | null): string | undefined {
   if (!text) {
     return undefined;
   }
-  return `fix: ${text}`;
+  return `fix: ${sanitize(text)}`;
 }
 
 /**
  * Format a URL as a link. Nil-safe — returns `undefined` if falsy.
+ *
+ * Terminal control sequences in `url` are stripped (see {@link sanitize}).
  */
 export function link(url: string | undefined | null): string | undefined {
   if (!url) {
     return undefined;
   }
-  return `read more: ${url}`;
+  return `read more: ${sanitize(url)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,12 +111,10 @@ export function formatAuto(error: ErrorShape): string {
   const { tree, color } = detectFormat();
   const header = buildHeader(error, color);
 
-  const sections = [
-    error.reason,
-    hint(error.hint),
-    fix(error.fix),
-    link(error.link),
-  ];
+  const reason =
+    error.reason !== undefined ? sanitize(error.reason) : undefined;
+
+  const sections = [reason, hint(error.hint), fix(error.fix), link(error.link)];
 
   return renderFrame({ color, header, sections, tree });
 }
@@ -120,6 +132,36 @@ interface ErrorShape {
   hint?: string;
   fix?: string;
   link?: string;
+}
+
+/**
+ * Matches complete ANSI escape sequences introduced by `ESC` (0x1b): CSI
+ * (`ESC [ … final`), OSC (`ESC ] … BEL/ST`, e.g. OSC 8 hyperlinks and OSC 52
+ * clipboard), and other two/three-byte escapes. Removing the whole sequence —
+ * not just the `ESC` byte — keeps the visible text clean.
+ */
+/* oxlint-disable no-control-regex -- intentional terminal control-char matching */
+const ANSI_ESCAPE =
+  /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][\s\S]*?(?:\x07|\x1b\\)|[@-Z\\-_])/g;
+
+/**
+ * Matches standalone terminal control characters left after ANSI sequences are
+ * removed: C0 controls (except `\t`, `\n`, `\r`), the C1 range, and `DEL`.
+ */
+const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g;
+/* oxlint-enable no-control-regex */
+
+/**
+ * Strip terminal control sequences from caller-controlled text before it is
+ * rendered to a terminal. Error fields can originate from an untrusted upstream
+ * (e.g. an HTTP error body parsed by `parseErrorResponse`); without this a
+ * malicious upstream could inject escape sequences that rewrite the screen,
+ * forge log lines, or abuse terminal features (OSC 8 links, OSC 52 clipboard).
+ * Full ANSI sequences are removed first, then any leftover control bytes.
+ * Preserves `\t`, `\n`, `\r`.
+ */
+function sanitize(text: string): string {
+  return text.replace(ANSI_ESCAPE, '').replace(CONTROL_CHARS, '');
 }
 
 const ANSI = {
@@ -151,21 +193,24 @@ const ACTIONABLE_PREFIXES = ['hint: ', 'fix: ', 'read more: '] as const;
  * ANSI:            `error:` red+bold, name red, `[qualifier]` red, message red+bold
  */
 function buildHeader(error: ErrorShape, color: boolean): string {
-  const qualifier = [error.scope, error.code].filter(Boolean).join(':');
+  const name = sanitize(error.name);
+  const message = sanitize(error.message);
+  const qualifier = [error.scope, error.code]
+    .filter((part): part is string => Boolean(part))
+    .map(sanitize)
+    .join(':');
   const plain = qualifier
-    ? `error: ${error.name} [${qualifier}] ${error.message}`
-    : `error: ${error.name}: ${error.message}`;
+    ? `error: ${name} [${qualifier}] ${message}`
+    : `error: ${name}: ${message}`;
 
   if (!color) {
     return plain;
   }
 
   const label = `${ANSI.red}${ANSI.bold}error:${ANSI.resetBold}`;
-  const name = `${ANSI.red}${error.name}`;
   const tag = qualifier ? ` [${qualifier}]` : ':';
-  const message = `${ANSI.bold}${error.message}${ANSI.reset}`;
 
-  return `${label} ${name}${tag} ${message}`;
+  return `${label} ${ANSI.red}${name}${tag} ${ANSI.bold}${message}${ANSI.reset}`;
 }
 
 function filterSections(
@@ -201,6 +246,12 @@ function isActionable(line: string): boolean {
   return ACTIONABLE_PREFIXES.some((prefix) => line.startsWith(prefix));
 }
 
+/**
+ * Render the final framed output. Inputs must already be {@link sanitize}d:
+ * this stage applies the library's own ANSI styling (`colorizeLine`,
+ * connectors), so it cannot strip control characters without destroying that
+ * styling. Callers (`frame`, `formatAuto`) own sanitization of untrusted text.
+ */
 function renderFrame({
   header,
   sections,
