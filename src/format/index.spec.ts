@@ -193,4 +193,63 @@ describe('format', () => {
       expect(typeof result.color).toBe('boolean');
     });
   });
+
+  describe('control-character sanitization', () => {
+    const ESC = '\x1b';
+
+    it('strips ANSI/CSI escape sequences from hint', () => {
+      const result = hint(`${ESC}[31mred${ESC}[0m`);
+      expect(result).toBe('hint: red');
+      expect(result).not.toContain(ESC);
+    });
+
+    it('strips escape sequences from fix', () => {
+      const result = fix(`do ${ESC}[2K this`);
+      expect(result).toBe('fix: do  this');
+      expect(result).not.toContain(ESC);
+    });
+
+    it('strips OSC 8 hyperlink sequences from link', () => {
+      const result = link(`${ESC}]8;;https://evil.example${ESC}\\text`);
+      expect(result).not.toContain(ESC);
+      expect(result).toContain('read more:');
+    });
+
+    it('strips OSC 52 clipboard sequences from frame header', () => {
+      const result = frame(`${ESC}]52;c;ZXZpbA==${ESC}\\title`);
+      expect(result).not.toContain(ESC);
+    });
+
+    it('strips control chars from frame sections', () => {
+      const result = frame('header', [`bad${ESC}[1mline`]);
+      expect(result).not.toContain(ESC);
+      expect(result).toContain('badline');
+    });
+
+    it('strips escape sequences from every formatAuto field', () => {
+      const result = formatAuto({
+        code: `code${ESC}[0m`,
+        fix: `fix${ESC}[0m`,
+        hint: `hint${ESC}[0m`,
+        link: `https://x${ESC}[0m`,
+        message: `msg${ESC}[31m`,
+        name: `Vercel${ESC}[1mError`,
+        reason: `reason${ESC}[2K`,
+        scope: `scope${ESC}]52;c;x${ESC}\\`,
+      });
+      expect(result).not.toContain(ESC);
+      expect(result).toContain('msg');
+      expect(result).toContain('reason');
+    });
+
+    it('strips DEL and C1 control characters', () => {
+      const result = hint('a\x7fb\x9bc');
+      expect(result).toBe('hint: abc');
+    });
+
+    it('preserves tab, newline, and carriage return', () => {
+      const result = hint('line1\tcol\nline2\r');
+      expect(result).toBe('hint: line1\tcol\nline2\r');
+    });
+  });
 });
