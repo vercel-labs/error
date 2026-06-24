@@ -4,8 +4,10 @@
 .cursor
 !.cursor/commands
 !.cursor/skills
+.deepsec
 .env
 .env*.local
+.logs
 .turbo
 .vercel
 node_modules/
