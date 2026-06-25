@@ -42,7 +42,7 @@ export interface StripLoaderOptions {
  * };
  * ```
  */
-function vercelErrorStripLoader(this: LoaderContext, source: string): void {
+function stripErrorsLoader(this: LoaderContext, source: string): void {
   const callback = this.async();
   const options = this.getOptions?.() ?? {};
   const active =
@@ -67,4 +67,4 @@ function vercelErrorStripLoader(this: LoaderContext, source: string): void {
   }
 }
 
-export default vercelErrorStripLoader;
+export default stripErrorsLoader;

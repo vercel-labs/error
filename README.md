@@ -436,10 +436,10 @@ Use the matching adapter from the shared plugin.
 
 ```ts
 // vite.config.ts
-import { vercelErrorStrip } from '@vercel/error/unplugin';
+import { stripErrors } from '@vercel/error/unplugin';
 
 export default defineConfig({
-  plugins: [vercelErrorStrip.vite()],
+  plugins: [stripErrors.vite()],
 });
 ```
 
@@ -450,11 +450,11 @@ The same instance exposes `.rollup()`, `.rolldown()`, `.webpack()`, `.esbuild()`
 For the webpack build, add the plugin in `next.config.js`:
 
 ```js
-const { vercelErrorStrip } = require('@vercel/error/unplugin');
+const { stripErrors } = require('@vercel/error/unplugin');
 
 module.exports = {
   webpack(config) {
-    config.plugins.push(vercelErrorStrip.webpack());
+    config.plugins.push(stripErrors.webpack());
     return config;
   },
 };

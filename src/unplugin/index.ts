@@ -5,7 +5,7 @@ import { transform } from './transform';
 /**
  * Options for the `@vercel/error` strip plugin.
  */
-export interface VercelErrorStripOptions {
+export interface StripErrorsOptions {
   /**
    * Force the transform on or off regardless of the detected build mode. When
    * omitted, the transform runs only for production builds (resolved from the
@@ -37,31 +37,30 @@ const DEFAULT_EXTENSIONS = /\.(?:[cm]?[jt]sx?)$/;
  * @example
  * ```ts
  * // vite.config.ts
- * import { vercelErrorStrip } from '@vercel/error/unplugin';
+ * import { stripErrors } from '@vercel/error/unplugin';
  *
  * export default defineConfig({
- *   plugins: [vercelErrorStrip.vite()],
+ *   plugins: [stripErrors.vite()],
  * });
  * ```
  */
-export const vercelErrorStrip: UnpluginInstance<
-  VercelErrorStripOptions | undefined
-> = createUnplugin((options?: VercelErrorStripOptions) => {
-  const active = options?.enabled ?? getNodeEnv() === 'production';
+export const stripErrors: UnpluginInstance<StripErrorsOptions | undefined> =
+  createUnplugin((options?: StripErrorsOptions) => {
+    const active = options?.enabled ?? getNodeEnv() === 'production';
 
-  return {
-    name: '@vercel/error/strip',
-    enforce: 'pre',
-    transformInclude(id) {
-      if (!DEFAULT_EXTENSIONS.test(id)) return false;
-      return options?.include ? options.include(id) : true;
-    },
-    transform(code, id) {
-      if (!active) return null;
-      return transform(code, id);
-    },
-  };
-});
+    return {
+      name: '@vercel/error/strip',
+      enforce: 'pre',
+      transformInclude(id) {
+        if (!DEFAULT_EXTENSIONS.test(id)) return false;
+        return options?.include ? options.include(id) : true;
+      },
+      transform(code, id) {
+        if (!active) return null;
+        return transform(code, id);
+      },
+    };
+  });
 
 function getNodeEnv(): string | undefined {
   return typeof process !== 'undefined' ? process.env?.['NODE_ENV'] : undefined;

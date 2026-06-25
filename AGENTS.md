@@ -30,14 +30,14 @@ src/<fn-name>/index.spec.ts  # Tests
 
 ### Entry Points
 
-| Export              | Source                   | Contents                                               |
-| ------------------- | ------------------------ | ------------------------------------------------------ |
-| `.`                 | `src/index.ts`           | VercelError, createErrors, guards, extractors, types   |
-| `./client`          | `src/client.ts`          | parseErrorResponse                                     |
-| `./server`          | `src/server.ts`          | toErrorResponse, wantsAnsi                             |
-| `./format`          | `src/format.ts`          | frame, fix, link, setDefaultFormatter                  |
-| `./unplugin`        | `src/unplugin/index.ts`  | `vercelErrorStrip` build plugin (prod prose stripping) |
-| `./unplugin/loader` | `src/unplugin/loader.ts` | webpack/Turbopack loader form of the strip transform   |
+| Export              | Source                   | Contents                                             |
+| ------------------- | ------------------------ | ---------------------------------------------------- |
+| `.`                 | `src/index.ts`           | VercelError, createErrors, guards, extractors, types |
+| `./client`          | `src/client.ts`          | parseErrorResponse                                   |
+| `./server`          | `src/server.ts`          | toErrorResponse, wantsAnsi                           |
+| `./format`          | `src/format.ts`          | frame, fix, link, setDefaultFormatter                |
+| `./unplugin`        | `src/unplugin/index.ts`  | `stripErrors` build plugin (prod prose stripping)    |
+| `./unplugin/loader` | `src/unplugin/loader.ts` | webpack/Turbopack loader form of the strip transform |
 
 ### Core Concepts
 
