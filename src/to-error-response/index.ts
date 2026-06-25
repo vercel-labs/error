@@ -8,18 +8,28 @@ import { wantsAnsi } from '../wants-ansi';
  * Plain error parameters for building a response without a VercelError instance.
  */
 export interface ErrorResponseParams {
+  /** HTTP status code for the response. Defaults to 500. */
   status?: number;
+  /** Stable, machine-readable identifier for this error. */
   code?: string;
+  /** Client-safe message describing what happened. */
   message: string;
+  /** Why the error happened, the root-cause explanation. */
   reason?: string;
+  /** Advisory tip that helps the developer, shown before `fix`. */
   hint?: string;
+  /** Actionable step that resolves the error. */
   fix?: string;
+  /** URL to documentation for this error. */
   link?: string;
 }
 
 export interface ErrorResponseResult {
+  /** HTTP status code to send. */
   status: number;
+  /** Serialized response body, either JSON or structured text. */
   body: string;
+  /** Content-Type and any other headers to spread into the response. */
   headers: Record<string, string>;
 }
 

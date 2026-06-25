@@ -48,17 +48,46 @@ export interface ErrorLike {
  * Configuration options for creating a VercelError instance.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
+  /** Flat OTel-compatible tags for traces, metrics, and error trackers. */
   attributes?: ErrorAttributes;
+
+  /** The underlying error or value that triggered this one, for chaining. */
   cause?: unknown;
+
+  /**
+   * Stable, machine-readable identifier for this error. Keep it constant even
+   * when you reword the message, so users can search it and docs can link to
+   * it. Pick whatever style fits your registry: semantic names
+   * (`pool_exhausted`), numeric codes (`E1001`), or namespaced numbers
+   * (`B2011`). Numbering is optional, so use words when you prefer them.
+   */
   code?: TCode;
+
+  /** Actionable step that resolves the error, such as a command or config change. */
   fix?: string;
+
+  /** Advisory tip that helps the developer, shown before `fix`. */
   hint?: string;
+
+  /** URL to documentation for this error. Derivable from `code` via `docsBaseUrl`. */
   link?: string;
+
+  /** Nested domain context for debugging and logging. Never sent to clients. */
   metadata?: ErrorMetadata;
+
+  /** Why the error happened, the root-cause explanation behind the message. */
   reason?: string;
+
+  /** Correlation ID for tracing this error across services. */
   requestId?: string;
+
+  /** Namespace that produced the error, such as a service or subsystem. */
   scope?: string;
+
+  /** HTTP status code for the response. Defaults to 500 on the wire. */
   statusCode?: number;
+
+  /** Client-safe message sent over the wire instead of the developer `message`. */
   userMessage?: string;
 
   /** Reserved. Automatically captured from Error */
