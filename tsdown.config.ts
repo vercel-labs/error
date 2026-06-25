@@ -10,6 +10,8 @@ export default defineConfig({
     format: 'src/format.ts',
     index: 'src/index.ts',
     server: 'src/server.ts',
+    unplugin: 'src/unplugin/index.ts',
+    'unplugin/loader': 'src/unplugin/loader.ts',
   },
   fixedExtension: false,
   format: ['esm'],

@@ -24,12 +24,13 @@ pnpm add @vercel/error
 
 ## Entry points
 
-| Import                 | Purpose                                                        |
-| ---------------------- | -------------------------------------------------------------- |
-| `@vercel/error`        | Core: `VercelError`, `createErrors`, guards, extractors, types |
-| `@vercel/error/server` | Server: `errorResponse`, `wantsAnsi`                           |
-| `@vercel/error/client` | Client: `parseErrorResponse`, `fromErrorResponse`              |
-| `@vercel/error/format` | Format primitives: `frame`, `hint`, `fix`, `link`              |
+| Import                   | Purpose                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| `@vercel/error`          | Core: `VercelError`, `createErrors`, guards, extractors, types |
+| `@vercel/error/server`   | Server: `errorResponse`, `wantsAnsi`                           |
+| `@vercel/error/client`   | Client: `parseErrorResponse`, `fromErrorResponse`              |
+| `@vercel/error/format`   | Format primitives: `frame`, `hint`, `fix`, `link`              |
+| `@vercel/error/unplugin` | Build plugin: strip error prose from production bundles        |
 
 ## Philosophy
 
@@ -422,3 +423,77 @@ error.name; // 'NetworkError' (stable across minification)
 error.retryable; // true
 error.toString(); // uses NetworkError in the header
 ```
+
+## Production stripping
+
+Error prose (`message`, `reason`, `hint`, `fix`, `userMessage`) is useful in development and on the server, but it adds weight to client bundles. The `@vercel/error/unplugin` build plugin removes that prose from production builds while keeping the structured fields (`code`, `scope`, `statusCode`, `link`). A stripped error still renders as `[scope:code]`, so it stays identifiable.
+
+The plugin rewrites `new VercelError(...)` and `createErrors` factory calls (`.create`, `.raise`, `.report`) whose bindings come from `@vercel/error`. It runs only when `process.env.NODE_ENV` is `production`, so development builds keep full messages. Install the build dependencies (`unplugin`, `oxc-parser`, `magic-string`) alongside the plugin.
+
+### Vite, Rollup, Rolldown, webpack, esbuild, Rspack
+
+Use the matching adapter from the shared plugin.
+
+```ts
+// vite.config.ts
+import { vercelErrorStrip } from '@vercel/error/unplugin';
+
+export default defineConfig({
+  plugins: [vercelErrorStrip.vite()],
+});
+```
+
+The same instance exposes `.rollup()`, `.rolldown()`, `.webpack()`, `.esbuild()`, and `.rspack()`.
+
+### Next.js
+
+For the webpack build, add the plugin in `next.config.js`:
+
+```js
+const { vercelErrorStrip } = require('@vercel/error/unplugin');
+
+module.exports = {
+  webpack(config) {
+    config.plugins.push(vercelErrorStrip.webpack());
+    return config;
+  },
+};
+```
+
+Turbopack does not support unplugin, but it runs webpack loaders. Use the loader form with a production condition:
+
+```js
+// next.config.js
+module.exports = {
+  turbopack: {
+    rules: {
+      '*.{ts,tsx,js,jsx}': {
+        condition: 'production',
+        loaders: ['@vercel/error/unplugin/loader'],
+      },
+    },
+  },
+};
+```
+
+### What survives
+
+```ts
+// Source
+throw new VercelError('Pool exhausted at 10.0.1.5', {
+  code: 'pool_exhausted',
+  scope: 'database',
+  statusCode: 503,
+  reason: 'All 20 connections are in use.',
+  fix: 'Increase max_connections.',
+});
+
+// Production bundle (prose removed, identity kept)
+throw new VercelError('', {
+  code: 'pool_exhausted',
+  scope: 'database',
+  statusCode: 503,
+});
+```
+
+Dynamic option objects (spreads or variables) are left untouched, so anything the plugin cannot statically verify keeps its original prose.

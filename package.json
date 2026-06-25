@@ -27,11 +27,30 @@
   "devDependencies": {
     "@types/node": "25.6.0",
     "lefthook": "2.1.5",
+    "magic-string": "^0.30.21",
+    "oxc-parser": "^0.137.0",
     "oxfmt": "0.44.0",
     "oxlint": "1.59.0",
     "tsdown": "0.21.7",
     "typescript": "6.0.2",
+    "unplugin": "^3.0.0",
     "vitest": "4.1.4"
+  },
+  "peerDependencies": {
+    "magic-string": "^0.30.0",
+    "oxc-parser": "^0.137.0",
+    "unplugin": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "magic-string": {
+      "optional": true
+    },
+    "oxc-parser": {
+      "optional": true
+    },
+    "unplugin": {
+      "optional": true
+    }
   },
   "files": [
     "dist",
@@ -54,6 +73,14 @@
     "./format": {
       "default": "./dist/format.js",
       "types": "./dist/format.d.ts"
+    },
+    "./unplugin": {
+      "default": "./dist/unplugin.js",
+      "types": "./dist/unplugin.d.ts"
+    },
+    "./unplugin/loader": {
+      "default": "./dist/unplugin/loader.js",
+      "types": "./dist/unplugin/loader.d.ts"
     }
   },
   "engines": {

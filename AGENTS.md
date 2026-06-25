@@ -30,12 +30,14 @@ src/<fn-name>/index.spec.ts  # Tests
 
 ### Entry Points
 
-| Export     | Source          | Contents                                             |
-| ---------- | --------------- | ---------------------------------------------------- |
-| `.`        | `src/index.ts`  | VercelError, createErrors, guards, extractors, types |
-| `./client` | `src/client.ts` | parseErrorResponse                                   |
-| `./server` | `src/server.ts` | toErrorResponse, wantsAnsi                           |
-| `./format` | `src/format.ts` | frame, fix, link, setDefaultFormatter                |
+| Export              | Source                   | Contents                                               |
+| ------------------- | ------------------------ | ------------------------------------------------------ |
+| `.`                 | `src/index.ts`           | VercelError, createErrors, guards, extractors, types   |
+| `./client`          | `src/client.ts`          | parseErrorResponse                                     |
+| `./server`          | `src/server.ts`          | toErrorResponse, wantsAnsi                             |
+| `./format`          | `src/format.ts`          | frame, fix, link, setDefaultFormatter                  |
+| `./unplugin`        | `src/unplugin/index.ts`  | `vercelErrorStrip` build plugin (prod prose stripping) |
+| `./unplugin/loader` | `src/unplugin/loader.ts` | webpack/Turbopack loader form of the strip transform   |
 
 ### Core Concepts
 
@@ -43,6 +45,7 @@ src/<fn-name>/index.spec.ts  # Tests
 - **ErrorResponse** — The canonical wire format: `{ error: { code, message, reason?, fix?, link? } }`. Used by all Vercel HTTP error responses.
 - **createErrors** — Factory for scoped error namespaces. Returns `{ create }` or `{ create, raise, report }` depending on whether `report` is provided.
 - **Cross-realm detection** — Uses `Symbol.for('__vercel_error')` instead of `instanceof` for reliable checks across bundle boundaries.
+- **Strip transform** — `@vercel/error/unplugin` removes prose (`message`, `reason`, `hint`, `fix`, `userMessage`) from `new VercelError()` and `createErrors` factory calls in production builds, keeping `code`/`scope`/`statusCode`/`link`. Build deps (`unplugin`, `oxc-parser`, `magic-string`) are **optional peerDependencies**, so the core install stays zero-dep. Never import them from core entry points.
 
 ## Key Design Rules
 
