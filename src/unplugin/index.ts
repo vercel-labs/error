@@ -8,8 +8,8 @@ import { transform } from './transform';
 export interface StripErrorsOptions {
   /**
    * Force the transform on or off regardless of the detected build mode. When
-   * omitted, the transform runs only for production builds (resolved from the
-   * bundler's mode or `process.env.NODE_ENV`).
+   * omitted, the transform runs only when `process.env.NODE_ENV` is
+   * `production`.
    */
   enabled?: boolean;
 
@@ -18,9 +18,22 @@ export interface StripErrorsOptions {
    * Applied on top of the built-in extension filter.
    */
   include?: (id: string) => boolean;
+
+  /**
+   * Transform files inside `node_modules`. Defaults to `false`, since apps
+   * usually strip their own source rather than prebuilt dependencies.
+   */
+  includeNodeModules?: boolean;
+
+  /**
+   * Log a one-line summary of how many call sites were stripped, per module.
+   * Useful for confirming the plugin is active. Defaults to `false`.
+   */
+  verbose?: boolean;
 }
 
 const DEFAULT_EXTENSIONS = /\.(?:[cm]?[jt]sx?)$/;
+const NODE_MODULES = /[/\\]node_modules[/\\]/;
 
 /**
  * Build-time plugin that strips human-readable error prose from
@@ -53,11 +66,19 @@ export const stripErrors: UnpluginInstance<StripErrorsOptions | undefined> =
       enforce: 'pre',
       transformInclude(id) {
         if (!DEFAULT_EXTENSIONS.test(id)) return false;
+        if (!options?.includeNodeModules && NODE_MODULES.test(id)) return false;
         return options?.include ? options.include(id) : true;
       },
       transform(code, id) {
         if (!active) return null;
-        return transform(code, id);
+        const result = transform(code, id);
+        if (result && options?.verbose) {
+          // eslint-disable-next-line no-console -- opt-in build diagnostics
+          console.info(
+            `[@vercel/error/strip] stripped ${result.count} call site(s) in ${id}`,
+          );
+        }
+        return result;
       },
     };
   });

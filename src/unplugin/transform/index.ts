@@ -21,12 +21,14 @@ const PROSE_PROPS = new Set(['reason', 'hint', 'fix', 'userMessage']);
 const FACTORY_METHODS = new Set(['create', 'raise', 'report']);
 
 /**
- * Result of {@link transform}: the rewritten code and a source map, or `null`
- * when nothing was changed.
+ * Result of {@link transform}: the rewritten code, a source map, and the
+ * number of call sites that were stripped. `null` when nothing changed.
  */
 export interface TransformResult {
   code: string;
   map: ReturnType<MagicString['generateMap']>;
+  /** Count of `new VercelError`/factory call sites rewritten in this module. */
+  count: number;
 }
 
 /**
@@ -51,21 +53,23 @@ export function transform(code: string, id: string): TransformResult | null {
   if (!bindings.errorClasses.size && !bindings.factories.size) return null;
 
   const magic = new MagicString(code);
-  let changed = false;
+  let count = 0;
 
   walk(program, (node) => {
-    if (isStrippableNew(node, bindings.errorClasses)) {
-      changed = stripCall(magic, node) || changed;
-    } else if (isStrippableFactoryCall(node, bindings.factories)) {
-      changed = stripCall(magic, node) || changed;
+    if (
+      isStrippableNew(node, bindings.errorClasses) ||
+      isStrippableFactoryCall(node, bindings.factories)
+    ) {
+      if (stripCall(magic, code, node)) count++;
     }
   });
 
-  if (!changed) return null;
+  if (count === 0) return null;
 
   return {
     code: magic.toString(),
     map: magic.generateMap({ source: id, hires: true }),
+    count,
   };
 }
 
@@ -149,9 +153,11 @@ function isStrippableFactoryCall(
 
 /**
  * Blank the message argument and remove prose properties from the options
- * object of a call. Returns whether any edit was made.
+ * object of a call. The call is assumed to follow the `(message, options)`
+ * shape shared by `new VercelError()` and the `createErrors` factory methods.
+ * Returns whether any edit was made.
  */
-function stripCall(magic: MagicString, node: AnyNode): boolean {
+function stripCall(magic: MagicString, code: string, node: AnyNode): boolean {
   const args = node.arguments ?? [];
   if (args.length === 0) return false;
 
@@ -165,7 +171,7 @@ function stripCall(magic: MagicString, node: AnyNode): boolean {
 
   const options = args[1];
   if (options?.type === 'ObjectExpression') {
-    changed = stripProseProps(magic, options) || changed;
+    changed = stripProseProps(magic, code, options) || changed;
   }
 
   return changed;
@@ -174,17 +180,20 @@ function stripCall(magic: MagicString, node: AnyNode): boolean {
 /**
  * Remove prose properties from an options object literal. Skips objects that
  * contain spreads, since their final shape is not statically known. Each
- * removed property also consumes one adjacent comma so the object stays valid.
+ * removed property also consumes its trailing comma (or the preceding comma
+ * when it is the last property) so the object stays valid.
  */
-function stripProseProps(magic: MagicString, object: AnyNode): boolean {
+function stripProseProps(
+  magic: MagicString,
+  code: string,
+  object: AnyNode,
+): boolean {
   const props = (object.properties ?? []) as AnyNode[];
   if (props.some((p) => p.type === 'SpreadElement')) return false;
 
   let changed = false;
-  for (let i = 0; i < props.length; i++) {
-    const prop = props[i];
+  for (const prop of props) {
     if (
-      !prop ||
       prop.type !== 'Property' ||
       prop.key?.type !== 'Identifier' ||
       !PROSE_PROPS.has(prop.key.name)
@@ -192,19 +201,44 @@ function stripProseProps(magic: MagicString, object: AnyNode): boolean {
       continue;
     }
 
-    const next = props[i + 1];
-    const prev = props[i - 1];
-    const start = next
-      ? prop.start // not last: drop the trailing comma by ending at next prop
-      : prev
-        ? prev.end // last with a sibling: drop the preceding comma
-        : prop.start; // sole property: remove just the property
-    const end = next ? next.start : prop.end;
-
-    magic.remove(start, end);
+    const trailingComma = nextCommaIndex(code, prop.end, object.end);
+    if (trailingComma !== -1) {
+      // Remove the property and its trailing comma.
+      magic.remove(prop.start, trailingComma + 1);
+    } else {
+      // Last property: remove it and any preceding comma.
+      magic.remove(prevCommaIndex(code, prop.start, object.start), prop.end);
+    }
     changed = true;
   }
   return changed;
+}
+
+/**
+ * Index of the first comma between `from` and `limit`, skipping whitespace.
+ * Returns -1 when the next non-whitespace character is not a comma (the
+ * property is the last in the object).
+ */
+function nextCommaIndex(code: string, from: number, limit: number): number {
+  for (let i = from; i < limit; i++) {
+    const ch = code[i];
+    if (ch === ',') return i;
+    if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r') return -1;
+  }
+  return -1;
+}
+
+/**
+ * Index of the comma immediately before `from`, scanning back over whitespace.
+ * Falls back to `from` when none is found (the property is the only one).
+ */
+function prevCommaIndex(code: string, from: number, limit: number): number {
+  for (let i = from - 1; i >= limit; i--) {
+    const ch = code[i];
+    if (ch === ',') return i;
+    if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r') break;
+  }
+  return from;
 }
 
 function isStringLiteralLike(node: AnyNode | undefined): boolean {

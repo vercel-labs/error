@@ -19,6 +19,12 @@ export interface StripLoaderOptions {
    * `process.env.NODE_ENV === 'production'`.
    */
   enabled?: boolean;
+
+  /**
+   * Log a one-line summary of how many call sites were stripped, per module.
+   * Useful for confirming the loader is active. Defaults to `false`.
+   */
+  verbose?: boolean;
 }
 
 /**
@@ -58,6 +64,12 @@ function stripErrorsLoader(this: LoaderContext, source: string): void {
   try {
     const result = transform(source, this.resourcePath);
     if (result) {
+      if (options.verbose) {
+        // eslint-disable-next-line no-console -- opt-in build diagnostics
+        console.info(
+          `[@vercel/error/strip] stripped ${result.count} call site(s) in ${this.resourcePath}`,
+        );
+      }
       callback(null, result.code, result.map as object);
     } else {
       callback(null, source);

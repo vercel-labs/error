@@ -82,6 +82,31 @@ describe('transform: new VercelError', () => {
     expect(out).not.toMatch(/reason|hint|fix/);
     expect(out).not.toContain(',,');
   });
+
+  it('produces valid JS for adjacent prose props', () => {
+    const out = expectValid(
+      run(
+        `import { VercelError } from '@vercel/error';\n` +
+          // adjacent prose, last is prose
+          `new VercelError('a', { code: 'x', reason: 'r', hint: 'h' });\n` +
+          // all prose then structured
+          `new VercelError('b', { reason: 'r', hint: 'h', fix: 'f', code: 'x' });`,
+      ),
+    );
+    expect(out).not.toMatch(/reason|hint|fix/);
+    expect(out).toMatch(/code: 'x'/);
+  });
+
+  it('handles a trailing comma after the last prose prop', () => {
+    const out = expectValid(
+      run(
+        `import { VercelError } from '@vercel/error';\n` +
+          `new VercelError('a', { code: 'x', reason: 'r', });`,
+      ),
+    );
+    expect(out).not.toContain('reason');
+    expect(out).toContain("code: 'x'");
+  });
 });
 
 describe('transform: createErrors factory', () => {
@@ -147,5 +172,18 @@ describe('transform: safety', () => {
           `other.raise('keep me');`,
       ),
     ).toBeNull();
+  });
+});
+
+describe('transform: count', () => {
+  it('reports the number of stripped call sites', () => {
+    const result = transform(
+      `import { VercelError, createErrors } from '@vercel/error';\n` +
+        `const errors = createErrors({ scope: 'db' });\n` +
+        `new VercelError('a', { code: 'x' });\n` +
+        `errors.raise('b', { code: 'y' });`,
+      'test.ts',
+    );
+    expect(result?.count).toBe(2);
   });
 });

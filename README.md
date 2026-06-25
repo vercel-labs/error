@@ -428,7 +428,11 @@ error.toString(); // uses NetworkError in the header
 
 Error prose (`message`, `reason`, `hint`, `fix`, `userMessage`) is useful in development and on the server, but it adds weight to client bundles. The `@vercel/error/unplugin` build plugin removes that prose from production builds while keeping the structured fields (`code`, `scope`, `statusCode`, `link`). A stripped error still renders as `[scope:code]`, so it stays identifiable.
 
-The plugin rewrites `new VercelError(...)` and `createErrors` factory calls (`.create`, `.raise`, `.report`) whose bindings come from `@vercel/error`. It runs only when `process.env.NODE_ENV` is `production`, so development builds keep full messages. Install the build dependencies (`unplugin`, `oxc-parser`, `magic-string`) alongside the plugin.
+The plugin rewrites `new VercelError(...)` and `createErrors` factory calls (`.create`, `.raise`, `.report`) whose bindings come from `@vercel/error`. Install the build dependencies (`unplugin`, `oxc-parser`, `magic-string`) alongside the plugin.
+
+Stripping runs only when `process.env.NODE_ENV` is `production`, so development builds keep full messages. Bundlers such as Vite and Next.js set that during a production build. Standalone tools (for example tsdown) may not, so set the env or force it with `enabled: true`.
+
+Strip in the build where the code reaches users. For a frontend app or browser library, strip the app or library build. For a server or agentic library, prefer to keep prose and let the consuming app strip at its own build time, since stripping a published library bakes empty messages into the artifact for every consumer.
 
 ### Vite, Rollup, Rolldown, webpack, esbuild, Rspack
 
@@ -445,6 +449,21 @@ export default defineConfig({
 
 The same instance exposes `.rollup()`, `.rolldown()`, `.webpack()`, `.esbuild()`, and `.rspack()`.
 
+### tsdown
+
+tsdown runs on Rolldown, so use the `.rolldown()` adapter. tsdown does not set `NODE_ENV`, so force the transform on for the published build:
+
+```ts
+// tsdown.config.ts
+import { defineConfig } from 'tsdown';
+import { stripErrors } from '@vercel/error/unplugin';
+
+export default defineConfig({
+  entry: { index: 'src/index.ts' },
+  plugins: [stripErrors.rolldown({ enabled: true })],
+});
+```
+
 ### Next.js
 
 For the webpack build, add the plugin in `next.config.js`:
@@ -460,7 +479,7 @@ module.exports = {
 };
 ```
 
-Turbopack does not support unplugin, but it runs webpack loaders. Use the loader form with a production condition:
+Turbopack does not support unplugin, but it runs webpack loaders. Use the loader form, which self-gates on `process.env.NODE_ENV`:
 
 ```js
 // next.config.js
@@ -468,13 +487,14 @@ module.exports = {
   turbopack: {
     rules: {
       '*.{ts,tsx,js,jsx}': {
-        condition: 'production',
         loaders: ['@vercel/error/unplugin/loader'],
       },
     },
   },
 };
 ```
+
+The `condition` rule key (for example `condition: 'production'`) narrows a rule to production builds. It requires Next.js 16 or later; on earlier versions, omit it and rely on the loader's own `NODE_ENV` gate.
 
 ### What survives
 
@@ -496,4 +516,26 @@ throw new VercelError('', {
 });
 ```
 
-Dynamic option objects (spreads or variables) are left untouched, so anything the plugin cannot statically verify keeps its original prose.
+`metadata` and `attributes` are preserved, since they usually hold runtime values rather than static prose.
+
+### Limitations
+
+The plugin only rewrites what it can verify statically. It leaves the following intact:
+
+- **Factory bindings from another module.** A factory used in the same file it was created in is stripped. A factory imported from a shared module is not, because its origin cannot be confirmed locally:
+
+  ```ts
+  // errors.ts
+  export const dbErrors = createErrors({ scope: 'db' });
+
+  // usage.ts — not stripped (imported binding)
+  import { dbErrors } from './errors';
+  dbErrors.raise('boom', { reason: 'r' });
+  ```
+
+  To strip these, create and use the factory in the same module, or call `new VercelError(...)` directly.
+
+- **Dynamic option objects.** Spreads (`{ ...base }`) and non-literal option objects are left untouched.
+- **Non-literal messages.** A message passed as a variable or interpolation keeps its value.
+
+In every case the structured fields still work, so a non-stripped call site is correct, just larger.
