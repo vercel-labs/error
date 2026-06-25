@@ -130,7 +130,7 @@ describe('format', () => {
     });
   });
 
-  describe('formatAuto — tree structure', () => {
+  describe('formatAuto: tree structure', () => {
     it('includes spacer line between header and sections', () => {
       const result = formatAuto({
         message: 'fail',
@@ -183,6 +183,53 @@ describe('format', () => {
         name: 'VercelError',
       });
       expect(result).toContain('VercelError:');
+    });
+  });
+
+  describe('formatAuto: stripped message fallback', () => {
+    it('renders the qualifier as the header when message is empty', () => {
+      const result = formatAuto({
+        code: 'pool_exhausted',
+        message: '',
+        name: 'VercelError',
+        scope: 'database',
+      });
+      expect(result).toContain('VercelError [database:pool_exhausted]');
+      expect(result).not.toContain('[database:pool_exhausted] ');
+    });
+
+    it('renders code-only qualifier when message and scope are empty', () => {
+      const result = formatAuto({
+        code: 'timeout',
+        message: '',
+        name: 'VercelError',
+      });
+      expect(result).toContain('VercelError [timeout]');
+    });
+
+    it('renders just the name when message and qualifier are empty', () => {
+      const result = formatAuto({
+        message: '',
+        name: 'VercelError',
+      });
+      const firstLine = result.split('\n')[0];
+      expect(firstLine).toContain('VercelError');
+      expect(firstLine).not.toContain('VercelError:');
+      expect(firstLine).not.toContain('[');
+    });
+
+    it('keeps a surviving link section alongside a stripped message', () => {
+      const result = formatAuto({
+        code: 'pool_exhausted',
+        link: 'https://vercel.com/docs/errors/database/pool_exhausted',
+        message: '',
+        name: 'VercelError',
+        scope: 'database',
+      });
+      expect(result).toContain('VercelError [database:pool_exhausted]');
+      expect(result).toContain(
+        'read more: https://vercel.com/docs/errors/database/pool_exhausted',
+      );
     });
   });
 

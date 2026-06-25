@@ -1,5 +1,15 @@
 # @vercel/error
 
+## 0.0.2
+
+### Patch Changes
+
+- `createErrors`: `scope` is now optional.
+- `createErrors`: add `docsBaseUrl` to derive `link` from `code`.
+- Render stripped errors by their `[scope:code]` identifier.
+- Annotate every error option and document `code` styles.
+- Publish publicly on npm.
+
 ## 0.0.1
 
 ### Patch Changes

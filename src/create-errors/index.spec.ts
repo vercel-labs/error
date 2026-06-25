@@ -11,6 +11,25 @@ describe('createErrors', () => {
     expect(errors.report).toBeTypeOf('function');
   });
 
+  describe('optional scope', () => {
+    it('works with no options at all', () => {
+      const errors = createErrors();
+      const error = errors.create('failed');
+      expect(error).toBeInstanceOf(VercelError);
+      expect(error.scope).toBeUndefined();
+      expect(error.message).toBe('failed');
+    });
+
+    it('works when options are provided without a scope', () => {
+      const report = vi.fn();
+      const errors = createErrors({ report });
+      const error = errors.report('boom', { code: 'oops' });
+      expect(error.scope).toBeUndefined();
+      expect(error.code).toBe('oops');
+      expect(report).toHaveBeenCalledWith(error);
+    });
+  });
+
   describe('create', () => {
     it('creates a VercelError with scope applied', () => {
       const errors = createErrors({ scope: 'auth' });
@@ -189,6 +208,66 @@ describe('createErrors', () => {
       const error = errors.create('test');
       expect(error).toBeInstanceOf(VercelError);
       expect(error.constructor).toBe(VercelError);
+    });
+  });
+
+  describe('docsBaseUrl', () => {
+    it('derives link from a string base and the code', () => {
+      const errors = createErrors({
+        docsBaseUrl: 'https://vercel.com/docs/errors/db',
+        scope: 'db',
+      });
+      const error = errors.create('fail', { code: 'pool_exhausted' });
+      expect(error.link).toBe(
+        'https://vercel.com/docs/errors/db/pool_exhausted',
+      );
+    });
+
+    it('appends the code verbatim without changing its case', () => {
+      const errors = createErrors({ docsBaseUrl: 'https://e.dev' });
+      const error = errors.create('fail', { code: 'E1001' });
+      expect(error.link).toBe('https://e.dev/E1001');
+    });
+
+    it('trims trailing slashes from a string base', () => {
+      const errors = createErrors({ docsBaseUrl: 'https://e.dev/errors//' });
+      const error = errors.create('fail', { code: 'timeout' });
+      expect(error.link).toBe('https://e.dev/errors/timeout');
+    });
+
+    it('derives link from a function base', () => {
+      const errors = createErrors({
+        docsBaseUrl: (code) => `https://e.dev/${code}?ref=docs`,
+      });
+      const error = errors.create('fail', { code: 'timeout' });
+      expect(error.link).toBe('https://e.dev/timeout?ref=docs');
+    });
+
+    it('skips derivation when there is no code', () => {
+      const errors = createErrors({ docsBaseUrl: 'https://e.dev' });
+      const error = errors.create('fail');
+      expect(error.link).toBeUndefined();
+    });
+
+    it('lets an explicit per-error link win over docsBaseUrl', () => {
+      const errors = createErrors({ docsBaseUrl: 'https://e.dev' });
+      const error = errors.create('fail', {
+        code: 'timeout',
+        link: 'https://custom.example/timeout',
+      });
+      expect(error.link).toBe('https://custom.example/timeout');
+    });
+
+    it('skips derivation when the function base returns undefined', () => {
+      const errors = createErrors({ docsBaseUrl: () => undefined });
+      const error = errors.create('fail', { code: 'timeout' });
+      expect(error.link).toBeUndefined();
+    });
+
+    it('does not set a link when docsBaseUrl is not provided', () => {
+      const errors = createErrors({ scope: 'db' });
+      const error = errors.create('fail', { code: 'timeout' });
+      expect(error.link).toBeUndefined();
     });
   });
 });

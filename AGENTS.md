@@ -51,3 +51,7 @@ src/<fn-name>/index.spec.ts  # Tests
 3. **Framework-agnostic**: should work with any HTTP framework
 4. **No external runtime dependencies**. Do not install any third party runtime dependencies in this package
 5. **Avoid circular dependencies**: Never introduce circular dependencies
+
+## Changelog
+
+When asked to update the changelog, keep each entry to a single concise line. State what changed, not how. Group entries under the target version heading with a `### Patch Changes` (or `Minor`/`Major`) subheading.

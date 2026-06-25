@@ -4,7 +4,7 @@ import { VercelError } from '../vercel-error';
 /**
  * Additional options when reconstructing a VercelError from an ErrorResponse.
  * Fields already provided by the ErrorResponse (`code`, `reason`, `hint`,
- * `fix`, `link`, `userMessage`) are excluded — the wire values always win.
+ * `fix`, `link`, `userMessage`) are excluded, so the wire values always win.
  */
 export type FromErrorResponseOptions = Omit<
   VercelErrorOptions,

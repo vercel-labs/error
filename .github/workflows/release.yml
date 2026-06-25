@@ -84,6 +84,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # prepublishOnly runs the build; npm publish uses OIDC Trusted Publishing.
+      # prepublishOnly runs the build; npm publish uses OIDC Trusted Publishing
+      # (needs npm >= 11.5.1, already bundled with the pinned Node 24).
       - name: Publish to npm
         run: npm publish

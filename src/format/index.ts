@@ -25,7 +25,7 @@ export function frame(
 }
 
 /**
- * Format a string as a hint. Nil-safe — returns `undefined` if falsy.
+ * Format a string as a hint. Nil-safe. Returns `undefined` if falsy.
  *
  * Terminal control sequences in `text` are stripped (see {@link sanitize}).
  */
@@ -37,7 +37,7 @@ export function hint(text: string | undefined | null): string | undefined {
 }
 
 /**
- * Format a string as a fix suggestion. Nil-safe — returns `undefined` if falsy.
+ * Format a string as a fix suggestion. Nil-safe. Returns `undefined` if falsy.
  *
  * Terminal control sequences in `text` are stripped (see {@link sanitize}).
  */
@@ -49,7 +49,7 @@ export function fix(text: string | undefined | null): string | undefined {
 }
 
 /**
- * Format a URL as a link. Nil-safe — returns `undefined` if falsy.
+ * Format a URL as a link. Nil-safe. Returns `undefined` if falsy.
  *
  * Terminal control sequences in `url` are stripped (see {@link sanitize}).
  */
@@ -137,8 +137,8 @@ interface ErrorShape {
 /**
  * Matches complete ANSI escape sequences introduced by `ESC` (0x1b): CSI
  * (`ESC [ … final`), OSC (`ESC ] … BEL/ST`, e.g. OSC 8 hyperlinks and OSC 52
- * clipboard), and other two/three-byte escapes. Removing the whole sequence —
- * not just the `ESC` byte — keeps the visible text clean.
+ * clipboard), and other two/three-byte escapes. Removing the whole sequence,
+ * rather than only the `ESC` byte, keeps the visible text clean.
  */
 /* oxlint-disable no-control-regex -- intentional terminal control-char matching */
 const ANSI_ESCAPE =
@@ -188,29 +188,56 @@ const ACTIONABLE_PREFIXES = ['hint: ', 'fix: ', 'read more: '] as const;
 /**
  * Build the error header line.
  *
- * With qualifier:  `error: VercelError [scope:code] message`
- * Without:         `error: VercelError: message`
- * ANSI:            `error:` red+bold, name red, `[qualifier]` red, message red+bold
+ * With qualifier:    `error: VercelError [scope:code] message`
+ * Without:           `error: VercelError: message`
+ * Stripped message:  `error: VercelError [scope:code]` (qualifier only)
+ * No message at all:  `error: VercelError`
+ * ANSI:              `error:` red+bold, name red, `[qualifier]` red, message red+bold
+ *
+ * When `message` is empty, such as after production stripping, the qualifier
+ * stands in for it so the error still identifies itself by `scope` and `code`.
  */
 function buildHeader(error: ErrorShape, color: boolean): string {
-  const name = sanitize(error.name);
-  const message = sanitize(error.message);
-  const qualifier = [error.scope, error.code]
-    .filter((part): part is string => Boolean(part))
-    .map(sanitize)
-    .join(':');
-  const plain = qualifier
-    ? `error: ${name} [${qualifier}] ${message}`
-    : `error: ${name}: ${message}`;
+  const parts: HeaderParts = {
+    name: sanitize(error.name),
+    message: sanitize(error.message),
+    qualifier: [error.scope, error.code]
+      .filter((part): part is string => Boolean(part))
+      .map(sanitize)
+      .join(':'),
+  };
 
-  if (!color) {
-    return plain;
+  return color ? buildColorHeader(parts) : buildPlainHeader(parts);
+}
+
+interface HeaderParts {
+  name: string;
+  qualifier: string;
+  message: string;
+}
+
+function buildPlainHeader({ name, qualifier, message }: HeaderParts): string {
+  if (qualifier) {
+    return message
+      ? `error: ${name} [${qualifier}] ${message}`
+      : `error: ${name} [${qualifier}]`;
+  }
+  return message ? `error: ${name}: ${message}` : `error: ${name}`;
+}
+
+function buildColorHeader({ name, qualifier, message }: HeaderParts): string {
+  const label = `${ANSI.red}${ANSI.bold}error:${ANSI.resetBold}`;
+
+  if (qualifier) {
+    const head = `${label} ${ANSI.red}${name} [${qualifier}]`;
+    return message
+      ? `${head} ${ANSI.bold}${message}${ANSI.reset}`
+      : `${head}${ANSI.reset}`;
   }
 
-  const label = `${ANSI.red}${ANSI.bold}error:${ANSI.resetBold}`;
-  const tag = qualifier ? ` [${qualifier}]` : ':';
-
-  return `${label} ${ANSI.red}${name}${tag} ${ANSI.bold}${message}${ANSI.reset}`;
+  return message
+    ? `${label} ${ANSI.red}${name}: ${ANSI.bold}${message}${ANSI.reset}`
+    : `${label} ${ANSI.red}${name}${ANSI.reset}`;
 }
 
 function filterSections(
