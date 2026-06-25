@@ -223,10 +223,10 @@ describe('createErrors', () => {
       );
     });
 
-    it('lowercases the code in the derived link', () => {
+    it('appends the code verbatim without changing its case', () => {
       const errors = createErrors({ docsBaseUrl: 'https://e.dev' });
-      const error = errors.create('fail', { code: 'Pool_Exhausted' });
-      expect(error.link).toBe('https://e.dev/pool_exhausted');
+      const error = errors.create('fail', { code: 'E1001' });
+      expect(error.link).toBe('https://e.dev/E1001');
     });
 
     it('trims trailing slashes from a string base', () => {

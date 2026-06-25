@@ -1,13 +1,13 @@
 {
   "name": "@vercel/error",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
   "author": "Vercel",
   "repository": {
     "url": "git+https://github.com/vercel-labs/error.git"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "type": "module",
   "sideEffects": false,

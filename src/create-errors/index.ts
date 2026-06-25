@@ -7,7 +7,7 @@ import { VercelError } from '../vercel-error';
 
 /**
  * Resolve a documentation URL for a code from a base URL.
- * A string base appends the lowercased code as a path segment. A function
+ * A string base appends the code verbatim as a path segment. A function
  * base is called with the code. Returns `undefined` when no URL applies.
  */
 function resolveDocsUrl<TCode extends string>(
@@ -16,7 +16,7 @@ function resolveDocsUrl<TCode extends string>(
 ): string | undefined {
   if (!docsBaseUrl) return undefined;
   if (typeof docsBaseUrl === 'function') return docsBaseUrl(code);
-  return `${docsBaseUrl.replace(/\/+$/, '')}/${code.toLowerCase()}`;
+  return `${docsBaseUrl.replace(/\/+$/, '')}/${code}`;
 }
 
 /**
@@ -59,10 +59,12 @@ export interface CreateErrorsOptions<
 
   /**
    * Base URL or resolver for documentation links. When a string, the error's
-   * `code` is appended as a lowercase path segment
-   * (e.g. `"https://vercel.com/docs/errors"` →
-   * `"https://vercel.com/docs/errors/pool_exhausted"`). When a function,
-   * it receives the `code` and returns a URL, or `undefined` to skip.
+   * `code` is appended verbatim as a path segment
+   * (e.g. `"https://vercel.com/docs/errors"` plus code `"pool_exhausted"` gives
+   * `"https://vercel.com/docs/errors/pool_exhausted"`). The code is not
+   * transformed, so use a function base if you need to change its case or shape.
+   * When a function, it receives the `code` and returns a URL, or `undefined`
+   * to skip.
    *
    * Applied only when an error has a `code` and no explicit `link`. A
    * per-error `link` always wins.
