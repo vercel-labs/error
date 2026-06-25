@@ -13,7 +13,8 @@ export type SerializableValue =
 
 /**
  * Domain-specific structured context for debugging and logging.
- * Can contain arbitrarily nested values. Server-side only — excluded from HTTP error responses.
+ * Can contain arbitrarily nested values. Server-side only, so it is excluded
+ * from HTTP error responses.
  *
  * Route to: serialization, logging, debugging tools.
  *
@@ -60,11 +61,11 @@ export interface VercelErrorOptions<TCode extends string = string> {
   statusCode?: number;
   userMessage?: string;
 
-  /** Reserved — automatically captured from Error */
+  /** Reserved. Automatically captured from Error */
   stack?: never;
-  /** Reserved — pass message as first constructor argument */
+  /** Reserved. Pass message as the first constructor argument */
   message?: never;
-  /** Reserved — hardcoded to "VercelError" for minification safety */
+  /** Reserved. Hardcoded to "VercelError" for minification safety */
   name?: never;
 }
 

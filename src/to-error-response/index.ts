@@ -29,7 +29,7 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
 /**
  * Build a complete HTTP error response from a VercelError or plain parameters.
  *
- * Returns `{ status, body, headers }` — spread `headers` directly into your
+ * Returns `{ status, body, headers }`. Spread `headers` directly into your
  * framework's response constructor. Content negotiation is handled internally
  * when a request or headers object is provided.
  *
@@ -43,7 +43,7 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  *
  * @example
  * ```ts
- * // Minimal — always JSON
+ * // Minimal: always JSON
  * const { status, body, headers } = errorResponse(error);
  * return new Response(body, { status, headers });
  *
@@ -92,9 +92,34 @@ interface ExtractedData {
 }
 
 function buildPlainHeader(error: ErrorResponse['error']): string {
+  if (!error.message) {
+    return error.code ? `error: [${error.code}]` : 'error:';
+  }
   return error.code
     ? `error: [${error.code}] ${error.message}`
     : `error: ${error.message}`;
+}
+
+interface WireMessageParts {
+  message: string;
+  scope?: string;
+  code?: string;
+}
+
+/**
+ * Resolve the client-facing wire message. After production stripping the
+ * message can be empty, so fall back to a `[scope:code]` identifier built from
+ * whatever structured fields survive. The wire format omits `scope`, so it is
+ * folded into the message here.
+ */
+function resolveWireMessage({
+  message,
+  scope,
+  code,
+}: WireMessageParts): string {
+  if (message) return message;
+  const qualifier = [scope, code].filter(Boolean).join(':');
+  return qualifier ? `[${qualifier}]` : '';
 }
 
 function extractResponseData(
@@ -103,7 +128,11 @@ function extractResponseData(
   if (isVercelError(error)) {
     return {
       error: {
-        message: error.userMessage ?? error.message,
+        message: resolveWireMessage({
+          message: error.userMessage ?? error.message,
+          scope: error.scope,
+          code: error.code,
+        }),
         ...(error.code ? { code: error.code } : {}),
         ...(error.reason ? { reason: error.reason } : {}),
         ...(error.hint ? { hint: error.hint } : {}),
@@ -116,7 +145,7 @@ function extractResponseData(
 
   return {
     error: {
-      message: error.message,
+      message: resolveWireMessage({ message: error.message, code: error.code }),
       ...(error.code ? { code: error.code } : {}),
       ...(error.reason ? { reason: error.reason } : {}),
       ...(error.hint ? { hint: error.hint } : {}),

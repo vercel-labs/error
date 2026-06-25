@@ -246,4 +246,42 @@ describe('errorResponse', () => {
       expect(response.headers.get('Content-Type')).toBe('application/json');
     });
   });
+
+  describe('stripped message fallback', () => {
+    it('falls back to [scope:code] when a VercelError message is empty', () => {
+      const error = new VercelError('', {
+        code: 'pool_exhausted',
+        scope: 'database',
+        statusCode: 503,
+      });
+      const parsed = parseBody(errorResponse(error).body);
+      expect(parsed.error.message).toBe('[database:pool_exhausted]');
+      expect(parsed.error.code).toBe('pool_exhausted');
+    });
+
+    it('falls back to [code] when message and scope are empty', () => {
+      const error = new VercelError('', { code: 'timeout' });
+      const parsed = parseBody(errorResponse(error).body);
+      expect(parsed.error.message).toBe('[timeout]');
+    });
+
+    it('falls back to [code] for plain params with empty message', () => {
+      const parsed = parseBody(
+        errorResponse({ code: 'not_found', message: '' }).body,
+      );
+      expect(parsed.error.message).toBe('[not_found]');
+    });
+
+    it('renders the qualifier header in the ANSI path when stripped', () => {
+      const error = new VercelError('', {
+        code: 'pool_exhausted',
+        scope: 'database',
+      });
+      const { body } = errorResponse(
+        error,
+        makeRequest({ 'X-Error-Format': 'ansi' }),
+      );
+      expect(body).toContain('VercelError [database:pool_exhausted]');
+    });
+  });
 });
