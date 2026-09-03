@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.0.3
+
+### Patch Changes
+
+- Stop running Lefthook when consumers install the package.
+
 ## 0.0.2
 
 ### Patch Changes

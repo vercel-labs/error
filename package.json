@@ -1,6 +1,6 @@
 {
   "name": "@vercel/error",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
   "author": "Vercel",
   "repository": {
@@ -21,7 +21,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt .",
     "prepublishOnly": "pnpm build",
-    "postinstall": "lefthook install || true",
+    "prepare": "lefthook install || true",
     "validate": "pnpm run --parallel '/^(typecheck|lint|format|test)$/'"
   },
   "devDependencies": {
