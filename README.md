@@ -26,7 +26,7 @@ pnpm add @vercel/error
 
 ## Agent skill
 
-The optional `vercel-error` skill helps coding agents design, implement, migrate, and review structured errors with this package. Install it separately from the npm package:
+The optional `vercel-error` skill helps coding agents design, implement, migrate, audit, and review structured errors with this package. Install it separately from the npm package:
 
 ```bash
 npx skills add vercel-labs/error --skill vercel-error

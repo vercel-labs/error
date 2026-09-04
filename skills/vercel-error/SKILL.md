@@ -1,6 +1,6 @@
 ---
 name: vercel-error
-description: Design, implement, migrate, and review structured TypeScript errors with @vercel/error. Use when a project uses or is adopting @vercel/error; when building machine-identifiable errors, scoped error factories, safe HTTP error responses, or agent-readable CLI frames; or when reviewing those boundaries. Keep routine local exceptions on native Error unless structured identity, recovery guidance, observability, or transport is required.
+description: Design, implement, migrate, audit, and review structured TypeScript errors with @vercel/error. Use when a project uses or is adopting @vercel/error; when choosing error codes, scopes, fields, factories, HTTP boundaries, diagnostics, telemetry attributes, or agent-readable CLI frames; or when auditing an existing error contract. Keep routine local exceptions on native Error unless structured identity, recovery guidance, observability, or transport is required.
 license: MIT
 ---
 
@@ -43,11 +43,12 @@ This step is complete when the structured error has a named consumer. "It is mor
 
 ### 3. Choose the public seam
 
-| Need                                                                      | Public API                                                 | Read                                    |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------- |
-| One structured error, a typed family, reporting, causes, or observability | `VercelError`, `createErrors`, core guards and extractors  | [Core errors](references/core.md)       |
-| JSON HTTP output, content negotiation, validation, or reconstruction      | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP boundaries](references/http.md)   |
-| Human- and agent-readable terminal output for an error you do not own     | `frame`, `hint`, `fix`, `link`                             | [Terminal frames](references/format.md) |
+| Need                                                                      | Public API                                                 | Read                                             |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
+| Design or audit codes, scopes, fields, evolution, and diagnostics         | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md) |
+| One structured error, a typed family, reporting, causes, or observability | `VercelError`, `createErrors`, core guards and extractors  | [Core errors](references/core.md)                |
+| JSON HTTP output, content negotiation, validation, or reconstruction      | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP boundaries](references/http.md)            |
+| Human- and agent-readable terminal output for an error you do not own     | `frame`, `hint`, `fix`, `link`                             | [Terminal frames](references/format.md)          |
 
 Use `VercelError#toString()` for a `VercelError`; it already uses the package formatter. Use `frame()` for errors or CLI output that should remain another type.
 
