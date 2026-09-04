@@ -34,7 +34,7 @@ npx skills add vercel-labs/error --skill vercel-error
 
 Installing `@vercel/error` does not activate the skill. The npm package provides the runtime APIs; the skill provides the decision process for using them well.
 
-The command requires Node 22.20 or later and installs the latest skill from this repository's default branch. The skill instructs agents to check the consumer's installed package version before recommending imports.
+The command installs the latest skill from this repository's default branch. The skill instructs agents to inspect the consumer's installed package before recommending imports.
 
 ## Entry points
 
