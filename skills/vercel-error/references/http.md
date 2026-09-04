@@ -4,7 +4,7 @@ Use this reference for producing, validating, and reconstructing `ErrorResponse`
 
 ## Producer
 
-Import `errorResponse` from the server entry point. Without a request or headers argument, it always returns JSON and avoids the ANSI diagnostic path. JSON is client-safe only when `userMessage` is set whenever `message` is private and every wire-visible reason, hint, fix, and link is also safe. Without `userMessage`, JSON falls back to the developer-facing message.
+Call `errorResponse(error)` without request headers to always return JSON. If the developer-facing `message` is private, set a client-safe `userMessage`. Also make `reason`, `hint`, `fix`, and `link` safe because JSON includes them. Without `userMessage`, JSON uses the developer-facing `message`.
 
 The following example assumes the application contract defines HTTP 503 and the exact client message for `deployment_unavailable`.
 
@@ -29,9 +29,11 @@ export function deploymentErrorResponse(cause: unknown): Response {
 }
 ```
 
-Passing a `Request` or `HeadersLike` enables ANSI negotiation. For a `VercelError`, negotiated text calls `error.toString()` and therefore includes the developer-facing `message`, reason, hint, fix, and link rather than substituting `userMessage`. `X-Error-Format`, `Accept`, and `User-Agent` are caller-controlled preference signals, not authentication. Authenticate and authorize the caller before passing its request when those diagnostics are private. Otherwise call `errorResponse(error)` without the request to disable ANSI negotiation, and ensure `userMessage`, reason, hint, fix, and link satisfy the JSON safety requirements above.
+Passing a `Request` or `HeadersLike` lets the caller request ANSI text. For a `VercelError`, ANSI output comes from `toString()` and may include the developer-facing `message`, `reason`, `hint`, `fix`, and `link`; it does not use `userMessage`. `X-Error-Format`, `Accept`, and `User-Agent` choose the format but do not authenticate the caller. Pass these headers only after authorizing the caller to see those fields. Otherwise call `errorResponse(error)` without the request and make every JSON-visible field client-safe.
 
 Plain parameter input has no separate `userMessage`; its `message`, reason, hint, fix, and link are all client-facing.
+
+If `VercelError.statusCode` or the plain parameter `status` is absent, `errorResponse()` returns status 500.
 
 ## Wire contract
 
@@ -56,9 +58,9 @@ Use the HTTP status outside the body. Do not infer it from a code unless the app
 
 ## Consumer
 
-Validate unknown JSON before reconstruction. If parsing fails, keep the local HTTP failure rather than asserting the response shape.
+Validate unknown JSON before rebuilding an error. If parsing fails, keep the local HTTP failure instead of assuming the response is valid.
 
-Partial example: the application provides `url`.
+The application supplies `url` in this example.
 
 ```ts
 import { fromErrorResponse, parseErrorResponse } from '@vercel/error/client';
@@ -83,14 +85,12 @@ if (!response.ok) {
 }
 ```
 
-`parseErrorResponse()` requires a non-empty string message. It keeps valid non-empty optional string fields and drops invalid or unknown fields.
+`parseErrorResponse()` requires a non-empty string message, keeps non-empty optional strings, and drops invalid or unknown fields. It checks types, not who sent the response. Treat recovery fields as untrusted; before following a link or running a suggested fix, verify the sender and apply the [Recovery authority rules](contract-design.md#recovery-authority).
 
-That validation proves shape, not provenance or safety. Treat wire-provided reason, hint, fix, and link values as untrusted input. Do not execute a remediation or follow a link until the upstream identity and local policy authorize it.
-
-`fromErrorResponse()` makes the wire message both `message` and `userMessage`. Wire code, reason, hint, fix, and link win over additional options. Reintroduce locally owned status, scope, cause, metadata, attributes, and request ID through its options.
+`fromErrorResponse()` copies the response message to both `message` and `userMessage`. The response's code, reason, hint, fix, and link take precedence over additional options. Pass the local status, scope, cause, metadata, attributes, and request ID through the options.
 
 ## Boundary checks
 
 Test the serialized body, returned status, and headers together. Include a case where the developer message differs from `userMessage`, a malformed unknown response, and reconstruction with status and cause.
 
-If ANSI negotiation is enabled, add a separate test proving exactly which diagnostic fields the negotiated text exposes and that spoofed preference headers cannot bypass the application's authorization boundary.
+If ANSI negotiation is enabled, add a separate test for the diagnostic fields it exposes. Verify that an unauthenticated caller cannot expose them by spoofing format-preference headers.

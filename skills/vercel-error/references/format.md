@@ -6,7 +6,7 @@ Use this reference for readable terminal output when the underlying failure shou
 
 - Call `String(error)` or `error.toString()` for a `VercelError`; it already renders its structured fields.
 - Use `frame`, `hint`, `fix`, and `link` from `@vercel/error/format` for third-party errors and custom CLI output.
-- Keep machine handling on the original error, a stable code, or another structured object. Do not parse rendered output.
+- Automation should use the original error, a stable code, or another structured object. Do not parse rendered output.
 
 ## Custom frame
 
@@ -37,19 +37,17 @@ Use a stable, concise header for what failed. Put explanation in ordinary sectio
 
 ## Rendering behavior
 
-Formatting is automatic:
+| Environment                                      | Output                  |
+| ------------------------------------------------ | ----------------------- |
+| `NO_COLOR`                                       | Tree without ANSI color |
+| `FORCE_COLOR` or a TTY, unless `NO_COLOR` is set | Tree with ANSI color    |
+| Browser, pipe, CI, or non-Node runtime           | Plain text              |
 
-1. Outside Node, output is plain.
-2. `NO_COLOR` produces a Unicode tree without ANSI color.
-3. `FORCE_COLOR` produces a colored tree.
-4. A TTY produces a colored tree.
-5. Browser, piped, and CI output is plain.
+Caller-provided control sequences are stripped. Tabs and line breaks are preserved, so normalize `\r` and `\n` before writing to a sink that requires one physical line per event. Verify these behaviors in the installed package version before relying on them.
 
-The package strips ANSI, OSC, C0, C1, and DEL control sequences from caller-provided text before rendering. It preserves tabs, newlines, and carriage returns. If a logging sink requires one physical line per event, normalize line breaks for that sink separately.
+Do not build raw ANSI sequences. Use the package helpers, which handle colors, tree connectors, missing values, and environment detection.
 
-Do not build raw ANSI sequences. The package owns coloring, connectors, nil handling, and environment detection.
-
-## Agent boundary
+## For agents and automation
 
 A frame helps a person or coding agent scan an error consistently:
 

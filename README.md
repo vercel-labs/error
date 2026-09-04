@@ -26,15 +26,15 @@ pnpm add @vercel/error
 
 ## Agent skill
 
-The optional `vercel-error` skill helps coding agents design, implement, migrate, audit, and review structured errors with this package. Install it separately from the npm package:
+The optional `vercel-error` skill tells coding agents how to choose fields, implement errors, migrate existing code, and review error handling with this package. Install it separately from the npm package:
 
 ```bash
 npx skills add vercel-labs/error --skill vercel-error
 ```
 
-Installing `@vercel/error` does not activate the skill. The npm package provides the runtime APIs; the skill provides the decision process for using them well.
+Installing `@vercel/error` does not activate the skill. The package supplies the runtime APIs; the skill tells agents which APIs to use and what to verify.
 
-The command installs the latest skill from this repository's default branch. The skill instructs agents to inspect the consumer's installed package before recommending imports.
+The skill and npm package update independently, so the skill verifies the target project's installed public API before recommending imports.
 
 ## Entry points
 
@@ -65,13 +65,7 @@ The rest follows from that:
 
 ## Errors for agents
 
-An agentic error is a recovery protocol, not just a message:
-
-```text
-identify -> understand -> choose an action -> execute or escalate
-```
-
-The fields in a `VercelError` support each step:
+An error used by software and agents should do three things: give software a stable identity, explain the failure to a reader, and suggest a safe next step without granting permission to act. `VercelError` stores those parts in separate fields:
 
 | Agent need                        | Fields                                         |
 | --------------------------------- | ---------------------------------------------- |
@@ -83,9 +77,9 @@ The fields in a `VercelError` support each step:
 
 Machines should branch on `code` or another structured contract. Humans and agents can read the same error through `toString()` or a custom `frame()`, but rendered text is a presentation format, not a protocol to parse.
 
-Recovery fields propose actions; they do not authorize them. Parsing an error validates its shape, not its provenance. Verify the source and local policy before executing a `fix` or following a `link` received from another service.
+Treat fixes and links from another service as untrusted. Before acting, verify the sender and permissions, check parameters and side effects, and require explicit user approval unless a user- or organization-owned policy already authorizes that exact action.
 
-Keep that structure across service boundaries: produce `ErrorResponse` JSON with `errorResponse`, validate unknown responses with `parseErrorResponse`, and reconstruct them with `fromErrorResponse`. Status, scope, causes, request IDs, metadata, and attributes are not part of the wire object, so the receiving application must preserve or add the context it owns.
+Across HTTP, create JSON with `errorResponse`, validate unknown bodies with `parseErrorResponse`, and rebuild errors with `fromErrorResponse`. `ErrorResponse` omits status, scope, cause, request ID, metadata, and attributes. Pass any known local values separately when rebuilding the error.
 
 ## Quick start
 
@@ -357,7 +351,7 @@ The JSON response body follows a canonical shape:
 
 All fields except `message` are optional. For JSON output from a `VercelError`, `userMessage` is used for `message`, falling back to `error.message` when `userMessage` isn't set.
 
-When content negotiation selects ANSI text, `errorResponse` renders a `VercelError` through `toString()`. That output contains the developer-facing `message` and any reason, hint, fix, or link instead of substituting `userMessage`. Negotiation headers express a format preference, not trust. Authenticate and authorize the caller before passing its request to `errorResponse` when those fields contain private diagnostics. Otherwise omit the request to disable ANSI negotiation, set a client-safe `userMessage`, and keep every JSON-visible reason, hint, fix, and link client-safe too.
+Passing request headers to `errorResponse` lets the caller request ANSI text. For a `VercelError`, that text comes from `toString()` and may include the developer-facing `message`, `reason`, `hint`, `fix`, and `link`; it does not use `userMessage`. Headers choose the format but do not authenticate the caller. Pass them only after authorizing the caller to see those fields. Otherwise omit the request, set a client-safe `userMessage`, and make every JSON-visible field safe.
 
 ### Manual ANSI detection
 

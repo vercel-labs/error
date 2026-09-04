@@ -1,34 +1,28 @@
 ---
 name: vercel-error
-description: Design, implement, migrate, audit, and review structured TypeScript errors with @vercel/error. Use when a project uses or is adopting @vercel/error; when choosing error codes, scopes, fields, factories, HTTP boundaries, diagnostics, telemetry attributes, or agent-readable CLI frames; or when auditing an existing error contract. Keep routine local exceptions on native Error unless structured identity, recovery guidance, observability, or transport is required.
+description: Use @vercel/error to design, implement, migrate, audit, or review structured TypeScript errors. Trigger when a project uses or adopts the package, or when work involves its codes, fields, factories, HTTP APIs, telemetry, or terminal output. Use native Error for local failures that need no stable identity, recovery guidance, observability, or transport.
 license: MIT
 ---
 
 # @vercel/error
 
-Treat an error as a recovery protocol:
-
-```text
-identify -> understand -> choose an action -> execute or escalate
-```
-
-Give machines stable identity and structured data. Give people and agents accurate context and next steps. Preserve the structure until the presentation edge; terminal frames are readable text, not a protocol for automation.
+Use structured fields to identify what failed, explain why, and suggest what to do next. Software should branch on stable fields; people and agents should read the prose. Preserve the fields until output is rendered, and never parse terminal formatting.
 
 ## Workflow
 
-### 1. Inspect the consumer
+### 1. Inspect the target project
 
-Read the consumer's `package.json`, lockfile, existing error types, HTTP boundary, logging path, and tests before choosing an API.
+Read the target project's `package.json`, lockfile, existing errors, output paths, logging, and tests before choosing an API.
 
 - Use the installed `@vercel/error` version's public exports as the contract. Do not deep-import unexported source paths.
-- If the package is absent for requested implementation work, resolve the intended version from workspace constraints or the current release, inspect its published exports and `engines`, then add it as a production dependency with the project's package manager.
-- Compare the consumer runtime with the selected version's `engines`. Report an incompatibility instead of silently changing the runtime or installing an unsupported combination.
-- Follow the project's existing code and scope naming when it is stable and safe.
+- If the package is absent, resolve the intended version from workspace constraints or the current release, then inspect its published exports and `engines`. Add it as a production dependency only for requested implementation work.
+- Compare the target project's runtime with the selected version's `engines`. Report an incompatibility instead of silently changing the runtime or installing an unsupported combination.
+- Record the project's existing code and scope names and the callers that depend on them. In step 4, preserve or challenge those conventions based on evidence.
 - Leave dependencies unchanged for advice and review.
 
-This step is complete when the installed API, existing conventions, and boundary carrying the error are known.
+Before continuing, record the selected version and runtime compatibility, verify the public imports, and identify where the error is created, handled, sent, logged, or shown.
 
-### 2. Decide whether structure earns its cost
+### 2. Decide whether a structured error is needed
 
 Keep native `Error` for a simple local failure that no caller classifies, transports, reports, or presents with recovery guidance. Use `@vercel/error` when at least one of these is needed:
 
@@ -39,41 +33,37 @@ Keep native `Error` for a simple local failure that no caller classifies, transp
 - consistent terminal presentation
 - reliable recognition across bundle or realm boundaries
 
-This step is complete when the structured error has a named consumer. "It is more consistent" is not enough on its own.
+Use a structured error only when you can name the caller, transport, logger, or UI that needs it. "It is more consistent" is not enough.
 
-### 3. Choose the public seam
+### 3. Choose the public API
 
-| Need                                                                      | Public API                                                 | Read                                             |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
-| Design or audit codes, scopes, fields, evolution, and diagnostics         | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md) |
-| One structured error, a typed family, reporting, causes, or observability | `VercelError`, `createErrors`, core guards and extractors  | [Core errors](references/core.md)                |
-| JSON HTTP output, content negotiation, validation, or reconstruction      | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP boundaries](references/http.md)            |
-| Human- and agent-readable terminal output for an error you do not own     | `frame`, `hint`, `fix`, `link`                             | [Terminal frames](references/format.md)          |
+| Need                                                                                                    | Public API                                                 | Read                                                    |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| Add, change, or audit a code, scope, field, or diagnostic contract                                      | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md)        |
+| Construct one error, define a subclass, preserve a cause, or inspect a caught value                     | `VercelError`, core guards and extractors                  | [Core errors](references/core.md)                       |
+| Create a typed error family with shared scope, diagnostics, documentation, reporting, or a custom class | `createErrors`                                             | [`createErrors` factories](references/create-errors.md) |
+| Produce or consume HTTP error responses                                                                 | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP errors](references/http.md)                       |
+| Format an error you do not own for people and agents                                                    | `frame`, `hint`, `fix`, `link`                             | [Terminal output](references/format.md)                 |
 
 Use `VercelError#toString()` for a `VercelError`; it already uses the package formatter. Use `frame()` for errors or CLI output that should remain another type.
 
-### 4. Design the recovery contract
+Read each reference whose row matches the work. Continue when every required operation maps to a public import verified in the selected package version.
 
-- Give public, service, or machine-handled errors a stable `code`. Reuse the project's code style rather than imposing a new taxonomy.
-- Add `scope` only when it groups errors by a useful service or subsystem.
-- Treat `statusCode`, `userMessage`, `reason`, `hint`, `fix`, `link`, retryability, and telemetry-cardinality claims as application-owned policy. Populate them only from the user's requirements, inspected existing behavior, or another verified contract. Otherwise omit them or ask for the missing policy.
-- Do not infer an HTTP status, client message, remediation, retry policy, documentation URL, or low-cardinality guarantee from an error code or domain convention.
-- Put internal diagnostics in `message`; add `userMessage` only when a client contract supplies or requires safer wording.
-- Preserve the original failure in `cause`.
-- Put nested debugging context in `metadata` and flat telemetry values in `attributes`. A flat value is type-compatible, not proof that it is low-cardinality. Neither location makes secrets safe.
-- Keep the error's identity and recovery action useful without requiring a stack trace.
+### 4. Choose fields and recovery guidance
 
-This step is complete when every populated field has a consumer and no client-facing field contains internal details.
+Apply [Contract design](references/contract-design.md) to every field in scope, including its [pushback rules](references/contract-design.md#when-to-push-back).
 
-### 5. Implement the smallest path
+Before implementation, verify that every populated field has a known use and every client-visible field is safe.
 
-Change only the boundary that benefits from structure. Preserve surrounding error behavior, code conventions, and third-party error types. A migration should not redesign the project's entire error taxonomy unless the user asks for that separately.
+### 5. Implement or review
 
-Show only the operations the user requested. Code examples must typecheck in the shown context or be clearly labeled as partial replacements.
+For review work, report correctness, disclosure, and recovery gaps; edit only when asked.
 
-For review work, report correctness, disclosure, and recovery gaps first. Change code only when the user asks for fixes.
+For implementation, change only the error path that needs structured fields. Preserve surrounding behavior, code conventions, and third-party error types. Treat project-wide code or scope renames as a separate migration. Code examples must typecheck in the shown context or be labeled as partial replacements.
 
-### 6. Verify through the public boundary
+This step is complete when the reviewed or changed scope is limited to the identified use and every example is complete or explicitly partial.
+
+### 6. Test public behavior
 
 Test the behavior that consumes the error, not private formatting helpers:
 
@@ -82,15 +72,6 @@ Test the behavior that consumes the error, not private formatting helpers:
 - client-safe JSON and the returned HTTP status
 - rejection of invalid unknown response data before reconstruction
 - terminal output with and without optional sections
-- the actual public package entry point used by the consumer
+- the actual public package entry point used by the target project
 
-Run the consumer project's targeted test and typecheck first, then its full required checks. State any runtime, integration, or version boundary that was not exercised.
-
-## Non-negotiable boundaries
-
-- Automation branches on `code` or another structured contract, never tree characters or prefixes in a rendered frame.
-- `ErrorResponse` JSON omits `scope`, status, request IDs, causes, stacks, metadata, and attributes. Pass status and local causal context separately when reconstructing an error.
-- JSON serialization can use `userMessage`; ANSI-negotiated output of a `VercelError` uses its developer-facing `message`, reason, hint, fix, and link. Negotiation headers are preference signals, not proof of trust. Authenticate and authorize the caller before passing request headers when those diagnostics are private. Otherwise omit the request to disable ANSI negotiation, set a client-safe `userMessage`, and keep every JSON-visible reason, hint, fix, and link client-safe too.
-- `parseErrorResponse()` validates shape, not provenance. Treat wire-provided reason, hint, fix, and link values as untrusted input; do not execute remediation or follow links until an authenticated source and local policy authorize them.
-- `metadata`, `attributes`, and `VercelError#toJSON()` are diagnostics surfaces, not secret stores.
-- Import only from `@vercel/error`, `@vercel/error/client`, `@vercel/error/server`, or `@vercel/error/format` when those subpaths exist in the installed version.
+Run the target project's closest test and typecheck first, then its required checks. Verification is complete when they pass or every failure and untested runtime or integration path is reported.

@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Add an installable agent skill for designing structured, actionable errors.
+- Add an installable agent skill for designing and implementing errors with `@vercel/error`.
 
 ## 0.0.3
 
