@@ -43,8 +43,12 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * framework's response constructor. Content negotiation is handled internally
  * when a request or headers object is provided.
  *
- * When given a VercelError, uses `userMessage` for the client-facing output.
- * Falls back to `message` if `userMessage` is not set.
+ * JSON output from a VercelError uses `userMessage`, falling back to `message`.
+ * ANSI-negotiated output calls `toString()` instead, so it contains the
+ * developer-facing message and context fields. Negotiation headers are not
+ * authentication; only pass them through for callers authorized to receive
+ * those diagnostics. Omitting them disables negotiation but does not make
+ * JSON fields client-safe.
  *
  * @param error - A VercelError instance or plain `{ message, code?, status? }` params
  * @param requestOrHeaders - Optional Request or HeadersLike for content negotiation.

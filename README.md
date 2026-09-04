@@ -5,8 +5,10 @@ Structured error primitives for humans and agents.
 ## Table of contents
 
 - [Install](#install)
+- [Agent skill](#agent-skill)
 - [Entry points](#entry-points)
 - [Philosophy](#philosophy)
+- [Errors for agents](#errors-for-agents)
 - [Quick start](#quick-start)
 - [Error anatomy](#error-anatomy)
 - [Error factories](#error-factories)
@@ -21,6 +23,18 @@ Structured error primitives for humans and agents.
 ```bash
 pnpm add @vercel/error
 ```
+
+## Agent skill
+
+The optional `vercel-error` skill helps coding agents design, implement, migrate, and review structured errors with this package. Install it separately from the npm package:
+
+```bash
+npx skills add vercel-labs/error --skill vercel-error
+```
+
+Installing `@vercel/error` does not activate the skill. The npm package provides the runtime APIs; the skill provides the decision process for using them well.
+
+The command requires Node 22.20 or later and installs the latest skill from this repository's default branch. The skill instructs agents to check the consumer's installed package version before recommending imports.
 
 ## Entry points
 
@@ -48,6 +62,30 @@ The rest follows from that:
 - Errors are a unit of communication between services, not crash artifacts. They carry context for humans, agents, and observability tools.
 - Errors should be useful wherever they surface — terminal, log aggregator, HTTP response. The format adapts to the context.
 - Errors are too fundamental to be locked to a framework or runtime.
+
+## Errors for agents
+
+An agentic error is a recovery protocol, not just a message:
+
+```text
+identify -> understand -> choose an action -> execute or escalate
+```
+
+The fields in a `VercelError` support each step:
+
+| Agent need                        | Fields                                         |
+| --------------------------------- | ---------------------------------------------- |
+| Identify the failure reliably     | `scope`, `code`                                |
+| Understand what happened and why  | `message`, `reason`                            |
+| Choose a useful next step         | `hint`, `fix`, `link`                          |
+| Correlate and investigate         | `requestId`, `cause`, `metadata`, `attributes` |
+| Communicate safely to an end user | `userMessage`                                  |
+
+Machines should branch on `code` or another structured contract. Humans and agents can read the same error through `toString()` or a custom `frame()`, but rendered text is a presentation format, not a protocol to parse.
+
+Recovery fields propose actions; they do not authorize them. Parsing an error validates its shape, not its provenance. Verify the source and local policy before executing a `fix` or following a `link` received from another service.
+
+Keep that structure across service boundaries: produce `ErrorResponse` JSON with `errorResponse`, validate unknown responses with `parseErrorResponse`, and reconstruct them with `fromErrorResponse`. Status, scope, causes, request IDs, metadata, and attributes are not part of the wire object, so the receiving application must preserve or add the context it owns.
 
 ## Quick start
 
@@ -101,7 +139,7 @@ Every `VercelError` field falls into one of three groups.
 | `hint`        | `string` | What could help. Advisory information for the developer                                                                                                     |
 | `fix`         | `string` | How to fix it. An actionable remediation step                                                                                                               |
 | `link`        | `string` | Where to learn more. A URL to relevant documentation                                                                                                        |
-| `userMessage` | `string` | Client-safe message. Set this when `message` contains internal details you don't want clients to see. `errorResponse` uses it instead of `message` when set |
+| `userMessage` | `string` | Client-safe message. Set this when `message` contains internal details you don't want in JSON. `errorResponse` uses it instead of `message` for JSON output |
 
 ### Observability
 
@@ -317,7 +355,9 @@ The JSON response body follows a canonical shape:
 }
 ```
 
-All fields except `message` are optional. When using a `VercelError`, `userMessage` is used for `message` in the response, falling back to `error.message` when `userMessage` isn't set.
+All fields except `message` are optional. For JSON output from a `VercelError`, `userMessage` is used for `message`, falling back to `error.message` when `userMessage` isn't set.
+
+When content negotiation selects ANSI text, `errorResponse` renders a `VercelError` through `toString()`. That output contains the developer-facing `message` and any reason, hint, fix, or link instead of substituting `userMessage`. Negotiation headers express a format preference, not trust. Authenticate and authorize the caller before passing its request to `errorResponse` when those fields contain private diagnostics. Otherwise omit the request to disable ANSI negotiation, set a client-safe `userMessage`, and keep every JSON-visible reason, hint, fix, and link client-safe too.
 
 ### Manual ANSI detection
 
