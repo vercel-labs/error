@@ -4,11 +4,11 @@
 
 ### Minor Changes
 
-- Separate developer diagnostics from client-approved `public` details, require a nonblank public message, preserve optional `scope` and `code`, and reject malformed known wire fields.
+- Separate developer diagnostics from client-approved `public` details, require a nonblank public message, preserve optional `scope` and `code`, and reject malformed known response fields.
 - Add deterministic `auto`, `plain`, `tree`, and `ansi` rendering with structured sections and multiline containment.
 - Add synchronous `onReport` and `onSerialize` diagnostics callbacks with explicit failure propagation.
 - Standardize authored `statusCode`, concrete `status`, cross-realm data recognition, and packed-package release verification.
-- Name the response lifecycle types `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse`, and make their fields readonly while keeping `VercelError` diagnostic enrichment mutable.
+- Add readonly types for flat public input (`ErrorResponseInput`), normalized client-facing data (`ErrorResponseData`), and the completed HTTP result (`ErrorResponse`), while keeping `VercelError` diagnostic context mutable.
 - Make cross-realm error recognition cycle-safe and explicit JSON format requests authoritative.
 
 ## 0.0.4

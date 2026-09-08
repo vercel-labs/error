@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { describe, expect, it, vi } from 'vitest';
 
 import { errorResponse } from '.';
-import { parseErrorResponse, fromErrorResponse } from '../error-codec';
+import { parseErrorResponse, fromErrorResponse } from '../error-response-data';
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
@@ -19,7 +19,7 @@ function makeRequest(headers: Record<string, string> = {}): Request {
 }
 
 describe('errorResponse', () => {
-  it('serializes only explicit public prose and wire identity', () => {
+  it('serializes only explicit public prose and response identity', () => {
     const error = new VercelError('Database shard 7 failed', {
       attributes: { shard: 7 },
       cause: new Error('socket closed'),
@@ -277,7 +277,7 @@ describe('errorResponse', () => {
     const onSerialize = vi.fn((error, context) => {
       expect(error).toBe(source);
       expect(error.attributes).toEqual({ retryable: true });
-      expect(context).toEqual({ representation: 'json', status: 503 });
+      expect(context).toEqual({ bodyFormat: 'json', status: 503 });
       resultObserved = true;
     });
 
@@ -288,7 +288,7 @@ describe('errorResponse', () => {
     expect(JSON.parse(result.body).error.message).toBe('Public message');
   });
 
-  it('reports ANSI representation context', () => {
+  it('reports ANSI body format context', () => {
     const onSerialize = vi.fn();
     errorResponse(
       { message: 'Failed', statusCode: 400 },
@@ -299,7 +299,7 @@ describe('errorResponse', () => {
     );
 
     expect(onSerialize).toHaveBeenCalledWith(expect.anything(), {
-      representation: 'ansi',
+      bodyFormat: 'ansi',
       status: 400,
     });
   });

@@ -20,7 +20,7 @@ const OPTIONAL_RESPONSE_ERROR_FIELDS = [
 ] as const;
 
 /**
- * Normalized structured data for client-facing Vercel HTTP errors.
+ * Normalized structured data for client-facing errors.
  *
  * The data feeds JSON serialization and ANSI rendering. It excludes status,
  * request ID, metadata, attributes, cause, stack, and developer name. Shape
@@ -41,17 +41,13 @@ export interface ErrorResponseData {
 }
 
 /**
- * Flat, explicitly public input for callers that do not have a VercelError.
- *
- * Every prose field is treated as approved for client disclosure. `statusCode`
- * is an authored HTTP mapping; {@link errorResponse} validates it and returns
- * the concrete value as `status`. Explicitly `undefined` optional fields are
- * omitted from the projected response.
+ * Public details and identity accepted while building response data.
+ * Every prose field is approved for client disclosure; explicitly `undefined`
+ * optional fields are omitted.
  */
-export interface ErrorResponseInput extends PublicErrorDetails {
+interface PublicErrorInput extends PublicErrorDetails {
   readonly scope?: string;
   readonly code?: string;
-  readonly statusCode?: number;
 }
 
 /**
@@ -72,11 +68,11 @@ export type FromErrorResponseOptions = Pick<
  * prose is never used as a fallback.
  */
 export function buildErrorResponseData(
-  source: VercelErrorLike | ErrorResponseInput,
+  source: VercelErrorLike | PublicErrorInput,
 ): ErrorResponseData {
   if (!isObject(source)) {
     throw new TypeError(
-      'Error response source must be ErrorResponseInput or VercelError-like data',
+      'Error response source must be public error input or VercelError-like data',
     );
   }
 
@@ -108,7 +104,7 @@ export function buildErrorResponseData(
 
   if (isError(source) || hasErrorDiagnosticFields(source)) {
     throw new TypeError(
-      'Untagged Error-like values cannot be serialized; pass ErrorResponseInput instead',
+      'Untagged Error-like values cannot be serialized; pass explicit public input instead',
     );
   }
 
@@ -152,11 +148,12 @@ export function parseErrorResponse(
 /**
  * Reconstruct a VercelError from validated upstream ErrorResponseData.
  *
- * Client-facing response prose becomes both developer-facing context and the
- * new public projection. Identity and prose come from the response data;
- * status, cause, request ID, metadata, and attributes remain owned by the
- * caller. Reconstruction does not establish producer trust or authorize
- * following response fixes and links.
+ * Response identity populates `scope` and `code`. Response prose populates the
+ * developer fields and is also stored under `public`, so a later
+ * `errorResponse()` call sends that identity and prose again. Status, cause,
+ * request ID, metadata, and attributes remain caller-owned. Validation does
+ * not authenticate the producer, make the fields safe for another recipient,
+ * or authorize following fixes and links.
  */
 export function fromErrorResponse(
   data: ErrorResponseData,
@@ -228,7 +225,7 @@ function buildResponseError(
 }
 
 function selectResponseErrorFields(
-  source: ErrorResponseData['error'] | ErrorResponseInput,
+  source: ErrorResponseData['error'] | PublicErrorInput,
 ): ErrorResponseData['error'] {
   return {
     ...(source.scope !== undefined ? { scope: source.scope } : {}),

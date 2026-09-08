@@ -134,7 +134,7 @@ The 0.1 public types mark `message`, `statusCode`, `reason`, `hint`, `fix`, and 
 
 ## Diagnostics
 
-Wire diagnostics at explicit owning seams. `createErrors.report()` invokes `onReport`; `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions. Record a thrown error at the final operation boundary instead of adding duplicate reporting to wrappers.
+Attach diagnostics at explicit owning seams. `createErrors.report()` invokes `onReport`; `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions. Record a thrown error at the final operation boundary instead of adding duplicate reporting to wrappers.
 
 ### `metadata`
 
@@ -157,7 +157,7 @@ Wire diagnostics at explicit owning seams. `createErrors.report()` invokes `onRe
 
 - Unknown errors are internal diagnostics. Public output should accept known error types rather than trusting arbitrary objects with code, status, or message fields.
 - Review every publicly visible field and transport signal, including code, HTTP status, JSON fields, and ANSI output. Unauthorized callers must not learn whether a protected resource exists through different codes or statuses.
-- Every field under `public` must be client-safe. JSON and ANSI use the same projection; headers select representation rather than authorization.
+- Every field under `public` must be client-safe. JSON and ANSI use the same projection; headers select the body format rather than authorization.
 - Parsing validates fields, not who sent them or whether they are safe. Apply the Recovery authority rules before acting on error text or links.
 - Automation should branch on stable fields and rules defined by the receiving application, never rendered text.
 - `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. When rebuilding an error, use the observed response status and add only context the receiving application already knows.

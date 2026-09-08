@@ -238,7 +238,7 @@ const result = errorResponse(error);
 return new Response(result.body, result);
 ```
 
-The response types name each lifecycle stage:
+The response types distinguish flat public input, normalized client-facing data, and the completed HTTP response:
 
 | Type                 | Role                                                                      |
 | -------------------- | ------------------------------------------------------------------------- |
@@ -246,7 +246,7 @@ The response types name each lifecycle stage:
 | `ErrorResponseData`  | Normalized, readonly client-facing data shared by JSON and ANSI           |
 | `ErrorResponse`      | Concrete status, serialized body, and headers returned by `errorResponse` |
 
-JSON is the default representation. Pass negotiation input through the options object:
+JSON is the default body format. Pass negotiation input through the options object:
 
 ```ts
 const result = errorResponse(error, {
@@ -257,11 +257,11 @@ const result = errorResponse(error, {
 });
 ```
 
-`request` accepts a `Request` or `HeadersLike`. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Without that header, `Accept: text/plain+ansi` or a `curl/` user agent selects ANSI, in that order. Headers choose a representation; they do not authenticate or authorize the caller.
+`request` accepts a `Request` or `HeadersLike`. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Without that header, `Accept: text/plain+ansi` or a `curl/` user agent selects ANSI, in that order. Headers choose the body format; they do not authenticate or authorize the caller.
 
 JSON and negotiated ANSI text render the same public projection. ANSI negotiation never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
 
-`onSerialize` receives the original source plus `{ status, representation }` after the complete result has been built. It is synchronous and returns `undefined`. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level; symbol recognition does not authenticate them. Callback exceptions propagate and replace the response the caller would have received.
+`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level; symbol recognition does not authenticate them. Callback exceptions propagate and replace the response the caller would have received.
 
 ### Plain public input
 
@@ -333,7 +333,7 @@ if (!response.ok) {
 }
 ```
 
-`fromErrorResponse()` uses wire identity and prose for the reconstructed developer fields and stores the same prose under `public`. Callers own only status, cause, request ID, metadata, and attributes. Parsed fixes and links are untrusted data; validate sender, permissions, parameters, and side effects before acting.
+`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies status, cause, request ID, metadata, and attributes. Parsing validates shape only: verify the producer, review every field for the next recipient, and validate permissions, parameters, and side effects before acting on a fix or link.
 
 ## Recognition and utilities
 
@@ -369,7 +369,7 @@ Version 0.1 is a clean redesign without compatibility aliases:
 | Structured `ErrorResponse` type    | `ErrorResponseData` type                                      |
 | `ErrorResponseResult` type         | Concrete `ErrorResponse` type                                 |
 
-`ErrorResponseData.error.scope` now crosses the wire when set. Review it as a disclosure before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. Cross-realm values carrying the shipped 0.0 tag are rejected rather than treated as public flat input.
+`ErrorResponseData.error.scope` is now included when set. Review it as a disclosure before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. Cross-realm values carrying the shipped 0.0 tag are rejected rather than treated as public flat input.
 
 The 0.1 public types mark authored `VercelError` fields and every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new error instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
 

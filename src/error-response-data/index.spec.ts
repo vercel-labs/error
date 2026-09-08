@@ -9,7 +9,7 @@ import {
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
-describe('error codec', () => {
+describe('error response data', () => {
   describe('buildErrorResponseData', () => {
     it('builds response data from explicit public prose and identity', () => {
       const error = new VercelError('Database shard 7 failed', {
@@ -84,7 +84,6 @@ describe('error codec', () => {
           message: 'The value is invalid',
           reason: 'The value is not an integer',
           scope: 'input',
-          statusCode: 400,
         }),
       ).toEqual({
         error: {
@@ -121,7 +120,6 @@ describe('error codec', () => {
         message: 'Public message',
         reason: undefined,
         scope: undefined,
-        statusCode: undefined,
       };
 
       expect(buildErrorResponseData(publicError)).toEqual({
@@ -154,7 +152,7 @@ describe('error codec', () => {
       const error = new VercelError('Developer detail', {
         public: {
           message: 'Public message',
-          unknown: 'must not cross the wire',
+          unknown: 'must not reach response data',
         } as never,
       });
 

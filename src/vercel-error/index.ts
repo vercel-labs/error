@@ -8,23 +8,13 @@ import type {
 import { VERCEL_ERROR_TAG } from './tag';
 
 /**
- * Structured error class for Vercel.
+ * An Error subclass with stable identity, separate developer and public details,
+ * diagnostic context, cause chaining, and terminal formatting.
  *
- * Every error should answer:
- * 1. **What** happened? → `message`
- * 2. **Why** did it happen? → `reason`
- * 3. **What** could help? → `hint`
- * 4. **How** to fix it? → `fix`
- * 5. **Where** to learn more? → `link`
- *
- * Key features:
- * - Zero runtime dependencies
- * - Separate developer context and explicitly disclosed `public` details
- * - Type-safe error codes via generics
- * - Separate `metadata` (domain context) and `attributes` (OTel observability)
- * - Error chaining with proper cause tracking
- * - Environment-aware `toString()` (auto-detects ANSI)
- * - Cross-realm compatibility via stable Symbol tag
+ * `message` is required. `reason`, `hint`, `fix`, and `link` are optional
+ * developer details; omit them when the cause or remediation is not known.
+ * Cross-realm recognition is data-only because the symbol tag is forgeable;
+ * use `instanceof VercelError` before invoking class methods.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -89,7 +79,7 @@ export class VercelError<TCode extends string = string> extends Error {
   private static readonly JSON_EXCLUDE = new Set(['name', 'cause']);
 
   /**
-   * Diagnostic JSON representation for `JSON.stringify`.
+   * Diagnostic object used by `JSON.stringify`.
    *
    * Surfaces non-enumerable Error properties (`name`, `message`, `stack`)
    * alongside all VercelError fields. Omits `cause` (may be circular or

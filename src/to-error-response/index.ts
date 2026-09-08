@@ -2,15 +2,32 @@ import { isObject } from '../_internal';
 import {
   buildErrorResponseData,
   type ErrorResponseData,
-  type ErrorResponseInput,
-} from '../error-codec';
+} from '../error-response-data';
 import { formatError } from '../format/index';
-import type { VercelErrorLike } from '../types';
+import type { PublicErrorDetails, VercelErrorLike } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
+
+/**
+ * Flat, explicitly public input for callers that do not have a VercelError.
+ * `scope`, `code`, every prose field, and the resulting concrete status are
+ * client-visible disclosures. `statusCode` defaults to 500 and must be an
+ * integer from 400 through 599; {@link errorResponse} throws `RangeError`
+ * otherwise. Explicitly `undefined` optional fields are omitted from response
+ * data.
+ */
+export interface ErrorResponseInput extends PublicErrorDetails {
+  readonly scope?: string;
+  readonly code?: string;
+  readonly statusCode?: number;
+}
 
 /** Options for HTTP negotiation and serialization diagnostics. */
 export interface ErrorResponseOptions {
-  /** Request or headers used only to select JSON or ANSI representation. */
+  /**
+   * Request or headers used to select the body format. Omission uses JSON. A
+   * present `X-Error-Format` is authoritative, followed by `Accept`, then the
+   * `User-Agent` curl heuristic; see {@link wantsAnsi}.
+   */
   readonly request?: Request | HeadersLike;
 
   /**
@@ -24,8 +41,10 @@ export interface ErrorResponseOptions {
   readonly onSerialize?: (
     source: VercelErrorLike | ErrorResponseInput,
     context: {
+      /** Concrete HTTP status selected for this response. */
       readonly status: number;
-      readonly representation: 'json' | 'ansi';
+      /** `json` for a JSON body or `ansi` for ANSI-formatted text. */
+      readonly bodyFormat: 'json' | 'ansi';
     },
   ) => undefined;
 }
@@ -55,7 +74,7 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * is absent. Untagged native, cross-realm, and Error-shaped objects throw
  * `TypeError`; other untagged objects are treated as `ErrorResponseInput`.
  * Scope, code, status, and every flat prose field are client-visible. Request
- * headers select a representation; they do not authorize access.
+ * headers select the body format; they do not authorize access.
  *
  * `statusCode` defaults to 500 and must be an integer from 400 through 599.
  * Status validation runs before projection and throws `RangeError` for invalid
@@ -80,10 +99,10 @@ export function errorResponse(
 ): ErrorResponse {
   const status = resolveStatus(source);
   const responseData = buildErrorResponseData(source);
-  const representation = wantsAnsi(options.request) ? 'ansi' : 'json';
+  const bodyFormat = wantsAnsi(options.request) ? 'ansi' : 'json';
 
   const result: ErrorResponse =
-    representation === 'ansi'
+    bodyFormat === 'ansi'
       ? {
           body: renderPublicError(responseData.error),
           headers: { ...TEXT_HEADERS },
@@ -95,7 +114,7 @@ export function errorResponse(
           status,
         };
 
-  options.onSerialize?.(source, { representation, status });
+  options.onSerialize?.(source, { bodyFormat, status });
   return result;
 }
 

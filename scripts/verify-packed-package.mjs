@@ -311,13 +311,16 @@ createErrors({ onReport: async () => {} });
 errorResponse({ message: 'Failed' }, { onSerialize: async () => {} });
 
 let serializedStatus: number | undefined;
+let serializedBodyFormat: 'json' | 'ansi' | undefined;
 const json: ErrorResponse = errorResponse(reported, {
   onSerialize: (_source, context) => {
+    serializedBodyFormat = context.bodyFormat;
     serializedStatus = context.status;
   },
 });
 assert(json.status === 503, 'concrete status was not preserved');
 assert(serializedStatus === 503, 'onSerialize did not run');
+assert(serializedBodyFormat === 'json', 'JSON body format was not reported');
 const parsedJson = parseErrorResponse(JSON.parse(json.body));
 assert(parsedJson, 'valid JSON response did not parse');
 const clientResponseData: ClientErrorResponseData = parsedJson;
@@ -326,7 +329,7 @@ assert(parsedJson.error.scope === 'visitor-signals', 'scope did not survive');
 assert(parsedJson.error.code === 'unavailable', 'code did not survive');
 assert(
   !('requestId' in parsedJson.error),
-  'server-only requestId reached the wire',
+  'server-only requestId reached response data',
 );
 
 const reconstructed = fromErrorResponse(parsedJson, { statusCode: json.status });

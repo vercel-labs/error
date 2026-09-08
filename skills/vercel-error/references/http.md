@@ -10,7 +10,7 @@ Use this reference for producing `ErrorResponse`, validating `ErrorResponseData`
 
 ## Producer
 
-Put every client-approved prose field under `public`. A `VercelError` without `public` receives the fixed wire message `An error occurred.`; developer prose never fills the response.
+Put every client-approved prose field under `public`. A `VercelError` without `public` receives the fixed response message `An error occurred.`; developer prose never fills the response.
 
 The example assumes the application contract approves HTTP 503, the `deployments:deployment_unavailable` identity, and the public copy.
 
@@ -44,7 +44,7 @@ export function deploymentErrorResponse(
 
 `statusCode` must be an integer from 400 through 599. Omission defaults to 500. Invalid values throw before public projection or diagnostics run.
 
-Passing `request` through the options enables ANSI negotiation. JSON and ANSI text contain the same public identity and prose. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Otherwise `Accept` and `User-Agent` provide fallbacks. These headers choose the representation; they do not authenticate the caller.
+Passing `request` through the options enables ANSI negotiation. JSON and ANSI text contain the same public identity and prose. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Otherwise `Accept` and `User-Agent` provide fallbacks. These headers choose the body format; they do not authenticate the caller.
 
 Scope, code, and status are public disclosures even when the generic message is used. Protected-resource handlers own neutral mappings that do not reveal whether a resource exists.
 
@@ -83,7 +83,7 @@ const result = errorResponse(error, {
 });
 ```
 
-The callback receives the original source plus `{ status, representation }`, so server-side instrumentation can inspect metadata and attributes. Those values retain the source's trust level. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
+The callback receives the original source plus `{ status, bodyFormat }`. `bodyFormat` is `json` or `ansi` and describes the serialized body. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
 
 ## Response data contract
 
@@ -130,9 +130,9 @@ if (!response.ok) {
 
 `parseErrorResponse()` requires a nonblank string message. A present known field with the wrong type rejects the entire response. Unknown fields are ignored for additive evolution.
 
-`fromErrorResponse()` copies wire identity and prose into the reconstructed developer fields and stores the same prose under `public`. The caller supplies only status, cause, request ID, metadata, and attributes. The real response status is authoritative.
+`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies only status, cause, request ID, metadata, and attributes. The observed response status is authoritative.
 
-Parsing validates shape, not producer trust or permission to act. Treat fixes and links as untrusted data. Verify the sender, permissions, parameters, and side effects before following them; apply the [Recovery authority rules](contract-design.md#recovery-authority).
+Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 
 ## Boundary checks
 

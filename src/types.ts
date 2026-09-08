@@ -16,7 +16,7 @@ export type SerializableValue =
  * Can contain arbitrarily nested values. Server-side only, so it is excluded
  * from HTTP error responses.
  *
- * Route to: serialization, logging, debugging tools.
+ * Use in internal diagnostic serialization, logging, and debugging tools.
  *
  * @example { userId: '123', query: { table: 'users', limit: 50 } }
  */
@@ -80,7 +80,7 @@ export interface VercelErrorOptions<TCode extends string = string> {
    */
   readonly code?: TCode;
 
-  /** Actionable step that resolves the error, such as a command or config change. */
+  /** Known developer remediation and any required precondition. It suggests an action but does not authorize it. */
   readonly fix?: string;
 
   /** Advisory tip that helps the developer, shown before `fix`. */

@@ -8,9 +8,11 @@ Software branches on stable `scope` and `code` values, including those in `Error
 
 ## Source Map
 
+Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concepts. Read the accepted decisions in [`docs/adr/`](docs/adr/) before changing disclosure, response seams, module ownership, or cross-realm recognition.
+
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
-- `src/error-codec/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
+- `src/error-response-data/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
 - `src/to-error-response/` owns HTTP status validation, content negotiation, headers, and `onSerialize` ordering.
 - `src/format/` owns presets, sanitization, physical-line containment, connectors, labels, and color.
 - `src/create-errors/` owns factory defaults, merge precedence, documentation links, custom constructors, and `onReport` ordering.
@@ -23,9 +25,9 @@ Keep feature implementations in `src/<feature>/index.ts` with colocated `index.s
 
 - Keep the package framework-neutral, dependency-free at runtime, side-effect free on import, and compatible with `package.json#sideEffects: false`.
 - Keep public entry modules independent. A public entry module never imports another public entry module.
-- `vercel-error` never imports the codec, HTTP adapter, client entry, or server entry.
-- `format` never imports the class, codec, or HTTP adapter at runtime.
-- `error-codec` never imports a public entry module or the HTTP adapter.
+- `vercel-error` never imports response data, the HTTP adapter, the client entry, or the server entry.
+- `format` never imports the class, response data, or the HTTP adapter at runtime.
+- `error-response-data` never imports a public entry module or the HTTP adapter.
 - The HTTP adapter reads symbol-recognized values as data and never invokes their methods.
 - Treat `dist/` as generated output. Change source and rebuild.
 
@@ -43,7 +45,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Use `statusCode` for authored mappings and `status` only for a concrete response. The HTTP adapter accepts integer error statuses from 400 through 599 and defaults omission to 500.
 - Keep request ID, metadata, attributes, cause, stack, developer name, and status out of `ErrorResponseData` and both serialized body formats.
 - Treat `toJSON()` as diagnostic serialization. It may contain developer prose, stack, metadata, attributes, and public data.
-- Parse known wire fields strictly and ignore unknown fields. Parsing validates shape, not producer trust or action authority.
+- Parse known response data fields strictly and ignore unknown fields. Parsing validates shape, not producer trust or action authority.
 - Keep cross-realm recognition as `instanceof` plus the namespaced symbol and data-shape validation. The tag is forgeable. Use `instanceof VercelError` when local methods are required.
 - Classify a present symbol tag before flat public input. Tagged-invalid values throw instead of falling through.
 - Keep `create`, `raise`, and `report`. Only `report` invokes `onReport`; `create` and `raise` stay free of reporting side effects.
