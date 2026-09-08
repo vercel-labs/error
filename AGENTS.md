@@ -8,7 +8,7 @@ Software branches on stable `scope` and `code` values, including those in `Error
 
 ## Source Map
 
-Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concepts. Read the accepted decisions in [`docs/adr/`](docs/adr/) before changing disclosure, response seams, module ownership, or cross-realm recognition.
+Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concepts. Read the accepted decisions and format rules in [`docs/adr/`](docs/adr/README.md) before changing disclosure, response seams, module ownership, or cross-realm recognition.
 
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
