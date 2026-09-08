@@ -13,7 +13,7 @@ export interface HeadersLike {
  * (e.g. Next.js `ReadonlyHeaders`, `Headers`, etc).
  *
  * Checks (in order):
- * 1. `X-Error-Format: ansi` header
+ * 1. A present `X-Error-Format` header is authoritative; only `ansi` enables ANSI
  * 2. `Accept: text/plain+ansi` header
  * 3. `User-Agent` containing `curl/` (curl users get ANSI by default)
  *
@@ -29,8 +29,8 @@ export function wantsAnsi(
   const headers = _getHeadersLike(requestOrHeaders);
 
   const errorFormat = headers.get('x-error-format');
-  if (errorFormat === 'ansi') {
-    return true;
+  if (errorFormat !== null) {
+    return errorFormat === 'ansi';
   }
 
   const accept = headers.get('accept');

@@ -10,7 +10,7 @@ import { VercelError } from '../vercel-error';
 import { LEGACY_VERCEL_ERROR_TAG, VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
-const OPTIONAL_WIRE_FIELDS = [
+const OPTIONAL_RESPONSE_ERROR_FIELDS = [
   'scope',
   'code',
   'reason',
@@ -20,13 +20,15 @@ const OPTIONAL_WIRE_FIELDS = [
 ] as const;
 
 /**
- * Canonical wire shape for client-facing Vercel HTTP errors.
+ * Normalized structured data for client-facing Vercel HTTP errors.
  *
- * The body excludes status, request ID, metadata, attributes, cause, stack, and
- * developer name. Shape validation does not authenticate the producer or
- * authorize acting on its prose, fixes, or links.
+ * The data feeds JSON serialization and ANSI rendering. It excludes status,
+ * request ID, metadata, attributes, cause, stack, and developer name. Shape
+ * validation does not authenticate the producer or authorize acting on its
+ * prose, fixes, or links. `error.message` must be nonblank. Pass unknown input
+ * through {@link parseErrorResponse} before reconstruction.
  */
-export interface ErrorResponse {
+export interface ErrorResponseData {
   readonly error: {
     readonly scope?: string;
     readonly code?: string;
@@ -39,14 +41,14 @@ export interface ErrorResponse {
 }
 
 /**
- * Explicitly public response data for callers that do not have a VercelError.
+ * Flat, explicitly public input for callers that do not have a VercelError.
  *
  * Every prose field is treated as approved for client disclosure. `statusCode`
  * is an authored HTTP mapping; {@link errorResponse} validates it and returns
  * the concrete value as `status`. Explicitly `undefined` optional fields are
  * omitted from the projected response.
  */
-export interface ErrorResponseParams extends PublicErrorDetails {
+export interface ErrorResponseInput extends PublicErrorDetails {
   readonly scope?: string;
   readonly code?: string;
   readonly statusCode?: number;
@@ -54,7 +56,7 @@ export interface ErrorResponseParams extends PublicErrorDetails {
 
 /**
  * Caller-owned context accepted while reconstructing an upstream response.
- * Wire identity and prose always win and cannot be overridden here.
+ * Response identity and prose always win and cannot be overridden here.
  */
 export type FromErrorResponseOptions = Pick<
   VercelErrorOptions,
@@ -62,35 +64,39 @@ export type FromErrorResponseOptions = Pick<
 >;
 
 /**
- * Project an error into the canonical client-safe wire shape.
+ * Build normalized client-facing response data from an error or public input.
  *
  * Tagged values are classified before flat input. A tagged malformed value is
  * rejected instead of being reinterpreted as explicitly public data. Errors
  * without a `public` projection receive a fixed generic message; developer
  * prose is never used as a fallback.
  */
-export function projectErrorResponse(
-  source: VercelErrorLike | ErrorResponseParams,
-): ErrorResponse {
+export function buildErrorResponseData(
+  source: VercelErrorLike | ErrorResponseInput,
+): ErrorResponseData {
   if (!isObject(source)) {
-    throw new TypeError('Invalid error response source');
+    throw new TypeError(
+      'Error response source must be ErrorResponseInput or VercelError-like data',
+    );
   }
 
   if (VERCEL_ERROR_TAG in source) {
     if (!isVercelError(source) || !isVercelErrorLikeData(source)) {
-      throw new TypeError('Invalid VercelError-like value');
+      throw new TypeError(
+        'Tagged VercelError-like data does not match the expected field types',
+      );
     }
 
     const publicDetails = source.public;
     if (publicDetails === undefined) {
       return {
-        error: withIdentity(source, { message: GENERIC_PUBLIC_MESSAGE }),
+        error: buildResponseError(source, { message: GENERIC_PUBLIC_MESSAGE }),
       };
     }
 
     assertPublicErrorDetails(publicDetails);
     return {
-      error: withIdentity(source, publicDetails),
+      error: buildResponseError(source, publicDetails),
     };
   }
 
@@ -100,9 +106,9 @@ export function projectErrorResponse(
     );
   }
 
-  if (isError(source)) {
+  if (isError(source) || hasErrorDiagnosticFields(source)) {
     throw new TypeError(
-      'Untagged Error values cannot be serialized; pass explicit public response params',
+      'Untagged Error-like values cannot be serialized; pass ErrorResponseInput instead',
     );
   }
 
@@ -110,19 +116,21 @@ export function projectErrorResponse(
   assertOptionalStrings(source, ['scope', 'code']);
 
   return {
-    error: copyWireFields(source),
+    error: selectResponseErrorFields(source),
   };
 }
 
 /**
- * Parse unknown data as the canonical ErrorResponse shape.
+ * Parse unknown data as the canonical ErrorResponseData shape.
  *
  * Unknown fields are ignored for additive compatibility. A missing or blank
  * message, or any present known field with the wrong type, rejects the entire
  * value and returns `undefined`. A parsed response remains untrusted data;
  * applications must authenticate its producer and authorize suggested actions.
  */
-export function parseErrorResponse(data?: unknown): ErrorResponse | undefined {
+export function parseErrorResponse(
+  data?: unknown,
+): ErrorResponseData | undefined {
   if (!isObject(data) || !isObject(data['error'])) {
     return undefined;
   }
@@ -131,30 +139,31 @@ export function parseErrorResponse(data?: unknown): ErrorResponse | undefined {
   if (
     typeof error['message'] !== 'string' ||
     error['message'].trim().length === 0 ||
-    !hasOnlyValidKnownFields(error)
+    !hasValidOptionalResponseErrorFields(error)
   ) {
     return undefined;
   }
 
   return {
-    error: copyWireFields(error as ErrorResponse['error']),
+    error: selectResponseErrorFields(error as ErrorResponseData['error']),
   };
 }
 
 /**
- * Reconstruct a VercelError from a validated upstream ErrorResponse.
+ * Reconstruct a VercelError from validated upstream ErrorResponseData.
  *
- * Public wire prose becomes both developer-facing context and the new public
- * projection. Identity and prose come from the wire; status, cause, request ID,
- * metadata, and attributes remain owned by the caller. Reconstruction does not
- * establish producer trust or authorize following wire fixes and links.
+ * Client-facing response prose becomes both developer-facing context and the
+ * new public projection. Identity and prose come from the response data;
+ * status, cause, request ID, metadata, and attributes remain owned by the
+ * caller. Reconstruction does not establish producer trust or authorize
+ * following response fixes and links.
  */
 export function fromErrorResponse(
-  response: ErrorResponse,
+  data: ErrorResponseData,
   options: FromErrorResponseOptions = {},
 ): VercelError {
-  const { error } = response;
-  const publicDetails: PublicErrorDetails = copyPublicDetails(error);
+  const { error } = data;
+  const publicDetails: PublicErrorDetails = selectPublicErrorDetails(error);
 
   return new VercelError(error.message, {
     ...options,
@@ -182,6 +191,12 @@ function assertPublicErrorDetails(
   assertOptionalStrings(value, ['reason', 'hint', 'fix', 'link']);
 }
 
+function hasErrorDiagnosticFields(
+  value: Record<PropertyKey, unknown>,
+): boolean {
+  return 'name' in value || 'stack' in value;
+}
+
 function assertOptionalStrings(
   value: Record<PropertyKey, unknown>,
   fields: readonly string[],
@@ -193,34 +208,38 @@ function assertOptionalStrings(
   }
 }
 
-function hasOnlyValidKnownFields(value: Record<PropertyKey, unknown>): boolean {
-  return OPTIONAL_WIRE_FIELDS.every(
+function hasValidOptionalResponseErrorFields(
+  value: Record<PropertyKey, unknown>,
+): boolean {
+  return OPTIONAL_RESPONSE_ERROR_FIELDS.every(
     (field) => !(field in value) || typeof value[field] === 'string',
   );
 }
 
-function withIdentity(
+function buildResponseError(
   source: Pick<VercelErrorLike, 'scope' | 'code'>,
   details: PublicErrorDetails,
-): ErrorResponse['error'] {
+): ErrorResponseData['error'] {
   return {
     ...(source.scope !== undefined ? { scope: source.scope } : {}),
     ...(source.code !== undefined ? { code: source.code } : {}),
-    ...copyPublicDetails(details),
+    ...selectPublicErrorDetails(details),
   };
 }
 
-function copyWireFields(
-  source: ErrorResponse['error'] | ErrorResponseParams,
-): ErrorResponse['error'] {
+function selectResponseErrorFields(
+  source: ErrorResponseData['error'] | ErrorResponseInput,
+): ErrorResponseData['error'] {
   return {
     ...(source.scope !== undefined ? { scope: source.scope } : {}),
     ...(source.code !== undefined ? { code: source.code } : {}),
-    ...copyPublicDetails(source),
+    ...selectPublicErrorDetails(source),
   };
 }
 
-function copyPublicDetails(source: PublicErrorDetails): PublicErrorDetails {
+function selectPublicErrorDetails(
+  source: PublicErrorDetails,
+): PublicErrorDetails {
   return {
     message: source.message,
     ...(source.reason !== undefined ? { reason: source.reason } : {}),

@@ -4,13 +4,13 @@
 
 `@vercel/error` gives errors stable codes, recovery fields, diagnostic context, client-safe HTTP projection, and terminal formatting without a framework or runtime dependency.
 
-Software branches on stable error codes or `ErrorResponse`. Frames and prose are for reading, not parsing.
+Software branches on stable `scope` and `code` values, including those in `ErrorResponseData`. Frames and prose are for reading, not parsing.
 
 ## Source Map
 
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
-- `src/error-codec/` alone owns native wire fields, public projection, strict parsing, and reconstruction.
+- `src/error-codec/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
 - `src/to-error-response/` owns HTTP status validation, content negotiation, headers, and `onSerialize` ordering.
 - `src/format/` owns presets, sanitization, physical-line containment, connectors, labels, and color.
 - `src/create-errors/` owns factory defaults, merge precedence, documentation links, custom constructors, and `onReport` ordering.
@@ -41,7 +41,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - `errorResponse()` is the client-safe serializer. It uses only `public` prose or the fixed generic fallback, while preserving public `scope` and `code`.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
 - Use `statusCode` for authored mappings and `status` only for a concrete response. The HTTP adapter accepts integer error statuses from 400 through 599 and defaults omission to 500.
-- Keep request ID, metadata, attributes, cause, stack, developer name, and status out of `ErrorResponse` JSON.
+- Keep request ID, metadata, attributes, cause, stack, developer name, and status out of `ErrorResponseData` and both serialized body formats.
 - Treat `toJSON()` as diagnostic serialization. It may contain developer prose, stack, metadata, attributes, and public data.
 - Parse known wire fields strictly and ignore unknown fields. Parsing validates shape, not producer trust or action authority.
 - Keep cross-realm recognition as `instanceof` plus the namespaced symbol and data-shape validation. The tag is forgeable. Use `instanceof VercelError` when local methods are required.

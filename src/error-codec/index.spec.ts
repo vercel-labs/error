@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
   fromErrorResponse,
   parseErrorResponse,
-  projectErrorResponse,
-  type ErrorResponse,
+  buildErrorResponseData,
+  type ErrorResponseData,
 } from '.';
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 describe('error codec', () => {
-  describe('projectErrorResponse', () => {
-    it('projects only explicit public prose and wire identity', () => {
+  describe('buildErrorResponseData', () => {
+    it('builds response data from explicit public prose and identity', () => {
       const error = new VercelError('Database shard 7 failed', {
         attributes: { shard: 7 },
         cause: new Error('socket closed'),
@@ -31,7 +31,7 @@ describe('error codec', () => {
         statusCode: 503,
       });
 
-      expect(projectErrorResponse(error)).toEqual({
+      expect(buildErrorResponseData(error)).toEqual({
         error: {
           code: 'unavailable',
           fix: 'Try again shortly',
@@ -52,7 +52,7 @@ describe('error codec', () => {
         scope: 'api',
       });
 
-      expect(projectErrorResponse(error)).toEqual({
+      expect(buildErrorResponseData(error)).toEqual({
         error: {
           code: 'internal',
           message: 'An error occurred.',
@@ -71,12 +71,12 @@ describe('error codec', () => {
       const error = new VercelError('Developer detail', {
         public: publicDetails as never,
       });
-      expect(() => projectErrorResponse(error)).toThrow(TypeError);
+      expect(() => buildErrorResponseData(error)).toThrow(TypeError);
     });
 
-    it('projects flat input as explicitly public data', () => {
+    it('builds explicitly public response data from flat input', () => {
       expect(
-        projectErrorResponse({
+        buildErrorResponseData({
           code: 'invalid',
           fix: 'Correct the value',
           hint: 'Use an integer',
@@ -100,7 +100,7 @@ describe('error codec', () => {
     });
 
     it.each(['', '   '])('rejects a blank flat message: %o', (message) => {
-      expect(() => projectErrorResponse({ message })).toThrow(TypeError);
+      expect(() => buildErrorResponseData({ message })).toThrow(TypeError);
     });
 
     it('omits explicitly undefined optional producer fields', () => {
@@ -124,10 +124,10 @@ describe('error codec', () => {
         statusCode: undefined,
       };
 
-      expect(projectErrorResponse(publicError)).toEqual({
+      expect(buildErrorResponseData(publicError)).toEqual({
         error: { message: 'Public message' },
       });
-      expect(projectErrorResponse(flatError)).toEqual({
+      expect(buildErrorResponseData(flatError)).toEqual({
         error: { message: 'Public message' },
       });
     });
@@ -141,7 +141,7 @@ describe('error codec', () => {
         [VERCEL_ERROR_TAG]: true,
       };
 
-      expect(projectErrorResponse(error)).toEqual({
+      expect(buildErrorResponseData(error)).toEqual({
         error: {
           code: 'timeout',
           message: 'Please try again',
@@ -158,7 +158,7 @@ describe('error codec', () => {
         } as never,
       });
 
-      expect(projectErrorResponse(error)).toEqual({
+      expect(buildErrorResponseData(error)).toEqual({
         error: { message: 'Public message' },
       });
     });
@@ -171,8 +171,10 @@ describe('error codec', () => {
         [VERCEL_ERROR_TAG]: true,
       };
 
-      expect(() => projectErrorResponse(invalid as never)).toThrowError(
-        new TypeError('Invalid VercelError-like value'),
+      expect(() => buildErrorResponseData(invalid as never)).toThrowError(
+        new TypeError(
+          'Tagged VercelError-like data does not match the expected field types',
+        ),
       );
     });
 
@@ -193,7 +195,7 @@ describe('error codec', () => {
     ])(
       'rejects a shipped 0.0 tagged value instead of exposing it: %o',
       (old) => {
-        expect(() => projectErrorResponse(old as never)).toThrowError(
+        expect(() => buildErrorResponseData(old as never)).toThrowError(
           new TypeError(
             'VercelError values from 0.0.x cannot be serialized; recreate the error with explicit public details',
           ),
@@ -252,7 +254,7 @@ describe('error codec', () => {
   describe('fromErrorResponse', () => {
     it('reconstructs developer and public fields while preserving caller context', () => {
       const cause = new Error('upstream failed');
-      const response: ErrorResponse = {
+      const data: ErrorResponseData = {
         error: {
           code: 'unavailable',
           fix: 'Try again',
@@ -262,7 +264,7 @@ describe('error codec', () => {
         },
       };
 
-      const error = fromErrorResponse(response, {
+      const error = fromErrorResponse(data, {
         attributes: { 'http.status_code': 503 },
         cause,
         metadata: { upstream: 'payments' },

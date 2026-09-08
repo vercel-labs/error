@@ -74,7 +74,7 @@ Assign a subclass a literal stable `name`; minification can change `constructor.
 
 ## Transport and audience
 
-The 0.1 public types mark `message`, `statusCode`, `reason`, `hint`, `fix`, and `link` readonly on `VercelError`, and mark every `ErrorResponse` field readonly. Pass authored values at construction or create a new value instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
+The 0.1 public types mark `message`, `statusCode`, `reason`, `hint`, `fix`, and `link` readonly on `VercelError`, and mark every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new value instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
 
 ### `statusCode`
 
@@ -141,7 +141,7 @@ Wire diagnostics at explicit owning seams. `createErrors.report()` invokes `onRe
 - Store allowlisted nested context needed for debugging.
 - Bound depth, size, string length, and collection counts at untrusted boundaries.
 - Exclude credentials, tokens, sessions, payment data, raw bodies, headers, and whole provider request or response payloads.
-- Use metadata for debugging, not machine decisions. `toJSON()` includes metadata, while `ErrorResponse` does not. Use `toJSON()` only for internal diagnostics, not public HTTP responses.
+- Use metadata for debugging, not machine decisions. `toJSON()` includes metadata, while `ErrorResponseData` does not. Use `toJSON()` only for internal diagnostics, not public HTTP responses.
 
 ### `attributes`
 
@@ -160,7 +160,7 @@ Wire diagnostics at explicit owning seams. `createErrors.report()` invokes `onRe
 - Every field under `public` must be client-safe. JSON and ANSI use the same projection; headers select representation rather than authorization.
 - Parsing validates fields, not who sent them or whether they are safe. Apply the Recovery authority rules before acting on error text or links.
 - Automation should branch on stable fields and rules defined by the receiving application, never rendered text.
-- `ErrorResponse` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. When rebuilding an error, use the observed response status and add only context the receiving application already knows.
+- `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. When rebuilding an error, use the observed response status and add only context the receiving application already knows.
 
 ## Audit output
 

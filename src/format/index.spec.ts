@@ -1,14 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  detectFormat,
-  fix,
-  formatError,
-  frame,
-  hint,
-  link,
-  type ErrorFormat,
-} from '.';
+import { fix, formatError, frame, hint, link, type ErrorFormat } from '.';
 
 /* oxlint-disable no-control-regex -- intentional ANSI/control assertions */
 const ANSI_PATTERN = /\x1b\[[0-?]*[ -/]*[@-~]/g;
@@ -151,7 +143,14 @@ describe('format', () => {
           vi.stubGlobal('process', { env, stdout: { isTTY } });
         }
 
-        expect(detectFormat()).toEqual({ color, tree });
+        const result = formatError(
+          { message: 'Failed', reason: 'Detail' },
+          { format: 'auto' },
+        );
+        expect({
+          color: result.includes('\x1b['),
+          tree: stripAnsi(result).includes('│'),
+        }).toEqual({ color, tree });
       },
     );
 
@@ -160,7 +159,12 @@ describe('format', () => {
         env: { FORCE_COLOR: '1', NO_COLOR: '1' },
         stdout: { isTTY: true },
       });
-      expect(detectFormat()).toEqual({ color: false, tree: true });
+      const result = formatError(
+        { message: 'Failed', reason: 'Detail' },
+        { format: 'auto' },
+      );
+      expect(result).not.toContain('\x1b[');
+      expect(result).toContain('│');
     });
 
     it('uses detected capabilities only for auto', () => {

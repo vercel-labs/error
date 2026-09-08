@@ -186,7 +186,7 @@ function verifyTreeShaking(directory) {
     'VercelError',
     'An error occurred.',
     'formatError',
-    'projectErrorResponse',
+    'buildErrorResponseData',
   ]) {
     if (bundle.includes(forbidden)) {
       throw new Error(`Tree-shaken utility bundle contains ${forbidden}`);
@@ -201,16 +201,19 @@ import {
   hasCode,
   isErrorLike,
   isVercelError,
-  type ErrorResponse,
+  type ErrorResponseData,
   type VercelErrorOptions,
 } from '@vercel/error';
 import {
   fromErrorResponse,
   parseErrorResponse,
+  type ErrorResponseData as ClientErrorResponseData,
 } from '@vercel/error/client';
 import {
   errorResponse,
   wantsAnsi,
+  type ErrorResponse,
+  type ErrorResponseInput,
 } from '@vercel/error/server';
 import {
   fix,
@@ -239,6 +242,16 @@ const reported = visitorErrors.report('Internal visitor failure', {
 });
 assert(reportedCode === 'unavailable', 'typed scoped report callback failed');
 
+const publicInput: ErrorResponseInput = {
+  message: 'Public input failed',
+  statusCode: 400,
+};
+const publicResponse: ErrorResponse = errorResponse(publicInput);
+assert(
+  publicResponse.status === 400,
+  'ErrorResponseInput status was not preserved in ErrorResponse',
+);
+
 type CliErrorOptions = VercelErrorOptions<'cli_failure'>;
 class CliError extends VercelError<'cli_failure'> {
   readonly retryable = true;
@@ -266,7 +279,10 @@ if (isVercelError(unknownCliError)) {
   assert(metadata === undefined, 'isVercelError narrowing failed');
 }
 
-function verifyTypeContracts(error: CliError, response: ErrorResponse): void {
+function verifyTypeContracts(
+  error: CliError,
+  data: ErrorResponseData,
+): void {
   error.requestId = 'req_123';
   error.metadata = { operation: 'deploy' };
   error.attributes = { retryable: true };
@@ -278,12 +294,12 @@ function verifyTypeContracts(error: CliError, response: ErrorResponse): void {
   error.statusCode = 500;
   // @ts-expect-error authored public details are readonly
   error.public = { message: 'changed' };
-  // @ts-expect-error wire scope cannot be overridden during reconstruction
-  fromErrorResponse(response, { scope: 'other' });
-  // @ts-expect-error wire code cannot be overridden during reconstruction
-  fromErrorResponse(response, { code: 'other' });
-  // @ts-expect-error wire public details cannot be overridden during reconstruction
-  fromErrorResponse(response, { public: { message: 'other' } });
+  // @ts-expect-error ErrorResponseData scope cannot be overridden during reconstruction
+  fromErrorResponse(data, { scope: 'other' });
+  // @ts-expect-error ErrorResponseData code cannot be overridden during reconstruction
+  fromErrorResponse(data, { code: 'other' });
+  // @ts-expect-error ErrorResponseData public details cannot be overridden during reconstruction
+  fromErrorResponse(data, { public: { message: 'other' } });
 }
 void verifyTypeContracts;
 
@@ -295,7 +311,7 @@ createErrors({ onReport: async () => {} });
 errorResponse({ message: 'Failed' }, { onSerialize: async () => {} });
 
 let serializedStatus: number | undefined;
-const json = errorResponse(reported, {
+const json: ErrorResponse = errorResponse(reported, {
   onSerialize: (_source, context) => {
     serializedStatus = context.status;
   },
@@ -304,6 +320,8 @@ assert(json.status === 503, 'concrete status was not preserved');
 assert(serializedStatus === 503, 'onSerialize did not run');
 const parsedJson = parseErrorResponse(JSON.parse(json.body));
 assert(parsedJson, 'valid JSON response did not parse');
+const clientResponseData: ClientErrorResponseData = parsedJson;
+void clientResponseData;
 assert(parsedJson.error.scope === 'visitor-signals', 'scope did not survive');
 assert(parsedJson.error.code === 'unavailable', 'code did not survive');
 assert(
@@ -322,13 +340,18 @@ assert(
   JSON.parse(fallback.body).error.message === 'An error occurred.',
   'developer prose leaked through fallback',
 );
-let untaggedErrorRejected = false;
-try {
-  errorResponse(new Error('Secret untagged developer prose'));
-} catch (error) {
-  untaggedErrorRejected = error instanceof TypeError;
+for (const untaggedError of [
+  new Error('Secret untagged developer prose'),
+  new Proxy(new Error('Secret proxied developer prose'), {}),
+]) {
+  let untaggedErrorRejected = false;
+  try {
+    errorResponse(untaggedError);
+  } catch (error) {
+    untaggedErrorRejected = error instanceof TypeError;
+  }
+  assert(untaggedErrorRejected, 'untagged Error-like value was serialized');
 }
-assert(untaggedErrorRejected, 'untagged Error was serialized as public input');
 const ansi = errorResponse(reported, {
   request: new Headers({ 'X-Error-Format': 'ansi' }),
 });

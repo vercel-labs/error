@@ -23,4 +23,4 @@ export type {
   VercelErrorLike,
   VercelErrorOptions,
 } from './types';
-export type { ErrorResponse } from './error-codec';
+export type { ErrorResponseData } from './error-codec';

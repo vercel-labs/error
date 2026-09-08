@@ -1,8 +1,8 @@
 import { isObject } from '../_internal';
 import {
-  projectErrorResponse,
-  type ErrorResponse,
-  type ErrorResponseParams,
+  buildErrorResponseData,
+  type ErrorResponseData,
+  type ErrorResponseInput,
 } from '../error-codec';
 import { formatError } from '../format/index';
 import type { VercelErrorLike } from '../types';
@@ -16,13 +16,13 @@ export interface ErrorResponseOptions {
   /**
    * Synchronous diagnostics callback invoked after the response is complete.
    *
-   * The original error is provided so trusted instrumentation can inspect
-   * server-side context. Exceptions propagate and replace the response the
-   * caller would otherwise receive. Async callbacks are rejected by the
-   * `undefined` return type.
+   * The callback receives the original source so server-side instrumentation
+   * can inspect its context. The source retains its existing trust level.
+   * Exceptions propagate and replace the response the caller would otherwise
+   * receive. Async callbacks are rejected by the `undefined` return type.
    */
   readonly onSerialize?: (
-    error: VercelErrorLike | ErrorResponseParams,
+    source: VercelErrorLike | ErrorResponseInput,
     context: {
       readonly status: number;
       readonly representation: 'json' | 'ansi';
@@ -30,8 +30,12 @@ export interface ErrorResponseOptions {
   ) => undefined;
 }
 
-/** Complete framework-neutral HTTP response data. */
-export interface ErrorResponseResult {
+/**
+ * Complete framework-neutral HTTP response returned by {@link errorResponse}.
+ * The body is already serialized. Use `body`, `status`, and `headers` to
+ * construct a native or framework response.
+ */
+export interface ErrorResponse {
   /** Concrete HTTP status to send. */
   readonly status: number;
   /** Serialized JSON or structured ANSI text body. */
@@ -48,10 +52,10 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  *
  * Local `VercelError` instances and tagged `VercelErrorLike` values expose only
  * their `public` projection, or the fixed generic fallback when that projection
- * is absent. Untagged native and cross-realm `Error` objects throw `TypeError`;
- * other untagged objects are treated as flat public params. Scope, code, status,
- * and every flat prose field are client-visible. Request headers select a
- * representation; they do not authorize access.
+ * is absent. Untagged native, cross-realm, and Error-shaped objects throw
+ * `TypeError`; other untagged objects are treated as `ErrorResponseInput`.
+ * Scope, code, status, and every flat prose field are client-visible. Request
+ * headers select a representation; they do not authorize access.
  *
  * `statusCode` defaults to 500 and must be an integer from 400 through 599.
  * Status validation runs before projection and throws `RangeError` for invalid
@@ -71,32 +75,32 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * ```
  */
 export function errorResponse(
-  error: VercelErrorLike | ErrorResponseParams,
+  source: VercelErrorLike | ErrorResponseInput,
   options: ErrorResponseOptions = {},
-): ErrorResponseResult {
-  const status = resolveStatus(error);
-  const response = projectErrorResponse(error);
+): ErrorResponse {
+  const status = resolveStatus(source);
+  const responseData = buildErrorResponseData(source);
   const representation = wantsAnsi(options.request) ? 'ansi' : 'json';
 
-  const result: ErrorResponseResult =
+  const result: ErrorResponse =
     representation === 'ansi'
       ? {
-          body: renderPublicError(response.error),
+          body: renderPublicError(responseData.error),
           headers: { ...TEXT_HEADERS },
           status,
         }
       : {
-          body: JSON.stringify(response),
+          body: JSON.stringify(responseData),
           headers: { ...JSON_HEADERS },
           status,
         };
 
-  options.onSerialize?.(error, { representation, status });
+  options.onSerialize?.(source, { representation, status });
   return result;
 }
 
-function resolveStatus(error: VercelErrorLike | ErrorResponseParams): number {
-  const value = isObject(error) ? error['statusCode'] : undefined;
+function resolveStatus(source: VercelErrorLike | ErrorResponseInput): number {
+  const value = isObject(source) ? source['statusCode'] : undefined;
   const status = value === undefined ? 500 : value;
 
   if (
@@ -111,6 +115,6 @@ function resolveStatus(error: VercelErrorLike | ErrorResponseParams): number {
   return status;
 }
 
-function renderPublicError(error: ErrorResponse['error']): string {
+function renderPublicError(error: ErrorResponseData['error']): string {
   return formatError(error, { format: 'ansi' });
 }

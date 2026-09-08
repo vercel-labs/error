@@ -89,7 +89,7 @@ export function link(
 }
 
 /** @internal Detect capabilities used by the `auto` preset. */
-export function detectFormat(): { tree: boolean; color: boolean } {
+function detectFormat(): { tree: boolean; color: boolean } {
   try {
     if (typeof process === 'undefined') {
       return { color: false, tree: false };

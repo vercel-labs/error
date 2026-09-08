@@ -77,6 +77,10 @@ describe('errorResponse', () => {
 
   it.each([
     new Error('postgres://internal-db.example/private'),
+    new Proxy(new Error('internal database hostname: db.private'), {}),
+    Object.defineProperty(new Error('token=secret'), Symbol.toStringTag, {
+      value: 'Object',
+    }),
     structuredClone(
       new VercelError('Internal shard 7 failed', {
         public: { message: 'Service unavailable' },
@@ -165,7 +169,9 @@ describe('errorResponse', () => {
     };
 
     expect(() => errorResponse(malformed as never)).toThrowError(
-      new TypeError('Invalid VercelError-like value'),
+      new TypeError(
+        'Tagged VercelError-like data does not match the expected field types',
+      ),
     );
   });
 
