@@ -363,7 +363,7 @@ Version 0.1 is a clean redesign without compatibility aliases:
 | Structured `ErrorResponse` type    | `ErrorResponseData` type                                      |
 | `ErrorResponseResult` type         | Concrete `ErrorResponse` type                                 |
 
-`ErrorResponseData.error.scope` is now included when set. Check that your `scope` values are safe to show clients before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. Cross-realm values carrying the shipped 0.0 tag are rejected rather than treated as public flat input.
+`ErrorResponseData.error.scope` is now included when set. Check that your `scope` values are safe to show clients before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. The 0.0 recognition tag has no meaning in 0.1: a 0.0 error instance is rejected like any untagged `Error`, and plain data must be recreated with explicit `public` details.
 
 The 0.1 public types mark authored `VercelError` fields and every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new error instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
 

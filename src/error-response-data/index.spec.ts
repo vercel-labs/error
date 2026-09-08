@@ -291,30 +291,20 @@ describe('error response data', () => {
       );
     });
 
-    it.each([
-      {
-        code: 'internal',
-        fix: 'Inspect 10.0.0.7',
-        message: 'Database shard 7 failed',
-        public: undefined,
-        reason: 'Shard process exited',
+    it('ignores unknown symbol tags and treats the value as flat public input', () => {
+      // Only the current package tag carries meaning. Anything else,
+      // including the retired 0.0 tag, is invisible to classification, so
+      // every field of such a value is treated as explicitly public.
+      const tagged = {
+        code: 'invalid',
+        message: 'The value is invalid',
         [Symbol.for('__vercel_error')]: true,
-      },
-      {
-        message: 'Sparse developer detail',
-        reason: undefined,
-        [Symbol.for('__vercel_error')]: true,
-      },
-    ])(
-      'rejects a shipped 0.0 tagged value instead of exposing it: %o',
-      (old) => {
-        expect(() => buildErrorResponseData(old as never)).toThrowError(
-          new TypeError(
-            'VercelError values from 0.0.x cannot be serialized; recreate the error with explicit public details',
-          ),
-        );
-      },
-    );
+      };
+
+      expect(buildErrorResponseData(tagged as never)).toEqual({
+        error: { code: 'invalid', message: 'The value is invalid' },
+      });
+    });
   });
 
   describe('parseErrorResponse', () => {

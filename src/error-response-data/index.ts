@@ -11,7 +11,7 @@ import type {
   VercelErrorOptions,
 } from '../types';
 import { VercelError } from '../vercel-error';
-import { LEGACY_VERCEL_ERROR_TAG, VERCEL_ERROR_TAG } from '../vercel-error/tag';
+import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
@@ -92,12 +92,6 @@ export function buildErrorResponseData(
           : pickPublicErrorDetails(publicDetails)),
       },
     };
-  }
-
-  if (LEGACY_VERCEL_ERROR_TAG in source) {
-    throw new TypeError(
-      'VercelError values from 0.0.x cannot be serialized; recreate the error with explicit public details',
-    );
   }
 
   if (isError(source) || hasErrorDiagnosticFields(source)) {
