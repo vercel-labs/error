@@ -11,14 +11,7 @@ Use this reference for deterministic terminal output or for readable output arou
 
 ## Presets
 
-| Preset  | Tree connectors | ANSI color | Ambient detection |
-| ------- | --------------- | ---------- | ----------------- |
-| `auto`  | Detected        | Detected   | Yes               |
-| `plain` | No              | No         | No                |
-| `tree`  | Yes             | No         | No                |
-| `ansi`  | Yes             | Yes        | No                |
-
-`auto` checks `NO_COLOR`, then `FORCE_COLOR`, then TTY support. Explicit presets ignore ambient state. Use `plain` for deterministic logs, `tree` for deterministic readable snapshots, and `ansi` only for a destination that supports terminal controls.
+`plain`, `tree`, and `ansi` are deterministic. Only `auto` reads ambient state: `NO_COLOR`, then `FORCE_COLOR`, then TTY detection. Use `plain` for deterministic logs, `tree` for deterministic readable snapshots, and `ansi` only for a destination that supports terminal controls.
 
 ```ts
 import { formatError } from '@vercel/error/format';
@@ -62,17 +55,3 @@ Use a concise header for what failed. Put explanation in raw detail sections and
 The renderer strips caller-provided ANSI, OSC, C1, DEL, and unsafe C0 controls. It normalizes CRLF to LF, removes bare carriage returns, preserves tabs and blank lines, and places every physical continuation line under library-owned indentation or a tree connector.
 
 Apply the same framing behavior to headers, identity, messages, reasons, hints, fixes, links, and raw sections. Do not pre-flatten useful multiline text to work around log-forging risk; choose the required preset and let the renderer contain each line.
-
-## For agents and automation
-
-A frame helps a reader scan the fields:
-
-```text
-header -> what failed
-detail -> why or relevant context
-hint   -> what may help
-fix    -> known remediation
-link   -> deeper documentation
-```
-
-Automation should branch on a structured error code or response object, not labels, connector glyphs, line positions, or color sequences.

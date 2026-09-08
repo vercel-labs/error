@@ -1,6 +1,11 @@
 /**
  * Minimal header lookup interface accepted by ANSI content negotiation.
  * Compatible with `Headers`, Next.js `ReadonlyHeaders`, and plain adapters.
+ *
+ * Negotiation looks up lowercase header names (`x-error-format`, `accept`,
+ * `user-agent`), so `get` must match names case-insensitively, as WHATWG
+ * `Headers` does. An adapter that only matches verbatim keys will miss
+ * headers stored in other casings.
  */
 export interface HeadersLike {
   get(name: string): string | null;
@@ -47,12 +52,9 @@ export function wantsAnsi(
 }
 
 /**
- * Helper function to get a HeadersLike object from a Request or HeadersLike.
- *
  * If `input` has a `.headers` property with a `.get()` method, treat it as
- * a Request-like object and unwrap its headers.
- *
- * Otherwise assume `input` itself is already a HeadersLike (e.g. `Headers`, `ReadonlyHeaders`, etc).
+ * a Request-like object and unwrap its headers. Otherwise assume `input`
+ * itself is already a HeadersLike (e.g. `Headers`, `ReadonlyHeaders`).
  */
 function _getHeadersLike(input: Request | HeadersLike): HeadersLike {
   if (

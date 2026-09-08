@@ -76,8 +76,9 @@ export interface CreateErrorsOptions<
    * Base URL or resolver for documentation links. When a string, the error's
    * `code` is appended verbatim as a path segment
    * (e.g. `"https://vercel.com/docs/errors"` plus code `"pool_exhausted"` gives
-   * `"https://vercel.com/docs/errors/pool_exhausted"`). The code is not
-   * transformed, so use a function base if you need to change its case or shape.
+   * `"https://vercel.com/docs/errors/pool_exhausted"`). Trailing slashes on a
+   * string base are trimmed before joining. The code is not transformed, so
+   * use a function base if you need to change its case or shape.
    * When a function, it receives the `code` and returns a URL, or `undefined`
    * to skip.
    *

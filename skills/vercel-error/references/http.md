@@ -2,12 +2,6 @@
 
 Use this reference for producing `ErrorResponse`, validating `ErrorResponseData`, and reconstructing errors.
 
-| Type                 | Role                                                                 |
-| -------------------- | -------------------------------------------------------------------- |
-| `ErrorResponseInput` | Flat caller-authored input whose prose is explicitly client-approved |
-| `ErrorResponseData`  | Normalized structured data shared by JSON, ANSI, and reconstruction  |
-| `ErrorResponse`      | Concrete status, serialized body, and response headers               |
-
 ## Producer
 
 Put every client-approved prose field under `public`. A `VercelError` without `public` receives the fixed response message `An error occurred.`; developer prose never fills the response.
@@ -86,20 +80,6 @@ const result = errorResponse(error, {
 The callback receives the original source plus `{ status, bodyFormat }`. `bodyFormat` is `json` or `ansi` and describes the serialized body. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
 
 ## Response data contract
-
-```ts
-interface ErrorResponseData {
-  readonly error: {
-    readonly scope?: string;
-    readonly code?: string;
-    readonly message: string;
-    readonly reason?: string;
-    readonly hint?: string;
-    readonly fix?: string;
-    readonly link?: string;
-  };
-}
-```
 
 `message` is required and nonblank. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data.
 

@@ -7,7 +7,7 @@ import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
  * Check whether a value is a local VercelError instance or valid tagged
  * cross-realm VercelErrorLike data.
  *
- * Uses a dual-strategy approach for reliable cross-realm detection:
+ * Two checks, in order:
  * 1. Fast path: `instanceof` check for same-realm objects
  * 2. Fallback: stable tag plus structural validation for cross-realm data
  *
@@ -59,6 +59,11 @@ function isOptionalNumber(value: unknown): value is number | undefined {
   return value === undefined || typeof value === 'number';
 }
 
+/**
+ * Shape check for recognition only: a blank `message` passes here.
+ * `error-response-data` separately enforces a nonblank message before any
+ * value is disclosed, so the two validators are intentionally different.
+ */
 function isPublicErrorDetails(value: unknown): value is PublicErrorDetails {
   return (
     isObject(value) &&

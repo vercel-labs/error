@@ -64,7 +64,7 @@ describe('isError', () => {
     expect(isError(proxy)).toBe(false);
   });
 
-  it('returns false when prototype inspection throws', () => {
+  it('returns false for a Proxy whose getPrototypeOf trap throws', () => {
     const proxy = new Proxy(
       {},
       {

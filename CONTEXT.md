@@ -1,6 +1,6 @@
 # Structured Error Contract
 
-This package defines how a structured error keeps stable machine identity, separates developer context from client-approved details, crosses package and realm seams as data, and moves through HTTP, diagnostic, and terminal presentation paths.
+This package defines how a structured error keeps stable machine identity, separates developer context from client-approved details, crosses package boundaries and JavaScript realms (iframes, workers, VM contexts) as plain data, and moves through HTTP, diagnostic, and terminal presentation paths.
 
 ## Language
 
@@ -37,14 +37,14 @@ _Avoid_: Cross-realm error
 
 **Authored status mapping**:
 A prospective HTTP error status associated with an authored error or explicit response input. It is separate from error identity and becomes concrete only on an error response.
-_Avoid_: Status
+_Avoid_: calling the authored mapping "status"
 
 **Error response input**:
 Flat caller-authored error identity, public error details, and an authored status mapping supplied when no structured error value is available. Every text field is already approved for disclosure.
 _Avoid_: Error response params
 
 **Error response data**:
-Normalized, body-format-independent client-facing data consisting of error identity and public error details. It excludes concrete HTTP status and diagnostic context and does not imply producer trust.
+Client-facing data in one canonical shape, independent of source and body format, consisting of error identity and public error details. It excludes concrete HTTP status and diagnostic context and does not imply producer trust.
 _Avoid_: Error response payload
 
 **Error response**:

@@ -31,7 +31,8 @@ export interface ErrorResponseOptions {
   readonly request?: Request | HeadersLike;
 
   /**
-   * Synchronous diagnostics callback invoked after the response is complete.
+   * Synchronous diagnostics callback invoked after the complete
+   * `ErrorResponse` result is built.
    *
    * The callback receives the original source so server-side instrumentation
    * can inspect its context. The source retains its existing trust level.
@@ -70,9 +71,10 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * Build a framework-neutral HTTP response from an error or explicit public data.
  *
  * Local `VercelError` instances and tagged `VercelErrorLike` values expose only
- * their `public` projection, or the fixed generic fallback when that projection
- * is absent. Untagged native, cross-realm, and Error-shaped objects throw
- * `TypeError`; other untagged objects are treated as `ErrorResponseInput`.
+ * their approved `public` details, or the fixed generic fallback when those
+ * details are absent. Untagged native, cross-realm, and Error-shaped objects
+ * (carrying `name` or `stack`) throw `TypeError`; other untagged objects are
+ * treated as `ErrorResponseInput`.
  * Scope, code, status, and every flat prose field are client-visible. Request
  * headers select the body format; they do not authorize access.
  *

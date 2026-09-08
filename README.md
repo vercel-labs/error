@@ -1,6 +1,6 @@
 # @vercel/error
 
-Structured, framework-neutral errors with stable identity, client-safe HTTP projection, diagnostics context, and terminal formatting. The package has no runtime dependencies.
+Errors with two audiences: developers get the full story (cause, reason, hint, fix, metadata), and clients get only the `public` message you explicitly approved. `errorResponse()` turns any error into an HTTP response that never leaks internal details, and `formatError()` renders errors as readable terminal frames. Framework-neutral, with zero runtime dependencies.
 
 ## Install
 
@@ -8,7 +8,7 @@ Structured, framework-neutral errors with stable identity, client-safe HTTP proj
 pnpm add @vercel/error
 ```
 
-The optional `vercel-error` skill helps coding agents choose fields, migrate existing errors, and review disclosure and recovery behavior:
+The optional `vercel-error` skill helps coding agents choose fields, migrate existing errors, and review which details reach clients:
 
 ```bash
 npx skills add vercel-labs/error --skill vercel-error
@@ -16,46 +16,50 @@ npx skills add vercel-labs/error --skill vercel-error
 
 Installing the npm package does not activate the skill.
 
-## Entry points
-
-| Import                 | Exports                                                                 |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types         |
-| `@vercel/error/client` | `parseErrorResponse`, `fromErrorResponse`, `ErrorResponseData`          |
-| `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`     |
-| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types |
-
 ## Quick start
 
 ```ts
 import { VercelError } from '@vercel/error';
 
-throw new VercelError('Database shard 7 exhausted its connection pool', {
-  cause,
-  code: 'pool_exhausted',
-  scope: 'database',
-  statusCode: 503,
-  reason: 'All 20 connections are in use.',
-  hint: 'Inspect connection checkout duration.',
-  fix: 'Release leaked connections or increase pool capacity.',
-  link: 'https://example.com/internal/database/pool-exhausted',
-  public: {
-    message: 'The service is temporarily unavailable.',
-    fix: 'Try again shortly.',
-    link: 'https://status.example.com',
-  },
-  metadata: { shard: 7, poolSize: 20 },
-  attributes: { 'db.system': 'postgresql' },
-});
+try {
+  await checkoutConnection(shard);
+} catch (cause) {
+  throw new VercelError('Database shard 7 exhausted its connection pool', {
+    cause,
+    code: 'pool_exhausted',
+    scope: 'database',
+    statusCode: 503,
+    reason: 'All 20 connections are in use.',
+    hint: 'Inspect connection checkout duration.',
+    fix: 'Release leaked connections or increase pool capacity.',
+    link: 'https://example.com/internal/database/pool-exhausted',
+    public: {
+      message: 'The service is temporarily unavailable.',
+      fix: 'Try again shortly.',
+      link: 'https://status.example.com',
+    },
+    metadata: { shard: 7, poolSize: 20 },
+    attributes: { 'db.system': 'postgresql' },
+  });
+}
 ```
 
-The fields have distinct owners and audiences. Keep those distinctions intact instead of serializing the error object directly.
+Everything outside `public` is developer-facing and stays out of HTTP responses. Serialize with `errorResponse()`; `JSON.stringify(error)` includes developer text and stack.
+
+## Entry points
+
+| Import                 | Exports                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                            |
+| `@vercel/error/client` | `parseErrorResponse`, `fromErrorResponse`, `ErrorResponseData`, `FromErrorResponseOptions`                 |
+| `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike` |
+| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                    |
 
 ## Error contract
 
 ### Identity
 
-`scope` and `code` form stable machine identity. Software should branch on these fields, including when reading `ErrorResponseData`, never on rendered prose.
+`scope` and `code` form stable machine identity. Software should branch on these fields, never on rendered prose. The same rule applies to parsed responses on the client (see Consuming responses).
 
 ```ts
 if (hasCode(error, 'pool_exhausted')) {
@@ -65,7 +69,7 @@ if (hasCode(error, 'pool_exhausted')) {
 
 Keep codes stable when wording changes. A scope is useful when it names the service, package, or subsystem that owns the code.
 
-Both fields cross the HTTP boundary when present. They can disclose that a protected resource or subsystem exists, so applications must choose neutral mappings where that distinction is sensitive.
+Both fields are sent to clients. A code like `admin_key_invalid` reveals that the resource exists; where that matters, return a generic scope and code (or none) for protected resources.
 
 ### Developer context
 
@@ -81,9 +85,9 @@ The constructor `message` and optional `reason`, `hint`, `fix`, and `link` are d
 
 Preserve an original failure through `cause`. Put nested debugging context in `metadata` and flat telemetry values in `attributes`.
 
-### Public projection
+### Client-facing details (`public`)
 
-`public` is the only prose from a `VercelError` that `errorResponse()` sends to a client. If it is present, `public.message` is required and must be nonblank. Construction snapshots and freezes this string-only record so later mutation of the caller's input object cannot change approved client copy.
+`public` is the only prose from a `VercelError` that `errorResponse()` sends to a client. If it is present, `public.message` is required and must be nonblank; the constructor validates this and throws `TypeError` for invalid details. It also copies and freezes `public` and drops unknown fields, so mutating the object you passed in later cannot change the approved copy.
 
 ```ts
 interface PublicErrorDetails {
@@ -97,11 +101,11 @@ interface PublicErrorDetails {
 
 When `public` is absent, `errorResponse()` uses the fixed message `An error occurred.`. It never falls back to developer prose. `docsBaseUrl` derives only the developer `link`; a public link must be set explicitly under `public.link`.
 
-The fallback prevents developer-message disclosure. It does not hide `scope`, `code`, or HTTP status. Review all three as public information.
+The fallback keeps developer text out of responses. `scope`, `code`, and the HTTP status still reach the client.
 
 ### Transport
 
-`statusCode` is an authored mapping to a prospective HTTP error status. `errorResponse()` validates it when serialization occurs. Only integers from 400 through 599 are accepted; omission defaults to 500. The returned result and a native `Response` use the concrete property `status`.
+`statusCode` is the HTTP status this error should get if it becomes an HTTP response. `errorResponse()` validates it at serialization: integers 400 through 599 only; omission defaults to 500. The finished response uses the concrete property `status`.
 
 `statusCode` is an HTTP category, not application identity. Several codes can share one status.
 
@@ -109,7 +113,7 @@ The fallback prevents developer-message disclosure. It does not hide `scope`, `c
 
 `requestId`, `metadata`, and `attributes` remain mutable so request and telemetry boundaries can add context after construction. They stay server-side during HTTP serialization.
 
-`VercelError#toJSON()` is diagnostic serialization. It includes the developer message, stack, public projection, metadata, attributes, and other defined enumerable fields; it excludes `cause`. Its output may contain sensitive data. Use `errorResponse()` for client-safe HTTP serialization.
+`VercelError#toJSON()` is diagnostic serialization. It includes the developer message, stack, `public` details, metadata, attributes, and other defined enumerable fields; it excludes `cause`. Its output may contain sensitive data. Use `errorResponse()` for client-safe HTTP serialization.
 
 ## Error factories
 
@@ -135,7 +139,7 @@ The factory always returns three methods:
 | Method                      | Behavior                                               |
 | --------------------------- | ------------------------------------------------------ |
 | `create(message, options?)` | Create and return an error                             |
-| `raise(message, options?)`  | Create and throw; never report automatically           |
+| `raise(message, options?)`  | Create and throw                                       |
 | `report(message, options?)` | Create, call `onReport`, then return the same instance |
 
 Without `onReport`, `report()` calls `console.error`. `create()` and `raise()` never invoke the callback, which leaves the operation boundary responsible for recording thrown errors once.
@@ -223,9 +227,7 @@ const output = frame(
 );
 ```
 
-All caller-controlled text is sanitized. CRLF becomes LF, bare carriage returns are removed, and every physical continuation line receives a library-owned connector or indentation. Tabs, blank lines, and multiline content remain readable without allowing an input line to escape the frame.
-
-Rendered output is presentation, not a parsing protocol. Automation should use `scope` and `code`, including the values in `ErrorResponseData`.
+All caller-controlled text is sanitized. CRLF becomes LF, bare carriage returns are removed, and every extra line of multiline input is prefixed by the frame's own connector or indentation, so input text can't fake a frame line. Tabs, blank lines, and multiline content remain readable.
 
 ## HTTP responses
 
@@ -238,15 +240,9 @@ const result = errorResponse(error);
 return new Response(result.body, result);
 ```
 
-The response types distinguish flat public input, normalized client-facing data, and the completed HTTP response:
+`errorResponse()` throws `TypeError` on a plain `Error` rather than guessing its message is safe to publish. Wrap it instead: `new VercelError('…', { cause: err, public: { message: '…' } })`.
 
-| Type                 | Role                                                                      |
-| -------------------- | ------------------------------------------------------------------------- |
-| `ErrorResponseInput` | Flat caller-authored input whose prose is explicitly client-approved      |
-| `ErrorResponseData`  | Normalized, readonly client-facing data shared by JSON and ANSI           |
-| `ErrorResponse`      | Concrete status, serialized body, and headers returned by `errorResponse` |
-
-JSON is the default body format. Pass negotiation input through the options object:
+JSON is the default body. To let the request choose between JSON and ANSI text, pass the request:
 
 ```ts
 const result = errorResponse(error, {
@@ -259,9 +255,9 @@ const result = errorResponse(error, {
 
 `request` accepts a `Request` or `HeadersLike`. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Without that header, `Accept: text/plain+ansi` or a `curl/` user agent selects ANSI, in that order. Headers choose the body format; they do not authenticate or authorize the caller.
 
-JSON and negotiated ANSI text render the same public projection. ANSI negotiation never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
+JSON and negotiated ANSI text render the same `public` details. ANSI negotiation never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
 
-`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level; symbol recognition does not authenticate them. Callback exceptions propagate and replace the response the caller would have received.
+`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Server-side instrumentation can inspect metadata and attributes, but they're only as trustworthy as wherever the error came from; recognition doesn't verify the producer. Callback exceptions propagate and replace the response the caller would have received.
 
 ### Plain public input
 
@@ -307,8 +303,6 @@ interface ErrorResponse {
 }
 ```
 
-Pass native, cross-realm, or Proxy-wrapped `Error` objects through `cause` on a `VercelError`; untagged Error-shaped objects are rejected rather than interpreted as explicit public input.
-
 ## Consuming responses
 
 `parseErrorResponse()` validates unknown JSON. It requires a nonblank string message. A present known field with the wrong type rejects the entire response; unknown fields are ignored so producers can add fields later.
@@ -333,20 +327,20 @@ if (!response.ok) {
 }
 ```
 
-`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies status, cause, request ID, metadata, and attributes. Parsing validates shape only: verify the producer, review every field for the next recipient, and validate permissions, parameters, and side effects before acting on a fix or link.
+`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies status, cause, request ID, metadata, and attributes. Parsing validates shape only. It does not tell you who sent the response. Verify the producer, review each field before showing it to a different recipient, and check permissions before acting on a `fix` or `link`.
 
 ## Recognition and utilities
 
 All utilities below are exported from `@vercel/error`:
 
-| Function                       | Behavior                                                |
-| ------------------------------ | ------------------------------------------------------- |
-| `isVercelError(value)`         | Recognize local instances or tagged cross-realm data    |
-| `isError(value)`               | Recognize standard errors across realms                 |
-| `isErrorLike(value)`           | Recognize an object with a string `message`             |
-| `hasCode(error, codeOrCodes)`  | Narrow an error by one code or a readonly list          |
-| `getMessage(error, fallback?)` | Extract a message from an unknown value                 |
-| `getRootCause(error)`          | Follow `cause` to the root while stopping object cycles |
+| Function                       | Behavior                                                                |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `isVercelError(value)`         | Recognize local instances or tagged cross-realm data                    |
+| `isError(value)`               | Recognize standard errors across realms (iframes, workers, VM contexts) |
+| `isErrorLike(value)`           | Recognize an object with a string `message`                             |
+| `hasCode(error, codeOrCodes)`  | Narrow an error by one code or a readonly list                          |
+| `getMessage(error, fallback?)` | Extract a message from an unknown value                                 |
+| `getRootCause(error)`          | Follow `cause` to the root while stopping object cycles                 |
 
 `isError` uses Node's intrinsic `Error.isError` brand check across realms without traversing caller-controlled prototype chains or consulting `Symbol.toStringTag`.
 
@@ -369,8 +363,8 @@ Version 0.1 is a clean redesign without compatibility aliases:
 | Structured `ErrorResponse` type    | `ErrorResponseData` type                                      |
 | `ErrorResponseResult` type         | Concrete `ErrorResponse` type                                 |
 
-`ErrorResponseData.error.scope` is now included when set. Review it as a disclosure before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. Cross-realm values carrying the shipped 0.0 tag are rejected rather than treated as public flat input.
+`ErrorResponseData.error.scope` is now included when set. Check that your `scope` values are safe to show clients before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. Cross-realm values carrying the shipped 0.0 tag are rejected rather than treated as public flat input.
 
 The 0.1 public types mark authored `VercelError` fields and every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new error instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
 
-Developer `reason`, `hint`, `fix`, and `link` no longer cross HTTP automatically. Move only approved client-facing values under `public`. Both JSON and negotiated text use that same projection.
+Developer `reason`, `hint`, `fix`, and `link` no longer cross HTTP automatically. Move only approved client-facing values under `public`. Both JSON and negotiated text use those same `public` details.

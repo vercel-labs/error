@@ -1,6 +1,6 @@
 # `createErrors` factories
 
-Use `createErrors` when several errors share a scope, documentation base, metadata, attributes, reporting callback, or custom class. Verify the selected installed package before applying version-specific details.
+Use `createErrors` when several errors share a scope, documentation base, metadata, attributes, reporting callback, or custom class.
 
 ## Typed factory
 

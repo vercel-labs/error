@@ -13,9 +13,10 @@ Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concept
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
 - `src/error-response-data/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
-- `src/to-error-response/` owns HTTP status validation, content negotiation, headers, and `onSerialize` ordering.
+- `src/to-error-response/` owns HTTP status validation, headers, and `onSerialize` ordering. `src/wants-ansi/` implements the content negotiation it consumes.
 - `src/format/` owns presets, sanitization, physical-line containment, connectors, labels, and color.
 - `src/create-errors/` owns factory defaults, merge precedence, documentation links, custom constructors, and `onReport` ordering.
+- `src/types.ts` holds the shared contract types (`PublicErrorDetails`, `VercelErrorOptions`, `VercelErrorLike`); any feature may import it type-only.
 - Guard and extractor implementations remain in their named feature folders with colocated specs.
 - `src/_internal/` is never exported.
 
@@ -31,7 +32,7 @@ Keep feature implementations in `src/<feature>/index.ts` with colocated `index.s
 - The HTTP adapter reads symbol-recognized values as data and never invokes their methods.
 - Treat `dist/` as generated output. Change source and rebuild.
 
-When a public entry point changes, update its source module, `tsdown.config.ts`, and the `package.json` export map together. Prove the published subpath with the packed-consumer check.
+When a public entry point changes, update its source module, `tsdown.config.ts`, and the `package.json` export map together. Prove the published subpath with the packed-consumer check (`pnpm verify:packed`).
 
 ## Error Contract
 
@@ -63,7 +64,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 
 The README documents the public interface and disclosure model. The installable skill lives at [`skills/vercel-error/SKILL.md`](skills/vercel-error/SKILL.md).
 
-When public behavior, exports, field semantics, or examples change, update the README and every skill reference that states the changed contract. Keep the skill on released interfaces.
+When public behavior, exports, field semantics, or examples change, update the README and every skill reference that states the changed contract. Keep the skill on released interfaces; do not document unmerged behavior.
 
 ## JSDoc Standard
 

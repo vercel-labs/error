@@ -70,11 +70,11 @@ Codes are separate when callers need different recovery behavior. They can share
 
 ### `name`
 
-Assign a subclass a literal stable `name`; minification can change `constructor.name` and split logs or error groups.
+Assign a subclass a literal stable `name` (see [subclasses](core.md#subclasses)).
 
 ## Transport and audience
 
-The 0.1 public types mark `message`, `statusCode`, `reason`, `hint`, `fix`, and `link` readonly on `VercelError`, and mark every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new value instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
+Authored fields are readonly on `VercelError`; pass values at construction. `requestId`, `metadata`, and `attributes` stay mutable for boundary enrichment.
 
 ### `statusCode`
 
@@ -134,7 +134,7 @@ The 0.1 public types mark `message`, `statusCode`, `reason`, `hint`, `fix`, and 
 
 ## Diagnostics
 
-Attach diagnostics at explicit owning seams. `createErrors.report()` invokes `onReport`; `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions. Record a thrown error at the final operation boundary instead of adding duplicate reporting to wrappers.
+Attach diagnostics at the one boundary that owns reporting. `createErrors.report()` invokes `onReport`; `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions. Record a thrown error at the final operation boundary instead of adding duplicate reporting to wrappers.
 
 ### `metadata`
 
@@ -148,7 +148,7 @@ Attach diagnostics at explicit owning seams. `createErrors.report()` invokes `on
 - Use flat values accepted by every telemetry destination that consumes the error.
 - Apply destination-specific allowlists and the same secret, token, session, personal-data, raw-payload, and internal-topology exclusions used for metadata.
 - Prefer applicable OpenTelemetry semantic names and namespace custom keys.
-- List the attributes used as metric dimensions. Restrict each one to a documented, bounded set of values, which is what low cardinality means here. A scalar type does not prove that values are bounded or safe to expose.
+- List the attributes used as metric dimensions. Restrict each one to a documented, bounded set of values (low cardinality). A scalar type does not prove that values are bounded or safe to expose.
 - Do not use messages, stacks, arbitrary URLs, or occurrence IDs as `error.type` or metric dimensions.
 - Use the dedicated `requestId` field unless instrumentation explicitly expects a request-ID attribute.
 - Record handled or successfully retried failures only when the local telemetry contract calls for them. Do not mark a successful enclosing operation as failed or record the same exception repeatedly.
