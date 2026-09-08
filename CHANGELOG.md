@@ -12,6 +12,7 @@
 - Make cross-realm error recognition cycle-safe and explicit JSON format requests authoritative.
 - Validate `public` details at construction, serialize each disclosed field from a single validated read, and remove Unicode line separators from framed output.
 - Recognize errors with the `Error.isError` brand check where available and a structural fallback elsewhere, keeping the package isomorphic across browsers and Node.
+- Publish with a Node `engines` floor (`>=24`) instead of a single-major pin.
 
 ## 0.0.4
 

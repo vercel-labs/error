@@ -5,5 +5,4 @@
 # filename, so a rename or behavioural change is a security-relevant edit.
 # Keep these locked to maintainers explicitly.
 /.github/workflows/release.yml @runewolf7
-/.changeset/config.json        @runewolf7
 /.github/CODEOWNERS            @runewolf7
