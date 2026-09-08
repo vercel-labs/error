@@ -182,12 +182,26 @@ function verifyTreeShaking(directory) {
   );
   if (!bundleName) throw new Error('tsdown did not emit a utility bundle');
   const bundle = readFileSync(join(bundleDirectory, bundleName), 'utf8');
+
+  // Positive control: each forbidden marker must exist in the installed
+  // package, so a rename or rewording fails this check loudly instead of
+  // letting the absence assertions below pass while asserting nothing.
+  const installedDist = join(directory, 'node_modules/@vercel/error/dist');
+  const installedSource = readdirSync(installedDist)
+    .filter((name) => /\.[cm]?js$/.test(name))
+    .map((name) => readFileSync(join(installedDist, name), 'utf8'))
+    .join('\n');
   for (const forbidden of [
     'VercelError',
     'An error occurred.',
     'formatError',
     'buildErrorResponseData',
   ]) {
+    if (!installedSource.includes(forbidden)) {
+      throw new Error(
+        `Tree-shaking marker ${forbidden} not found in the installed package; update the marker list`,
+      );
+    }
     if (bundle.includes(forbidden)) {
       throw new Error(`Tree-shaken utility bundle contains ${forbidden}`);
     }

@@ -1,3 +1,4 @@
+import { pickPublicErrorDetails } from '../_internal';
 import { formatError } from '../format/index';
 import type {
   ErrorAttributes,
@@ -13,8 +14,12 @@ import { VERCEL_ERROR_TAG } from './tag';
  *
  * `message` is required. `reason`, `hint`, `fix`, and `link` are optional
  * developer details; omit them when the cause or remediation is not known.
- * Cross-realm recognition is data-only because the symbol tag is forgeable;
- * use `instanceof VercelError` before invoking class methods.
+ * When `public` is supplied, construction validates it (nonblank string
+ * `message`, optional string details), drops unknown fields, and stores a
+ * frozen copy; invalid `public` details throw `TypeError` here rather than
+ * later at serialization. Cross-realm recognition is data-only because the
+ * symbol tag is forgeable; use `instanceof VercelError` before invoking class
+ * methods.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -63,7 +68,7 @@ export class VercelError<TCode extends string = string> extends Error {
     this.public =
       options.public === undefined
         ? undefined
-        : Object.freeze({ ...options.public });
+        : Object.freeze(pickPublicErrorDetails(options.public));
     this.requestId = options.requestId;
     this.metadata = options.metadata;
     this.attributes = options.attributes;

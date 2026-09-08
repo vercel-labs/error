@@ -5,11 +5,12 @@
 ### Minor Changes
 
 - Separate developer diagnostics from client-approved `public` details, require a nonblank public message, preserve optional `scope` and `code`, and reject malformed known response fields.
-- Add deterministic `auto`, `plain`, `tree`, and `ansi` rendering with structured sections and multiline containment.
+- Add `auto`, `plain`, `tree`, and `ansi` rendering presets with structured sections and multiline containment; only `auto` reads ambient terminal state.
 - Add synchronous `onReport` and `onSerialize` diagnostics callbacks with explicit failure propagation.
-- Standardize authored `statusCode`, concrete `status`, cross-realm data recognition, and packed-package release verification.
+- Distinguish authored `statusCode` from concrete `status`, standardize cross-realm data recognition, and add packed-package release verification.
 - Add readonly types for flat public input (`ErrorResponseInput`), normalized client-facing data (`ErrorResponseData`), and the completed HTTP result (`ErrorResponse`), while keeping `VercelError` diagnostic context mutable.
 - Make cross-realm error recognition cycle-safe and explicit JSON format requests authoritative.
+- Validate `public` details at construction, read each disclosed field once and serialize only the validated copy, and remove Unicode line separators from framed output.
 
 ## 0.0.4
 

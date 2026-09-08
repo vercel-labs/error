@@ -283,6 +283,16 @@ describe('format', () => {
       expect(result).toContain('fix: fix');
     });
 
+    it('removes Unicode line and paragraph separators from caller text', () => {
+      const output = frame('Header', ['before\u2028middle\u2029after'], {
+        format: 'tree',
+      });
+
+      expect(output).not.toContain('\u2028');
+      expect(output).not.toContain('\u2029');
+      expect(output).toContain('beforemiddleafter');
+    });
+
     it('rejects malformed structured sections before rendering', () => {
       expect(() =>
         frame('Header', [{ kind: 'hint\nforged', text: 'unsafe' } as never], {

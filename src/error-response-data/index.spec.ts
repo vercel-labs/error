@@ -67,12 +67,37 @@ describe('error response data', () => {
       { message: '   ' },
       { message: 123 },
       { message: 'Safe', reason: 123 },
-    ])('rejects malformed public details: %o', (publicDetails) => {
-      const error = new VercelError('Developer detail', {
-        public: publicDetails as never,
-      });
-      expect(() => buildErrorResponseData(error)).toThrow(TypeError);
-    });
+    ])(
+      'rejects malformed public details at VercelError construction: %o',
+      (publicDetails) => {
+        expect(
+          () =>
+            new VercelError('Developer detail', {
+              public: publicDetails as never,
+            }),
+        ).toThrow(TypeError);
+      },
+    );
+
+    it.each([
+      {},
+      { message: '' },
+      { message: '   ' },
+      { message: 123 },
+      { message: 'Safe', reason: 123 },
+    ])(
+      'rejects malformed public details on tagged data at serialization: %o',
+      (publicDetails) => {
+        const tagged = {
+          message: 'Developer detail',
+          public: publicDetails,
+          [VERCEL_ERROR_TAG]: true,
+        };
+        expect(() => buildErrorResponseData(tagged as never)).toThrow(
+          TypeError,
+        );
+      },
+    );
 
     it('builds explicitly public response data from flat input', () => {
       expect(
@@ -173,6 +198,96 @@ describe('error response data', () => {
         new TypeError(
           'Tagged VercelError-like data does not match the expected field types',
         ),
+      );
+    });
+
+    it.each([1, 2, 3, 4, 5])(
+      'never serializes a non-string scope smuggled by a getter flipping after %i reads',
+      (flipAfter) => {
+        let reads = 0;
+        const source = {
+          message: 'Developer detail',
+          public: { message: 'Public message' },
+          [VERCEL_ERROR_TAG]: true,
+          get scope() {
+            reads += 1;
+            return reads <= flipAfter ? 'api' : ({ smuggled: true } as never);
+          },
+        };
+
+        let data: ReturnType<typeof buildErrorResponseData>;
+        try {
+          data = buildErrorResponseData(source as never);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypeError);
+          return;
+        }
+
+        expect(
+          data.error.scope === undefined ||
+            typeof data.error.scope === 'string',
+        ).toBe(true);
+        expect(data.error.message).toBe('Public message');
+      },
+    );
+
+    it.each([1, 2, 3, 4, 5])(
+      'never serializes a non-string public detail smuggled by a getter flipping after %i reads',
+      (flipAfter) => {
+        let reads = 0;
+        const source = {
+          message: 'Developer detail',
+          public: {
+            message: 'Public message',
+            get hint() {
+              reads += 1;
+              return reads <= flipAfter
+                ? 'valid hint'
+                : ({ smuggled: true } as never);
+            },
+          },
+          [VERCEL_ERROR_TAG]: true,
+        };
+
+        let data: ReturnType<typeof buildErrorResponseData>;
+        try {
+          data = buildErrorResponseData(source as never);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypeError);
+          return;
+        }
+
+        expect(
+          data.error.hint === undefined || typeof data.error.hint === 'string',
+        ).toBe(true);
+        expect(data.error.message).toBe('Public message');
+      },
+    );
+
+    it('never invokes methods on field values of a tagged or flat source', () => {
+      const hostile = {
+        toString: () => {
+          throw new Error('toString must not be invoked');
+        },
+        toJSON: () => {
+          throw new Error('toJSON must not be invoked');
+        },
+      };
+
+      const tagged = {
+        message: 'Developer detail',
+        public: { message: 'Public message', link: hostile },
+        [VERCEL_ERROR_TAG]: true,
+      };
+      expect(() => buildErrorResponseData(tagged as never)).toThrowError(
+        new TypeError(
+          'Tagged VercelError-like data does not match the expected field types',
+        ),
+      );
+
+      const flat = { message: 'Public message', hint: hostile };
+      expect(() => buildErrorResponseData(flat as never)).toThrowError(
+        new TypeError('hint must be a string'),
       );
     });
 

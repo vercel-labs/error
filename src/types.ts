@@ -1,6 +1,6 @@
 /**
- * Recursive type for structured metadata values.
- * Supports arbitrary nesting for domain-specific context.
+ * Recursive type for structured metadata values, allowing arbitrarily nested
+ * domain context.
  */
 export type SerializableValue =
   | string
@@ -47,11 +47,13 @@ export interface ErrorLike {
 /**
  * Error details explicitly approved for disclosure to clients.
  *
- * `message` is required and must be nonblank when projected by
- * `errorResponse()`; invalid public details throw `TypeError`. This prevents
- * transport serialization from falling back to developer-facing prose.
- * Applications remain responsible for ensuring every supplied field is safe
- * for the intended audience.
+ * `message` is required and must be nonblank; optional fields must be
+ * strings. The `VercelError` constructor validates these rules, and
+ * `errorResponse()` re-validates flat and tagged cross-realm input at
+ * serialization; invalid details throw `TypeError`. This prevents transport
+ * serialization from falling back to developer-facing prose. Applications
+ * remain responsible for ensuring every supplied field is safe for the
+ * intended audience.
  */
 export interface PublicErrorDetails {
   readonly message: string;
@@ -86,7 +88,7 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** Advisory tip that helps the developer, shown before `fix`. */
   readonly hint?: string;
 
-  /** URL to documentation for this error. Derivable from `code` via `docsBaseUrl`. */
+  /** URL to documentation for this error. A `createErrors` factory with `docsBaseUrl` derives it from `code`. */
   readonly link?: string;
 
   /** Nested domain context for debugging and logging. Never sent to clients. */
@@ -108,16 +110,18 @@ export interface VercelErrorOptions<TCode extends string = string> {
   readonly statusCode?: number;
 
   /**
-   * Details explicitly approved for client disclosure. Construction stores a
-   * frozen snapshot so later mutation of the input object cannot change them.
+   * Details explicitly approved for client disclosure. Construction validates
+   * the fields (nonblank string `message`, optional string details), throws
+   * `TypeError` for invalid values, drops unknown fields, and stores a frozen
+   * copy so later mutation of the input object cannot change them.
    */
   readonly public?: PublicErrorDetails;
 
-  /** Reserved. Automatically captured from Error */
+  /** Reserved. Automatically captured from Error. */
   readonly stack?: never;
-  /** Reserved. Pass message as the first constructor argument */
+  /** Reserved. Pass message as the first constructor argument. */
   readonly message?: never;
-  /** Reserved. Hardcoded to "VercelError" for minification safety */
+  /** Reserved. Hardcoded to "VercelError" for minification safety. */
   readonly name?: never;
 }
 

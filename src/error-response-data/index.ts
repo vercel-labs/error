@@ -1,4 +1,8 @@
-import { isObject } from '../_internal';
+import {
+  isObject,
+  OPTIONAL_PUBLIC_DETAIL_FIELDS,
+  pickPublicErrorDetails,
+} from '../_internal';
 import { isError } from '../is-error';
 import { isVercelError, isVercelErrorLikeData } from '../is-vercel-error';
 import type {
@@ -10,14 +14,7 @@ import { VercelError } from '../vercel-error';
 import { LEGACY_VERCEL_ERROR_TAG, VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
-const OPTIONAL_RESPONSE_ERROR_FIELDS = [
-  'scope',
-  'code',
-  'reason',
-  'hint',
-  'fix',
-  'link',
-] as const;
+const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
  * Normalized structured data for client-facing errors.
@@ -63,9 +60,12 @@ export type FromErrorResponseOptions = Pick<
  * Build normalized client-facing response data from an error or public input.
  *
  * Tagged values are classified before flat input. A tagged malformed value is
- * rejected instead of being reinterpreted as explicitly public data. Errors
- * without a `public` projection receive a fixed generic message; developer
- * prose is never used as a fallback.
+ * rejected instead of being reinterpreted as explicitly public data. Untagged
+ * values carrying `name` or `stack` are treated as Error-like and rejected.
+ * Errors without approved `public` details receive a fixed generic message;
+ * developer prose is never used as a fallback. Every disclosed field is read
+ * once, validated, and copied, so a getter cannot pass validation with one
+ * value and serialize another; only validated strings reach the result.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
@@ -84,15 +84,13 @@ export function buildErrorResponseData(
     }
 
     const publicDetails = source.public;
-    if (publicDetails === undefined) {
-      return {
-        error: buildResponseError(source, { message: GENERIC_PUBLIC_MESSAGE }),
-      };
-    }
-
-    assertPublicErrorDetails(publicDetails);
     return {
-      error: buildResponseError(source, publicDetails),
+      error: {
+        ...pickResponseIdentity(source),
+        ...(publicDetails === undefined
+          ? { message: GENERIC_PUBLIC_MESSAGE }
+          : pickPublicErrorDetails(publicDetails)),
+      },
     };
   }
 
@@ -108,11 +106,12 @@ export function buildErrorResponseData(
     );
   }
 
-  assertPublicErrorDetails(source);
-  assertOptionalStrings(source, ['scope', 'code']);
-
+  const publicDetails = pickPublicErrorDetails(source);
   return {
-    error: selectResponseErrorFields(source),
+    error: {
+      ...pickResponseIdentity(source),
+      ...publicDetails,
+    },
   };
 }
 
@@ -132,17 +131,18 @@ export function parseErrorResponse(
   }
 
   const error = data['error'];
-  if (
-    typeof error['message'] !== 'string' ||
-    error['message'].trim().length === 0 ||
-    !hasValidOptionalResponseErrorFields(error)
-  ) {
+  const message = error['message'];
+  if (typeof message !== 'string' || message.trim().length === 0) {
     return undefined;
   }
 
-  return {
-    error: selectResponseErrorFields(error as ErrorResponseData['error']),
-  };
+  const identity = parseStringFields(error, RESPONSE_IDENTITY_FIELDS);
+  const details = parseStringFields(error, OPTIONAL_PUBLIC_DETAIL_FIELDS);
+  if (identity === undefined || details === undefined) {
+    return undefined;
+  }
+
+  return { error: { ...identity, message, ...details } };
 }
 
 /**
@@ -160,7 +160,6 @@ export function fromErrorResponse(
   options: FromErrorResponseOptions = {},
 ): VercelError {
   const { error } = data;
-  const publicDetails: PublicErrorDetails = selectPublicErrorDetails(error);
 
   return new VercelError(error.message, {
     ...options,
@@ -168,24 +167,10 @@ export function fromErrorResponse(
     fix: error.fix,
     hint: error.hint,
     link: error.link,
-    public: publicDetails,
+    public: pickPublicErrorDetails(error),
     reason: error.reason,
     scope: error.scope,
   });
-}
-
-function assertPublicErrorDetails(
-  value: unknown,
-): asserts value is PublicErrorDetails {
-  if (
-    !isObject(value) ||
-    typeof value['message'] !== 'string' ||
-    value['message'].trim().length === 0
-  ) {
-    throw new TypeError('Public error message must be a nonblank string');
-  }
-
-  assertOptionalStrings(value, ['reason', 'hint', 'fix', 'link']);
 }
 
 function hasErrorDiagnosticFields(
@@ -194,54 +179,47 @@ function hasErrorDiagnosticFields(
   return 'name' in value || 'stack' in value;
 }
 
-function assertOptionalStrings(
-  value: Record<PropertyKey, unknown>,
-  fields: readonly string[],
-): void {
-  for (const field of fields) {
-    if (value[field] !== undefined && typeof value[field] !== 'string') {
+/**
+ * Read `scope` and `code` once each and validate the read values.
+ * Serialization uses only these copies, never a second property read.
+ */
+function pickResponseIdentity(source: {
+  readonly scope?: unknown;
+  readonly code?: unknown;
+}): Pick<ErrorResponseData['error'], 'scope' | 'code'> {
+  const identity: { scope?: string; code?: string } = {};
+  for (const field of RESPONSE_IDENTITY_FIELDS) {
+    const value = source[field];
+    if (value === undefined) {
+      continue;
+    }
+    if (typeof value !== 'string') {
       throw new TypeError(`${field} must be a string`);
     }
+    identity[field] = value;
   }
+  return identity;
 }
 
-function hasValidOptionalResponseErrorFields(
-  value: Record<PropertyKey, unknown>,
-): boolean {
-  return OPTIONAL_RESPONSE_ERROR_FIELDS.every(
-    (field) => !(field in value) || typeof value[field] === 'string',
-  );
-}
-
-function buildResponseError(
-  source: Pick<VercelErrorLike, 'scope' | 'code'>,
-  details: PublicErrorDetails,
-): ErrorResponseData['error'] {
-  return {
-    ...(source.scope !== undefined ? { scope: source.scope } : {}),
-    ...(source.code !== undefined ? { code: source.code } : {}),
-    ...selectPublicErrorDetails(details),
-  };
-}
-
-function selectResponseErrorFields(
-  source: ErrorResponseData['error'] | PublicErrorInput,
-): ErrorResponseData['error'] {
-  return {
-    ...(source.scope !== undefined ? { scope: source.scope } : {}),
-    ...(source.code !== undefined ? { code: source.code } : {}),
-    ...selectPublicErrorDetails(source),
-  };
-}
-
-function selectPublicErrorDetails(
-  source: PublicErrorDetails,
-): PublicErrorDetails {
-  return {
-    message: source.message,
-    ...(source.reason !== undefined ? { reason: source.reason } : {}),
-    ...(source.hint !== undefined ? { hint: source.hint } : {}),
-    ...(source.fix !== undefined ? { fix: source.fix } : {}),
-    ...(source.link !== undefined ? { link: source.link } : {}),
-  };
+/**
+ * Copy string fields from already-validated response data. A present field
+ * whose value is not a string rejects the whole value with `undefined`,
+ * matching strict parsing.
+ */
+function parseStringFields<TField extends string>(
+  source: Record<PropertyKey, unknown>,
+  fields: readonly TField[],
+): Partial<Record<TField, string>> | undefined {
+  const result: Partial<Record<TField, string>> = {};
+  for (const field of fields) {
+    if (!(field in source)) {
+      continue;
+    }
+    const value = source[field];
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    result[field] = value;
+  }
+  return result;
 }

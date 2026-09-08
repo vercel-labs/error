@@ -51,6 +51,35 @@ describe('VercelError', () => {
       expect(error.attributes).toEqual({ 'http.method': 'POST' });
     });
 
+    it.each([
+      {},
+      { message: '' },
+      { message: '   ' },
+      { message: 123 },
+      { message: 'Safe', hint: 123 },
+      'not an object',
+    ])(
+      'throws TypeError at construction for invalid public details: %o',
+      (publicDetails) => {
+        expect(
+          () => new VercelError('test', { public: publicDetails as never }),
+        ).toThrow(TypeError);
+      },
+    );
+
+    it('drops unknown public fields at construction', () => {
+      const error = new VercelError('test', {
+        public: {
+          message: 'Public message',
+          scope: 'must not ride along',
+          stack: 'must not ride along',
+        } as never,
+      });
+
+      expect(error.public).toEqual({ message: 'Public message' });
+      expect(Object.isFrozen(error.public)).toBe(true);
+    });
+
     it('ignores reserved properties from options', () => {
       const error = new VercelError('test', {
         // @ts-expect-error
@@ -97,7 +126,10 @@ describe('VercelError', () => {
       expect(
         (error as unknown as Record<symbol, unknown>)[VERCEL_ERROR_TAG],
       ).toBe(true);
-      expect(Object.keys(error)).not.toContain(VERCEL_ERROR_TAG);
+      expect(
+        Object.prototype.propertyIsEnumerable.call(error, VERCEL_ERROR_TAG),
+      ).toBe(false);
+      expect({ ...error }).not.toHaveProperty([VERCEL_ERROR_TAG]);
     });
 
     it('is not writable or configurable', () => {

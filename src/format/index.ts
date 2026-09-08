@@ -131,12 +131,13 @@ function resolveFormat(format: ErrorFormat): FormatCapabilities {
 /* oxlint-disable no-control-regex -- intentional terminal control-char matching */
 const ANSI_ESCAPE =
   /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-Z\\-_])/g;
-const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g;
+const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u2028\u2029]/g;
 /* oxlint-enable no-control-regex */
 
 /**
- * Remove terminal controls, normalize CRLF, and remove bare carriage returns.
- * Tabs and line feeds remain useful and are contained during physical framing.
+ * Remove terminal controls and Unicode line separators, normalize CRLF, and
+ * remove bare carriage returns. Tabs and line feeds remain useful and are
+ * contained during physical framing.
  */
 function sanitize(text: string): string {
   return text
@@ -273,7 +274,9 @@ function prepareSections(
     }
 
     if (!isStructuredSection(section)) {
-      throw new TypeError('Invalid frame section');
+      throw new TypeError(
+        "Frame sections must be strings or { kind: 'hint' | 'fix' | 'link', text: string } objects",
+      );
     }
 
     const text = sanitize(section.text);
