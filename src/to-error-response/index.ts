@@ -1,171 +1,115 @@
-import { fix, frame, hint, link } from '../format/index';
-import { isVercelError } from '../is-vercel-error';
-import type { ErrorResponse, HeadersLike } from '../types';
-import type { VercelError } from '../vercel-error';
-import { wantsAnsi } from '../wants-ansi';
+import { isObject } from '../_internal';
+import {
+  projectErrorResponse,
+  type ErrorResponse,
+  type ErrorResponseParams,
+} from '../error-codec';
+import { formatError } from '../format/index';
+import type { VercelErrorLike } from '../types';
+import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
-/**
- * Plain error parameters for building a response without a VercelError instance.
- */
-export interface ErrorResponseParams {
-  /** HTTP status code for the response. Defaults to 500. */
-  status?: number;
-  /** Stable, machine-readable identifier for this error. */
-  code?: string;
-  /** Client-safe message describing what happened. */
-  message: string;
-  /** Why the error happened, the root-cause explanation. */
-  reason?: string;
-  /** Advisory tip that helps the developer, shown before `fix`. */
-  hint?: string;
-  /** Actionable step that resolves the error. */
-  fix?: string;
-  /** URL to documentation for this error. */
-  link?: string;
+/** Options for HTTP negotiation and serialization diagnostics. */
+export interface ErrorResponseOptions {
+  /** Request or headers used only to select JSON or ANSI representation. */
+  readonly request?: Request | HeadersLike;
+
+  /**
+   * Synchronous diagnostics callback invoked after the response is complete.
+   *
+   * The original error is provided so trusted instrumentation can inspect
+   * server-side context. Exceptions propagate and replace the response the
+   * caller would otherwise receive. Async callbacks are rejected by the
+   * `undefined` return type.
+   */
+  readonly onSerialize?: (
+    error: VercelErrorLike | ErrorResponseParams,
+    context: {
+      readonly status: number;
+      readonly representation: 'json' | 'ansi';
+    },
+  ) => undefined;
 }
 
+/** Complete framework-neutral HTTP response data. */
 export interface ErrorResponseResult {
-  /** HTTP status code to send. */
-  status: number;
-  /** Serialized response body, either JSON or structured text. */
-  body: string;
-  /** Content-Type and any other headers to spread into the response. */
-  headers: Record<string, string>;
+  /** Concrete HTTP status to send. */
+  readonly status: number;
+  /** Serialized JSON or structured ANSI text body. */
+  readonly body: string;
+  /** Headers to pass to the response constructor. */
+  readonly headers: Record<string, string>;
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
 
 /**
- * Build a complete HTTP error response from a VercelError or plain parameters.
+ * Build a framework-neutral HTTP response from an error or explicit public data.
  *
- * Returns `{ status, body, headers }`. Spread `headers` directly into your
- * framework's response constructor. Content negotiation is handled internally
- * when a request or headers object is provided.
+ * Local `VercelError` instances and tagged `VercelErrorLike` values expose only
+ * their `public` projection, or the fixed generic fallback when that projection
+ * is absent. Any untagged object is treated as flat public params. Scope, code,
+ * status, and every flat prose field are client-visible. Request headers select
+ * a representation; they do not authorize access.
  *
- * JSON output from a VercelError uses `userMessage` or falls back to `message`.
- * ANSI output uses `toString()` and may include the developer-facing
- * `message`, `reason`, `hint`, `fix`, and `link`. Request headers select the
- * format; they do not authorize access. Pass them only for callers allowed to
- * see those fields. Omitting headers disables ANSI negotiation, but every JSON
- * field must still be client-safe.
- *
- * @param error - A VercelError instance or plain `{ message, code?, status? }` params
- * @param requestOrHeaders - Optional Request or HeadersLike for content negotiation.
- *   When present and the client signals ANSI preference (curl, `X-Error-Format: ansi`),
- *   the body is rendered as structured text. When absent, always returns JSON.
+ * `statusCode` defaults to 500 and must be an integer from 400 through 599.
+ * Status validation runs before projection and throws `RangeError` for invalid
+ * values. Invalid tagged data or public fields throw `TypeError` during
+ * projection. `onSerialize` runs synchronously only after the complete result
+ * is built; its exceptions propagate.
  *
  * @example
  * ```ts
- * // Minimal: always JSON
- * const { status, body, headers } = errorResponse(error);
- * return new Response(body, { status, headers });
- *
- * // With content negotiation
- * const { status, body, headers } = errorResponse(error, req);
- * return new Response(body, { status, headers });
- *
- * // Express
- * const { status, body, headers } = errorResponse(error, req);
- * res.status(status).set(headers).send(body);
+ * const result = errorResponse(error, {
+ *   request,
+ *   onSerialize: (source, context) => {
+ *     recordSerialization(source, context);
+ *   },
+ * });
+ * return new Response(result.body, result);
  * ```
  */
 export function errorResponse(
-  error: VercelError | ErrorResponseParams,
-  requestOrHeaders?: Request | HeadersLike,
+  error: VercelErrorLike | ErrorResponseParams,
+  options: ErrorResponseOptions = {},
 ): ErrorResponseResult {
-  const data = extractResponseData(error);
+  const status = resolveStatus(error);
+  const response = projectErrorResponse(error);
+  const representation = wantsAnsi(options.request) ? 'ansi' : 'json';
 
-  if (wantsAnsi(requestOrHeaders)) {
-    const text = isVercelError(error)
-      ? error.toString()
-      : frame(buildPlainHeader(data.error), [
-          data.error.reason,
-          hint(data.error.hint),
-          fix(data.error.fix),
-          link(data.error.link),
-        ]);
+  const result: ErrorResponseResult =
+    representation === 'ansi'
+      ? {
+          body: renderPublicError(response.error),
+          headers: { ...TEXT_HEADERS },
+          status,
+        }
+      : {
+          body: JSON.stringify(response),
+          headers: { ...JSON_HEADERS },
+          status,
+        };
 
-    return {
-      body: text,
-      headers: { ...TEXT_HEADERS },
-      status: data.status,
-    };
+  options.onSerialize?.(error, { representation, status });
+  return result;
+}
+
+function resolveStatus(error: VercelErrorLike | ErrorResponseParams): number {
+  const value = isObject(error) ? error['statusCode'] : undefined;
+  const status = value === undefined ? 500 : value;
+
+  if (
+    typeof status !== 'number' ||
+    !Number.isInteger(status) ||
+    status < 400 ||
+    status > 599
+  ) {
+    throw new RangeError('statusCode must be an integer between 400 and 599');
   }
 
-  return {
-    body: JSON.stringify({ error: data.error }),
-    headers: { ...JSON_HEADERS },
-    status: data.status,
-  };
+  return status;
 }
 
-interface ExtractedData {
-  status: number;
-  error: ErrorResponse['error'];
-}
-
-function buildPlainHeader(error: ErrorResponse['error']): string {
-  if (!error.message) {
-    return error.code ? `error: [${error.code}]` : 'error:';
-  }
-  return error.code
-    ? `error: [${error.code}] ${error.message}`
-    : `error: ${error.message}`;
-}
-
-interface WireMessageParts {
-  message: string;
-  scope?: string;
-  code?: string;
-}
-
-/**
- * Resolve the client-facing wire message. After production stripping the
- * message can be empty, so fall back to a `[scope:code]` identifier built from
- * whatever structured fields survive. The wire format omits `scope`, so it is
- * folded into the message here.
- */
-function resolveWireMessage({
-  message,
-  scope,
-  code,
-}: WireMessageParts): string {
-  if (message) return message;
-  const qualifier = [scope, code].filter(Boolean).join(':');
-  return qualifier ? `[${qualifier}]` : '';
-}
-
-function extractResponseData(
-  error: VercelError | ErrorResponseParams,
-): ExtractedData {
-  if (isVercelError(error)) {
-    return {
-      error: {
-        message: resolveWireMessage({
-          message: error.userMessage ?? error.message,
-          scope: error.scope,
-          code: error.code,
-        }),
-        ...(error.code ? { code: error.code } : {}),
-        ...(error.reason ? { reason: error.reason } : {}),
-        ...(error.hint ? { hint: error.hint } : {}),
-        ...(error.fix ? { fix: error.fix } : {}),
-        ...(error.link ? { link: error.link } : {}),
-      },
-      status: error.statusCode ?? 500,
-    };
-  }
-
-  return {
-    error: {
-      message: resolveWireMessage({ message: error.message, code: error.code }),
-      ...(error.code ? { code: error.code } : {}),
-      ...(error.reason ? { reason: error.reason } : {}),
-      ...(error.hint ? { hint: error.hint } : {}),
-      ...(error.fix ? { fix: error.fix } : {}),
-      ...(error.link ? { link: error.link } : {}),
-    },
-    status: error.status ?? 500,
-  };
+function renderPublicError(error: ErrorResponse['error']): string {
+  return formatError(error, { format: 'ansi' });
 }

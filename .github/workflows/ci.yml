@@ -40,5 +40,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Verify packed package
+        run: pnpm verify:packed
+
+      - name: Verify agent skill
+        run: pnpm verify:skill
+
       - name: Unit tests
         run: pnpm test

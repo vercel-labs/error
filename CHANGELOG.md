@@ -1,5 +1,14 @@
 # @vercel/error
 
+## 0.1.0
+
+### Minor Changes
+
+- Separate developer diagnostics from client-approved `public` details, require a nonblank public message, preserve optional `scope` and `code`, and reject malformed known wire fields.
+- Add deterministic `auto`, `plain`, `tree`, and `ansi` rendering with structured sections and multiline containment.
+- Add synchronous `onReport` and `onSerialize` diagnostics callbacks with explicit failure propagation.
+- Standardize authored `statusCode`, concrete `status`, cross-realm data recognition, and packed-package release verification.
+
 ## 0.0.4
 
 ### Patch Changes

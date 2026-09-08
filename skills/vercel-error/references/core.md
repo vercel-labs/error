@@ -19,6 +19,7 @@ export function paymentGatewayTimeout(
     metadata: {
       provider: { responseCode: providerResponseCode },
     },
+    public: { message: 'The payment provider did not respond' },
     scope: 'billing',
   });
 }
@@ -44,9 +45,11 @@ class PaymentError extends VercelError {
 
 ## Recognition and extraction
 
-- `isVercelError(value)` uses `instanceof` first and a stable Symbol tag as a cross-realm fallback.
+- `isVercelError(value)` uses `instanceof` first, then a package-namespaced Symbol tag plus data-shape checks. It narrows cross-realm values to data-only `VercelErrorLike`; use `instanceof VercelError` before calling local class or subclass methods.
 - `hasCode(error, codeOrCodes)` narrows errors by one code or a set of codes.
 - `isError`, `isErrorLike`, and `getMessage` handle unknown caught values without unsafe casts.
 - `getRootCause` follows `cause` and stops on object cycles.
 
-`VercelError#toJSON()` includes the name, message, optional stack, and defined enumerable fields such as metadata and attributes; it excludes `cause`. Because that output may contain private diagnostics, do not send it to clients. Use `errorResponse()` for public HTTP responses.
+The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure.
+
+`VercelError#toJSON()` includes the name, developer message, optional stack, public projection, and defined enumerable fields such as metadata and attributes; it excludes `cause`. Because that output may contain private diagnostics, do not send it to clients. Use `errorResponse()` for public HTTP responses.

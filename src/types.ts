@@ -45,6 +45,23 @@ export interface ErrorLike {
 }
 
 /**
+ * Error details explicitly approved for disclosure to clients.
+ *
+ * `message` is required and must be nonblank when projected by
+ * `errorResponse()`; invalid public details throw `TypeError`. This prevents
+ * transport serialization from falling back to developer-facing prose.
+ * Applications remain responsible for ensuring every supplied field is safe
+ * for the intended audience.
+ */
+export interface PublicErrorDetails {
+  readonly message: string;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+}
+
+/**
  * Configuration options for creating a VercelError instance.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
@@ -52,7 +69,7 @@ export interface VercelErrorOptions<TCode extends string = string> {
   attributes?: ErrorAttributes;
 
   /** The underlying error or value that triggered this one, for chaining. */
-  cause?: unknown;
+  readonly cause?: unknown;
 
   /**
    * Stable, machine-readable identifier for this error. Keep it constant even
@@ -61,63 +78,66 @@ export interface VercelErrorOptions<TCode extends string = string> {
    * (`pool_exhausted`), numeric codes (`E1001`), or namespaced numbers
    * (`B2011`). Numbering is optional, so use words when you prefer them.
    */
-  code?: TCode;
+  readonly code?: TCode;
 
   /** Actionable step that resolves the error, such as a command or config change. */
-  fix?: string;
+  readonly fix?: string;
 
   /** Advisory tip that helps the developer, shown before `fix`. */
-  hint?: string;
+  readonly hint?: string;
 
   /** URL to documentation for this error. Derivable from `code` via `docsBaseUrl`. */
-  link?: string;
+  readonly link?: string;
 
   /** Nested domain context for debugging and logging. Never sent to clients. */
   metadata?: ErrorMetadata;
 
   /** Why the error happened, the root-cause explanation behind the message. */
-  reason?: string;
+  readonly reason?: string;
 
   /** Correlation ID for tracing this error across services. */
   requestId?: string;
 
   /** Namespace that produced the error, such as a service or subsystem. */
-  scope?: string;
+  readonly scope?: string;
 
-  /** HTTP status code for the response. Defaults to 500 on the wire. */
-  statusCode?: number;
+  /**
+   * Authored HTTP status mapping. `errorResponse()` accepts integers from 400
+   * through 599, defaults omission to 500, and throws `RangeError` otherwise.
+   */
+  readonly statusCode?: number;
 
-  /** Client-safe message sent over the wire instead of the developer `message`. */
-  userMessage?: string;
+  /** Details explicitly approved for client disclosure. */
+  readonly public?: PublicErrorDetails;
 
   /** Reserved. Automatically captured from Error */
-  stack?: never;
+  readonly stack?: never;
   /** Reserved. Pass message as the first constructor argument */
-  message?: never;
+  readonly message?: never;
   /** Reserved. Hardcoded to "VercelError" for minification safety */
-  name?: never;
+  readonly name?: never;
 }
 
 /**
- * The canonical wire format for all Vercel HTTP error responses.
+ * Data contract recognized by {@link isVercelError} across realms.
  *
- * `message` maps to `userMessage` from VercelError, falling back to `message`.
+ * The stable symbol tag used for recognition is forgeable. This interface is
+ * suitable for reading data fields, not for authenticating the producer,
+ * authorizing disclosure, or invoking local class methods.
  */
-export interface ErrorResponse {
-  error: {
-    code?: string;
-    message: string;
-    reason?: string;
-    hint?: string;
-    fix?: string;
-    link?: string;
-  };
-}
-
-/**
- * Minimal interface for any object that can look up headers by name.
- * Compatible with `Headers`, `ReadonlyHeaders` (Next.js), and plain objects.
- */
-export interface HeadersLike {
-  get(name: string): string | null;
+export interface VercelErrorLike<
+  TCode extends string = string,
+> extends ErrorLike {
+  readonly cause?: unknown;
+  readonly code?: TCode;
+  readonly scope?: string;
+  readonly statusCode?: number;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+  readonly public?: PublicErrorDetails;
+  requestId?: string;
+  metadata?: ErrorMetadata;
+  attributes?: ErrorAttributes;
 }

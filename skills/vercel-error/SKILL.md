@@ -39,11 +39,11 @@ Use a structured error only when you can name the caller, transport, logger, or 
 
 | Need                                                                                                    | Public API                                                 | Read                                                    |
 | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
-| Add, change, or audit a code, scope, field, or diagnostic contract                                      | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md)        |
+| Add, change, or audit identity, developer context, public projection, transport, or diagnostics         | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md)        |
 | Construct one error, define a subclass, preserve a cause, or inspect a caught value                     | `VercelError`, core guards and extractors                  | [Core errors](references/core.md)                       |
 | Create a typed error family with shared scope, diagnostics, documentation, reporting, or a custom class | `createErrors`                                             | [`createErrors` factories](references/create-errors.md) |
 | Produce or consume HTTP error responses                                                                 | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP errors](references/http.md)                       |
-| Format an error you do not own for people and agents                                                    | `frame`, `hint`, `fix`, `link`                             | [Terminal output](references/format.md)                 |
+| Format an error you do not own for people and agents                                                    | `formatError`, `frame`, `hint`, `fix`, `link`              | [Terminal output](references/format.md)                 |
 
 Use `VercelError#toString()` for a `VercelError`; it already uses the package formatter. Use `frame()` for errors or CLI output that should remain another type.
 
@@ -69,7 +69,7 @@ Test the behavior that consumes the error, not private formatting helpers:
 
 - creation, throwing, and reporting through the factory when those paths matter
 - stable code and preserved cause for programmatic handling
-- client-safe JSON and the returned HTTP status
+- client-safe JSON and ANSI text parity, plus the returned HTTP status
 - rejection of invalid unknown response data before reconstruction
 - terminal output with and without optional sections
 - the actual public package entry point used by the target project

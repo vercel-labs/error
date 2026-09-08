@@ -1,10 +1,11 @@
-import { VERCEL_ERROR_TAG } from '../constants';
-import { formatAuto } from '../format/index';
+import { formatError } from '../format/index';
 import type {
   ErrorAttributes,
   ErrorMetadata,
+  PublicErrorDetails,
   VercelErrorOptions,
 } from '../types';
+import { VERCEL_ERROR_TAG } from './tag';
 
 /**
  * Structured error class for Vercel.
@@ -18,7 +19,7 @@ import type {
  *
  * Key features:
  * - Zero runtime dependencies
- * - Human + agent readable context (`reason`, `hint`, `fix`, `link`, `userMessage`)
+ * - Separate developer context and explicitly disclosed `public` details
  * - Type-safe error codes via generics
  * - Separate `metadata` (domain context) and `attributes` (OTel observability)
  * - Error chaining with proper cause tracking
@@ -40,16 +41,18 @@ import type {
  * ```
  */
 export class VercelError<TCode extends string = string> extends Error {
+  declare readonly message: string;
+
   readonly code?: TCode;
   readonly scope?: string;
 
-  statusCode?: number;
+  readonly statusCode?: number;
 
-  reason?: string;
-  hint?: string;
-  fix?: string;
-  link?: string;
-  userMessage?: string;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+  readonly public?: PublicErrorDetails;
 
   requestId?: string;
   metadata?: ErrorMetadata;
@@ -67,7 +70,7 @@ export class VercelError<TCode extends string = string> extends Error {
     this.hint = options.hint;
     this.fix = options.fix;
     this.link = options.link;
-    this.userMessage = options.userMessage;
+    this.public = options.public;
     this.requestId = options.requestId;
     this.metadata = options.metadata;
     this.attributes = options.attributes;
@@ -83,11 +86,13 @@ export class VercelError<TCode extends string = string> extends Error {
   private static readonly JSON_EXCLUDE = new Set(['name', 'cause']);
 
   /**
-   * JSON representation for `JSON.stringify`.
+   * Diagnostic JSON representation for `JSON.stringify`.
    *
    * Surfaces non-enumerable Error properties (`name`, `message`, `stack`)
    * alongside all VercelError fields. Omits `cause` (may be circular or
-   * contain sensitive internals) and any `undefined` values.
+   * contain sensitive internals) and any `undefined` values. This output may
+   * contain developer prose and server context; use `errorResponse()` for
+   * client-safe HTTP serialization.
    */
   toJSON(): Record<string, unknown> {
     return {
@@ -108,6 +113,6 @@ export class VercelError<TCode extends string = string> extends Error {
    * Auto-detects ANSI support and renders accordingly.
    */
   override toString(): string {
-    return formatAuto(this);
+    return formatError(this, { format: 'auto' });
   }
 }

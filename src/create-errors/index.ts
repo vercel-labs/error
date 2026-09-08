@@ -32,20 +32,35 @@ export type CreateErrorOptions<TCode extends string = string> = Omit<
  * Constructor constraint for custom error classes.
  * Any class that extends VercelError and accepts `(message, options?)` is valid.
  */
-export type ErrorConstructor<
+export type VercelErrorConstructor<
   TCode extends string = string,
   TError extends VercelError<TCode> = VercelError<TCode>,
 > = new (message: string, options?: VercelErrorOptions<TCode>) => TError;
 
+/**
+ * Typed methods returned by {@link createErrors}.
+ *
+ * `create` returns an error without reporting, `raise` throws without
+ * reporting, and `report` creates one error, calls `onReport`, then returns it.
+ */
 export interface ErrorFactory<
   TCode extends string = string,
   TError extends VercelError<TCode> = VercelError<TCode>,
 > {
+  /** Create and return an error without reporting it. */
   create(message: string, options?: CreateErrorOptions<TCode>): TError;
+  /** Create and throw an error without reporting it. */
   raise(message: string, options?: CreateErrorOptions<TCode>): never;
+  /** Create, synchronously report, and return the same error. */
   report(message: string, options?: CreateErrorOptions<TCode>): TError;
 }
 
+/**
+ * Shared defaults and diagnostics for {@link createErrors}.
+ *
+ * A supplied `ErrorClass` determines the returned subtype. `onReport` runs only
+ * for `report`; omission defaults that method to `console.error`.
+ */
 export interface CreateErrorsOptions<
   TCode extends string = string,
   TError extends VercelError<TCode> = VercelError<TCode>,
@@ -67,14 +82,22 @@ export interface CreateErrorsOptions<
    * to skip.
    *
    * Applied only when an error has a `code` and no explicit `link`. A
-   * per-error `link` always wins.
+   * per-error `link` always wins. This derives developer documentation only;
+   * a client-visible `public.link` must be supplied explicitly.
    */
   docsBaseUrl?: string | ((code: TCode) => string | undefined);
 
-  ErrorClass?: ErrorConstructor<TCode, TError>;
+  /** Custom subtype constructor. Required when requesting a custom TError. */
+  ErrorClass?: VercelErrorConstructor<TCode, TError>;
   attributes?: ErrorAttributes;
   metadata?: ErrorMetadata;
-  report?: (error: TError) => void;
+
+  /**
+   * Synchronous callback used only by `report` after the error is created.
+   * Exceptions propagate and replace the return value. Async callbacks are
+   * rejected by the `undefined` return type.
+   */
+  onReport?: (error: TError) => undefined;
 }
 
 /**
@@ -84,8 +107,9 @@ export interface CreateErrorsOptions<
  * `scope` is optional. Provide it only when you want to group errors by a
  * namespace. When `docsBaseUrl` is set, each error's `link` is derived from
  * its `code`, unless you pass an explicit `link`.
- * When no `report` callback is provided, `report` defaults to `console.error`.
+ * When no `onReport` callback is provided, `report` defaults to `console.error`.
  * When `ErrorClass` is provided, all errors are instances of that class.
+ * `create` and `raise` never report automatically.
  *
  * @example
  * ```ts
@@ -97,7 +121,9 @@ export interface CreateErrorsOptions<
  *   scope: 'database',
  *   ErrorClass: DatabaseError,
  *   docsBaseUrl: 'https://vercel.com/docs/errors/database',
- *   report: (error) => sentry.captureException(error),
+ *   onReport: (error) => {
+ *     sentry.captureException(error);
+ *   },
  * });
  *
  * const error = errors.create('Connection failed', { code: 'conn_failed' });
@@ -112,13 +138,26 @@ export function createErrors<
   TCode extends string = string,
   TError extends VercelError<TCode> = VercelError<TCode>,
 >(
+  options: CreateErrorsOptions<TCode, TError> & {
+    readonly ErrorClass: VercelErrorConstructor<TCode, TError>;
+  },
+): ErrorFactory<TCode, TError>;
+export function createErrors<TCode extends string = string>(
+  options?: CreateErrorsOptions<TCode, VercelError<TCode>>,
+): ErrorFactory<TCode, VercelError<TCode>>;
+export function createErrors<
+  TCode extends string = string,
+  TError extends VercelError<TCode> = VercelError<TCode>,
+>(
   options: CreateErrorsOptions<TCode, TError> = {},
 ): ErrorFactory<TCode, TError> {
-  const ErrorClass = (options.ErrorClass ?? VercelError) as ErrorConstructor<
-    TCode,
-    TError
-  >;
-  const reportFn = options.report ?? ((error: TError) => console.error(error));
+  const ErrorClass = (options.ErrorClass ??
+    VercelError) as VercelErrorConstructor<TCode, TError>;
+  const onReport =
+    options.onReport ??
+    ((error: TError): undefined => {
+      console.error(error);
+    });
 
   function create(
     message: string,
@@ -163,7 +202,7 @@ export function createErrors<
     itemOptions?: CreateErrorOptions<TCode>,
   ): TError {
     const error = create(message, itemOptions);
-    reportFn(error);
+    onReport(error);
     return error;
   }
 

@@ -1,4 +1,10 @@
-import type { HeadersLike } from '../types';
+/**
+ * Minimal header lookup interface accepted by ANSI content negotiation.
+ * Compatible with `Headers`, Next.js `ReadonlyHeaders`, and plain adapters.
+ */
+export interface HeadersLike {
+  get(name: string): string | null;
+}
 
 /**
  * Detect whether an HTTP request wants ANSI-formatted error responses.

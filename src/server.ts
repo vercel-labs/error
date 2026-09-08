@@ -2,7 +2,8 @@ export { errorResponse } from './to-error-response';
 export { wantsAnsi } from './wants-ansi';
 
 export type {
-  ErrorResponseParams,
+  ErrorResponseOptions,
   ErrorResponseResult,
 } from './to-error-response';
-export type { HeadersLike } from './types';
+export type { ErrorResponseParams } from './error-codec';
+export type { HeadersLike } from './wants-ansi';
