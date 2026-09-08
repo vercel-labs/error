@@ -1,15 +1,31 @@
 const errorConstructor = Error as ErrorConstructor & {
-  isError(value: unknown): value is Error;
+  isError?(value: unknown): value is Error;
 };
+
+const nativeIsError = errorConstructor.isError;
 
 /**
  * Check if a value is a standard JavaScript Error object.
  *
- * Uses the `Error.isError` builtin brand check (requires a runtime that ships
- * it, such as Node 24). It handles cross-realm errors without traversing
- * caller-controlled prototype chains or consulting the forgeable
- * `Symbol.toStringTag` property.
+ * Uses the `Error.isError` builtin brand check when the runtime provides it
+ * (Node 24, 2025+ evergreen browsers): cross-realm errors are recognized
+ * without traversing caller-controlled prototype chains or consulting the
+ * forgeable `Symbol.toStringTag` property, and prototype forgeries such as
+ * `Object.create(Error.prototype)` are rejected.
+ *
+ * Older runtimes fall back to `instanceof` plus `Object.prototype.toString`
+ * branding, which still recognizes real errors from any realm but can be
+ * spoofed by a `Symbol.toStringTag` of `"Error"`. Client-safe serialization
+ * never depends on this guard's precision: `errorResponse()` independently
+ * rejects any untagged value carrying `name` or `stack`.
  */
 export function isError(error: unknown): error is Error {
-  return errorConstructor.isError(error);
+  if (nativeIsError !== undefined) {
+    return nativeIsError(error);
+  }
+
+  return (
+    error instanceof Error ||
+    Object.prototype.toString.call(error) === '[object Error]'
+  );
 }

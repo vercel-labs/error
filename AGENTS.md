@@ -25,6 +25,7 @@ Keep feature implementations in `src/<feature>/index.ts` with colocated `index.s
 ## Package Boundaries
 
 - Keep the package framework-neutral, dependency-free at runtime, side-effect free on import, and compatible with `package.json#sideEffects: false`.
+- Keep every module isomorphic: the same code runs in browsers, workers, edge runtimes, and Node. Feature-detect newer builtins with a documented fallback instead of requiring them.
 - Keep public entry modules independent. A public entry module never imports another public entry module.
 - `vercel-error` never imports response data, the HTTP adapter, the client entry, or the server entry.
 - `format` never imports the class, response data, or the HTTP adapter at runtime.

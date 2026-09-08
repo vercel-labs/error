@@ -11,6 +11,7 @@
 - Add readonly types for flat public input (`ErrorResponseInput`), normalized client-facing data (`ErrorResponseData`), and the completed HTTP result (`ErrorResponse`), while keeping `VercelError` diagnostic context mutable.
 - Make cross-realm error recognition cycle-safe and explicit JSON format requests authoritative.
 - Validate `public` details at construction, read each disclosed field once and serialize only the validated copy, and remove Unicode line separators from framed output.
+- Recognize errors with the `Error.isError` brand check where available and a structural fallback elsewhere, keeping the package isomorphic across browsers and Node.
 
 ## 0.0.4
 

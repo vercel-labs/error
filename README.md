@@ -342,7 +342,7 @@ All utilities below are exported from `@vercel/error`:
 | `getMessage(error, fallback?)` | Extract a message from an unknown value                                 |
 | `getRootCause(error)`          | Follow `cause` to the root while stopping object cycles                 |
 
-`isError` uses Node's intrinsic `Error.isError` brand check across realms without traversing caller-controlled prototype chains or consulting `Symbol.toStringTag`.
+The package runs in browsers, workers, edge runtimes, and Node. `isError` uses the `Error.isError` builtin brand check where the runtime provides it (Node 24, 2025+ evergreen browsers), recognizing errors across realms without traversing caller-controlled prototype chains or consulting `Symbol.toStringTag`. Older runtimes fall back to `instanceof` plus `Object.prototype.toString` branding; `errorResponse()` never depends on the guard either way, so the fallback cannot change what a client sees.
 
 `isVercelError` uses `instanceof` first, then a package-namespaced `Symbol.for` tag plus data-shape checks. Its cross-realm result narrows to `VercelErrorLike`, a data-only contract. The tag is forgeable, so recognition does not authenticate a producer or authorize disclosure. Use `instanceof VercelError` before invoking local class or subclass methods.
 

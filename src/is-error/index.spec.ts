@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { isError } from '.';
 
@@ -100,5 +100,55 @@ describe('isError', () => {
     revoke();
 
     expect(isError(proxy)).toBe(false);
+  });
+
+  describe('without Error.isError (fallback runtimes)', () => {
+    /** Reload the module with the builtin hidden so the fallback is captured. */
+    async function importFallbackIsError(): Promise<typeof isError> {
+      const errorConstructor = Error as ErrorConstructor & {
+        isError?: unknown;
+      };
+      const native = errorConstructor.isError;
+      errorConstructor.isError = undefined;
+      vi.resetModules();
+      try {
+        const module = await import('.');
+        return module.isError;
+      } finally {
+        errorConstructor.isError = native;
+        vi.resetModules();
+      }
+    }
+
+    it('recognizes same-realm and cross-realm errors', async () => {
+      const fallbackIsError = await importFallbackIsError();
+
+      expect(fallbackIsError(new Error('test'))).toBe(true);
+      expect(fallbackIsError(new TypeError('test'))).toBe(true);
+      expect(fallbackIsError(runInNewContext('new Error("other realm")'))).toBe(
+        true,
+      );
+    });
+
+    it('rejects non-errors and primitives', async () => {
+      const fallbackIsError = await importFallbackIsError();
+
+      expect(fallbackIsError({})).toBe(false);
+      expect(fallbackIsError({ message: 'error-like' })).toBe(false);
+      expect(fallbackIsError('error')).toBe(false);
+      expect(fallbackIsError(null)).toBe(false);
+      expect(fallbackIsError(undefined)).toBe(false);
+    });
+
+    it('accepts a Symbol.toStringTag forgery, the documented degradation', async () => {
+      const fallbackIsError = await importFallbackIsError();
+      const forged = { [Symbol.toStringTag]: 'Error' };
+
+      // The structural fallback cannot distinguish this forgery; the native
+      // brand check rejects it. Client-safe serialization never depends on
+      // this guard, so the degradation affects classification only.
+      expect(fallbackIsError(forged)).toBe(true);
+      expect(isError(forged)).toBe(false);
+    });
   });
 });
