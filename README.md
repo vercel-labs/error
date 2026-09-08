@@ -242,6 +242,8 @@ return new Response(result.body, result);
 
 `errorResponse()` throws `TypeError` on a plain `Error` rather than guessing its message is safe to publish. Wrap it instead: `new VercelError('…', { cause: err, public: { message: '…' } })`.
 
+The JSON body uses the same `{ "error": { "code", "message", … } }` envelope as the Vercel REST API, not RFC 9457 problem details. If a consumer needs `application/problem+json`, map `code` (with `link`) to `type`, `message` to `detail`, and the remaining fields to extension members.
+
 JSON is the default body. To let the request choose between JSON and ANSI text, pass the request:
 
 ```ts

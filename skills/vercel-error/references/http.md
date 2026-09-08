@@ -83,6 +83,8 @@ The callback receives the original source plus `{ status, bodyFormat }`. `bodyFo
 
 `message` is required and nonblank. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data.
 
+The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
+
 ## Consumer
 
 Validate unknown JSON before rebuilding an error. If parsing fails, retain the local HTTP failure instead of assuming the upstream response is trustworthy.
