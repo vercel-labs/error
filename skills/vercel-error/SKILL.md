@@ -16,7 +16,7 @@ Read the target project's `package.json`, lockfile, existing errors, output path
 
 - Use the installed `@vercel/error` version's public exports as the contract. Do not deep-import unexported source paths.
 - If the package is absent, resolve the intended version from workspace constraints or the current release, then inspect its published exports and `engines`. Add it as a production dependency only for requested implementation work.
-- Compare the target project's runtime with the selected version's `engines`. Report an incompatibility instead of silently changing the runtime or installing an unsupported combination.
+- Compare a Node target's version with the selected version's `engines`, and report an incompatibility instead of silently changing the runtime. The package itself is isomorphic (browsers, workers, edge runtimes), so treat `engines` as the Node support matrix, not a runtime allowlist.
 - Record the project's existing code and scope names and the callers that depend on them. In step 4, preserve or challenge those conventions based on evidence.
 - Leave dependencies unchanged for advice and review.
 

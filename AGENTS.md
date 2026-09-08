@@ -41,7 +41,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Put nested debugging context in `metadata` and flat telemetry values in `attributes`. Keep secrets out of both.
 - Treat constructor `message`, `reason`, `hint`, `fix`, and `link` as developer-facing.
 - Put client-approved prose under `public`, with a required nonblank `public.message`.
-- Snapshot and freeze `public` at construction so approved copy cannot change through an input alias.
+- Validate `public` at construction (nonblank string `message`, string-only optional fields), drop unknown fields, and freeze the copy so approved copy cannot change through an input alias.
 - `errorResponse()` is the client-safe serializer. It uses only `public` prose or the fixed generic fallback, while preserving public `scope` and `code`.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
 - Use `statusCode` for authored mappings and `status` only for a concrete response. The HTTP adapter accepts integer error statuses from 400 through 599 and defaults omission to 500.
@@ -49,7 +49,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Treat `toJSON()` as diagnostic serialization. It may contain developer prose, stack, metadata, attributes, and public data.
 - Parse known response data fields strictly and ignore unknown fields. Parsing validates shape, not producer trust or action authority.
 - Keep cross-realm recognition as `instanceof` plus the namespaced symbol and data-shape validation. The tag is forgeable. Use `instanceof VercelError` when local methods are required.
-- Classify a present symbol tag before flat public input. Tagged-invalid values throw instead of falling through.
+- Classify the package-namespaced tag before flat public input; any other symbol carries no meaning. Tagged-invalid values throw instead of falling through.
 - Keep `create`, `raise`, and `report`. Only `report` invokes `onReport`; `create` and `raise` stay free of reporting side effects.
 - Keep `onReport` and `onSerialize` synchronous with `undefined` return types. Synchronous callback exceptions propagate.
 

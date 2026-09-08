@@ -129,7 +129,7 @@ describe('VercelError', () => {
       expect(
         Object.prototype.propertyIsEnumerable.call(error, VERCEL_ERROR_TAG),
       ).toBe(false);
-      expect({ ...error }).not.toHaveProperty([VERCEL_ERROR_TAG]);
+      expect(Object.getOwnPropertySymbols({ ...error })).toEqual([]);
     });
 
     it('is not writable or configurable', () => {

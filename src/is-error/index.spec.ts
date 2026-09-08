@@ -140,6 +140,23 @@ describe('isError', () => {
       expect(fallbackIsError(undefined)).toBe(false);
     });
 
+    it('returns false for a Proxy whose getPrototypeOf trap throws', async () => {
+      const fallbackIsError = await importFallbackIsError();
+      const proxy = new Proxy(
+        {},
+        {
+          getPrototypeOf: () => {
+            throw new Error('trap');
+          },
+        },
+      );
+
+      // The fallback's instanceof walks the same-realm prototype chain; a
+      // throwing trap classifies the value as not an error instead of
+      // propagating, matching the native brand check.
+      expect(fallbackIsError(proxy)).toBe(false);
+    });
+
     it('accepts a Symbol.toStringTag forgery, the documented degradation', async () => {
       const fallbackIsError = await importFallbackIsError();
       const forged = { [Symbol.toStringTag]: 'Error' };

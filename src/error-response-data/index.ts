@@ -63,9 +63,10 @@ export type FromErrorResponseOptions = Pick<
  * rejected instead of being reinterpreted as explicitly public data. Untagged
  * values carrying `name` or `stack` are treated as Error-like and rejected.
  * Errors without approved `public` details receive a fixed generic message;
- * developer prose is never used as a fallback. Every disclosed field is read
- * once, validated, and copied, so a getter cannot pass validation with one
- * value and serialize another; only validated strings reach the result.
+ * developer prose is never used as a fallback. Every disclosed field is
+ * serialized from a single validated read, so a getter cannot pass validation
+ * with one value and serialize another; only validated strings reach the
+ * result.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,

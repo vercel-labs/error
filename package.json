@@ -2,6 +2,7 @@
   "name": "@vercel/error",
   "version": "0.1.0",
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
+  "license": "MIT",
   "author": "Vercel",
   "repository": {
     "url": "git+https://github.com/vercel-labs/error.git"

@@ -15,17 +15,23 @@ const nativeIsError = errorConstructor.isError;
  *
  * Older runtimes fall back to `instanceof` plus `Object.prototype.toString`
  * branding, which still recognizes real errors from any realm but can be
- * spoofed by a `Symbol.toStringTag` of `"Error"`. Client-safe serialization
- * never depends on this guard's precision: `errorResponse()` independently
- * rejects any untagged value carrying `name` or `stack`.
+ * spoofed by a `Symbol.toStringTag` of `"Error"`. A value whose Proxy traps
+ * or getters throw during the fallback checks is classified as not an error,
+ * matching the brand check. Client-safe serialization never depends on this
+ * guard's precision: `errorResponse()` independently rejects any untagged
+ * value carrying `name` or `stack`.
  */
 export function isError(error: unknown): error is Error {
   if (nativeIsError !== undefined) {
     return nativeIsError(error);
   }
 
-  return (
-    error instanceof Error ||
-    Object.prototype.toString.call(error) === '[object Error]'
-  );
+  try {
+    return (
+      error instanceof Error ||
+      Object.prototype.toString.call(error) === '[object Error]'
+    );
+  } catch {
+    return false;
+  }
 }
