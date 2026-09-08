@@ -7,6 +7,13 @@ import { parseErrorResponse, fromErrorResponse } from '../error-codec';
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
+/* oxlint-disable no-control-regex -- intentional ANSI/control assertions */
+const ANSI_PATTERN = /\x1b\[[0-?]*[ -/]*[@-~]/g;
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI_PATTERN, '');
+}
+
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request('https://example.com', { headers });
 }
@@ -66,6 +73,31 @@ describe('errorResponse', () => {
         scope: 'api',
       },
     });
+  });
+
+  it.each([
+    new Error('postgres://internal-db.example/private'),
+    structuredClone(
+      new VercelError('Internal shard 7 failed', {
+        public: { message: 'Service unavailable' },
+      }),
+    ),
+  ])('rejects an untagged Error instead of disclosing it: %o', (error) => {
+    expect(() => errorResponse(error)).toThrow(TypeError);
+  });
+
+  it('snapshots and freezes public details at construction', () => {
+    const publicDetails = { message: 'Safe public message' };
+    const error = new VercelError('Internal account 42 failed', {
+      public: publicDetails,
+    });
+
+    publicDetails.message = error.message;
+
+    expect(Object.isFrozen(error.public)).toBe(true);
+    expect(JSON.parse(errorResponse(error).body).error.message).toBe(
+      'Safe public message',
+    );
   });
 
   it('treats flat params as explicitly public and uses statusCode input', () => {
@@ -169,6 +201,48 @@ describe('errorResponse', () => {
     expect(result.body).not.toContain('Developer message');
     expect(result.body).not.toContain('Developer reason');
     expect(result.body).not.toContain('Developer fix');
+  });
+
+  it('sanitizes and contains every public field in ANSI output', () => {
+    const ESC = '\x1b';
+    const hostile = (field: string) =>
+      `${field}\tcolumn\r\nforged\rbad${ESC}[31mred${ESC}[0m${ESC}]52;c;payload${ESC}\\end\x9b`;
+    const result = errorResponse(
+      new VercelError('Developer message', {
+        code: hostile('code'),
+        public: {
+          fix: hostile('fix'),
+          hint: hostile('hint'),
+          link: hostile('link'),
+          message: hostile('message'),
+          reason: hostile('reason'),
+        },
+        scope: hostile('scope'),
+      }),
+      { request: makeRequest({ 'X-Error-Format': 'ansi' }) },
+    );
+
+    const text = stripAnsi(result.body);
+    expect(text).not.toContain('\r');
+    expect(text).not.toContain('\x9b');
+    expect(text).not.toContain('payload');
+    for (const field of [
+      'scope',
+      'code',
+      'message',
+      'reason',
+      'hint',
+      'fix',
+      'link',
+    ]) {
+      expect(text).toContain(`${field}\tcolumn`);
+    }
+    expect(
+      text
+        .split('\n')
+        .slice(1)
+        .every((line) => /^(?:│|├|╰)/.test(line)),
+    ).toBe(true);
   });
 
   it('uses JSON for a browser request', () => {
@@ -278,3 +352,4 @@ describe('errorResponse', () => {
     expect(response.headers.get('Content-Type')).toBe('application/json');
   });
 });
+/* oxlint-enable no-control-regex */

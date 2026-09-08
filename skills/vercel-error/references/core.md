@@ -27,6 +27,8 @@ export function paymentGatewayTimeout(
 
 The generic keeps `code` limited to `PaymentErrorCode`. Preserve a caught value through `cause`; do not copy its message or stack into public fields.
 
+Construction snapshots and freezes `public`, whose fields are strings. Build the complete client-approved projection before creating the error rather than mutating it later.
+
 ## Subclasses
 
 Accept `VercelErrorOptions` in the constructor so the class remains compatible with `createErrors`. Assign a literal `this.name`; minification can change `constructor.name`.

@@ -70,7 +70,10 @@ export class VercelError<TCode extends string = string> extends Error {
     this.hint = options.hint;
     this.fix = options.fix;
     this.link = options.link;
-    this.public = options.public;
+    this.public =
+      options.public === undefined
+        ? undefined
+        : Object.freeze({ ...options.public });
     this.requestId = options.requestId;
     this.metadata = options.metadata;
     this.attributes = options.attributes;

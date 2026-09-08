@@ -48,9 +48,10 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  *
  * Local `VercelError` instances and tagged `VercelErrorLike` values expose only
  * their `public` projection, or the fixed generic fallback when that projection
- * is absent. Any untagged object is treated as flat public params. Scope, code,
- * status, and every flat prose field are client-visible. Request headers select
- * a representation; they do not authorize access.
+ * is absent. Untagged native and cross-realm `Error` objects throw `TypeError`;
+ * other untagged objects are treated as flat public params. Scope, code, status,
+ * and every flat prose field are client-visible. Request headers select a
+ * representation; they do not authorize access.
  *
  * `statusCode` defaults to 500 and must be an integer from 400 through 599.
  * Status validation runs before projection and throws `RangeError` for invalid

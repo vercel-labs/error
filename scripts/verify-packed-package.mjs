@@ -249,7 +249,7 @@ class CliError extends VercelError<'cli_failure'> {
 }
 const cliErrors = createErrors({ ErrorClass: CliError, scope: 'cli' });
 const cliError = cliErrors.create('CLI failed', { code: 'cli_failure' });
-assert(cliError.retryable, 'custom constructor inference failed');
+assert(cliError.retryable, 'custom CliError instance was not retryable');
 assert(hasCode(cliError, 'cli_failure'), 'hasCode failed');
 assert(isErrorLike(cliError), 'isErrorLike failed');
 const unknownCliError: unknown = cliError;
@@ -322,6 +322,13 @@ assert(
   JSON.parse(fallback.body).error.message === 'An error occurred.',
   'developer prose leaked through fallback',
 );
+let untaggedErrorRejected = false;
+try {
+  errorResponse(new Error('Secret untagged developer prose'));
+} catch (error) {
+  untaggedErrorRejected = error instanceof TypeError;
+}
+assert(untaggedErrorRejected, 'untagged Error was serialized as public input');
 const ansi = errorResponse(reported, {
   request: new Headers({ 'X-Error-Format': 'ansi' }),
 });

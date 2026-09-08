@@ -1,4 +1,5 @@
 import { isObject } from '../_internal';
+import { isError } from '../is-error';
 import { isVercelError, isVercelErrorLikeData } from '../is-vercel-error';
 import type {
   PublicErrorDetails,
@@ -42,7 +43,8 @@ export interface ErrorResponse {
  *
  * Every prose field is treated as approved for client disclosure. `statusCode`
  * is an authored HTTP mapping; {@link errorResponse} validates it and returns
- * the concrete value as `status`.
+ * the concrete value as `status`. Explicitly `undefined` optional fields are
+ * omitted from the projected response.
  */
 export interface ErrorResponseParams extends PublicErrorDetails {
   readonly scope?: string;
@@ -93,7 +95,15 @@ export function projectErrorResponse(
   }
 
   if (LEGACY_VERCEL_ERROR_TAG in source) {
-    throw new TypeError('Invalid VercelError-like value');
+    throw new TypeError(
+      'VercelError values from 0.0.x cannot be serialized; recreate the error with explicit public details',
+    );
+  }
+
+  if (isError(source)) {
+    throw new TypeError(
+      'Untagged Error values cannot be serialized; pass explicit public response params',
+    );
   }
 
   assertPublicErrorDetails(source);
@@ -177,7 +187,7 @@ function assertOptionalStrings(
   fields: readonly string[],
 ): void {
   for (const field of fields) {
-    if (field in value && typeof value[field] !== 'string') {
+    if (value[field] !== undefined && typeof value[field] !== 'string') {
       throw new TypeError(`${field} must be a string`);
     }
   }

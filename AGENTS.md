@@ -37,6 +37,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Put nested debugging context in `metadata` and flat telemetry values in `attributes`. Keep secrets out of both.
 - Treat constructor `message`, `reason`, `hint`, `fix`, and `link` as developer-facing.
 - Put client-approved prose under `public`, with a required nonblank `public.message`.
+- Snapshot and freeze `public` at construction so approved copy cannot change through an input alias.
 - `errorResponse()` is the client-safe serializer. It uses only `public` prose or the fixed generic fallback, while preserving public `scope` and `code`.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
 - Use `statusCode` for authored mappings and `status` only for a concrete response. The HTTP adapter accepts integer error statuses from 400 through 599 and defaults omission to 500.

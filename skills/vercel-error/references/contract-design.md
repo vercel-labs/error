@@ -74,6 +74,8 @@ Assign a subclass a literal stable `name`; minification can change `constructor.
 
 ## Transport and audience
 
+The 0.1 public types mark `message`, `statusCode`, `reason`, `hint`, `fix`, and `link` readonly on `VercelError`, and mark every `ErrorResponse` field readonly. Pass authored values at construction or create a new value instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
+
 ### `statusCode`
 
 - Use status as an HTTP category, not application identity. Several error codes may share one status.

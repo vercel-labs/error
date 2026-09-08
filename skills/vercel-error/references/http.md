@@ -58,6 +58,8 @@ const result = errorResponse({
 
 Plain input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`.
 
+Pass native or cross-realm `Error` values through `cause` on a `VercelError`. `errorResponse()` rejects untagged `Error` objects instead of treating their developer message as public flat input.
+
 ### Serialization diagnostics
 
 `onSerialize` runs synchronously after the complete response is built:

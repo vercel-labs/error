@@ -103,6 +103,35 @@ describe('error codec', () => {
       expect(() => projectErrorResponse({ message })).toThrow(TypeError);
     });
 
+    it('omits explicitly undefined optional producer fields', () => {
+      const publicError = new VercelError('Developer detail', {
+        public: {
+          fix: undefined,
+          hint: undefined,
+          link: undefined,
+          message: 'Public message',
+          reason: undefined,
+        },
+      });
+      const flatError = {
+        code: undefined,
+        fix: undefined,
+        hint: undefined,
+        link: undefined,
+        message: 'Public message',
+        reason: undefined,
+        scope: undefined,
+        statusCode: undefined,
+      };
+
+      expect(projectErrorResponse(publicError)).toEqual({
+        error: { message: 'Public message' },
+      });
+      expect(projectErrorResponse(flatError)).toEqual({
+        error: { message: 'Public message' },
+      });
+    });
+
     it('accepts a forged but valid tagged data contract', () => {
       const error = {
         code: 'timeout',
@@ -165,7 +194,9 @@ describe('error codec', () => {
       'rejects a shipped 0.0 tagged value instead of exposing it: %o',
       (old) => {
         expect(() => projectErrorResponse(old as never)).toThrowError(
-          new TypeError('Invalid VercelError-like value'),
+          new TypeError(
+            'VercelError values from 0.0.x cannot be serialized; recreate the error with explicit public details',
+          ),
         );
       },
     );

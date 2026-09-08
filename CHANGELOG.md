@@ -8,6 +8,7 @@
 - Add deterministic `auto`, `plain`, `tree`, and `ansi` rendering with structured sections and multiline containment.
 - Add synchronous `onReport` and `onSerialize` diagnostics callbacks with explicit failure propagation.
 - Standardize authored `statusCode`, concrete `status`, cross-realm data recognition, and packed-package release verification.
+- Mark authored `VercelError` fields and all `ErrorResponse` fields readonly while retaining mutable diagnostic enrichment fields.
 
 ## 0.0.4
 

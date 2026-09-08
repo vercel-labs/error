@@ -194,12 +194,13 @@ describe('format', () => {
         const error = {
           message: 'Failed',
           name: 'VercelError',
-          [field]: 'safe\r\nforged\rbad\n\nlast',
+          [field]: 'safe\tcolumn\r\nforged\rbad\n\nlast',
         };
 
         for (const format of ['plain', 'tree', 'ansi'] as const) {
           const output = stripAnsi(formatError(error, { format }));
           expect(output).not.toContain('\r');
+          expect(output).toContain('safe\tcolumn');
           const continuationLines = output.split('\n').slice(1);
           const prefix = format === 'plain' ? /^ {2}/ : /^(?:│|├|╰)/;
           expect(continuationLines.length).toBeGreaterThan(0);

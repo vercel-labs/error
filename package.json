@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify:packed": "node scripts/verify-packed-package.mjs",
-    "verify:skill": "npx skills add . --list && node scripts/verify-skill-links.mjs",
+    "verify:skill": "skills add . --list && node scripts/verify-skill-links.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check",
@@ -31,6 +31,7 @@
     "lefthook": "2.1.5",
     "oxfmt": "0.44.0",
     "oxlint": "1.59.0",
+    "skills": "1.5.23",
     "tsdown": "0.21.7",
     "typescript": "6.0.2",
     "vitest": "4.1.4"

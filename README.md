@@ -83,7 +83,7 @@ Preserve an original failure through `cause`. Put nested debugging context in `m
 
 ### Public projection
 
-`public` is the only prose from a `VercelError` that `errorResponse()` sends to a client. If it is present, `public.message` is required and must be nonblank.
+`public` is the only prose from a `VercelError` that `errorResponse()` sends to a client. If it is present, `public.message` is required and must be nonblank. Construction snapshots and freezes this string-only record so later mutation of the caller's input object cannot change approved client copy.
 
 ```ts
 interface PublicErrorDetails {
@@ -289,6 +289,8 @@ interface ErrorResponse {
 
 `requestId`, metadata, attributes, cause, stack, developer name, and status are absent from the body. Use the actual HTTP response status as the source of truth.
 
+Pass native or cross-realm `Error` objects through `cause` on a `VercelError`; untagged `Error` objects are rejected rather than interpreted as explicit public params.
+
 ## Consuming responses
 
 `parseErrorResponse()` validates unknown JSON. It requires a nonblank string message. A present known field with the wrong type rejects the entire response; unknown fields are ignored so producers can add fields later.
@@ -345,5 +347,7 @@ Version 0.1 is a clean redesign without compatibility aliases:
 | Cross-realm class-method access    | Data access after `isVercelError`; methods after `instanceof` |
 
 `ErrorResponse.error.scope` now crosses the wire when set. Review it as a disclosure before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. Cross-realm values carrying the shipped 0.0 tag are rejected rather than treated as public flat input.
+
+The 0.1 public types mark authored `VercelError` fields and every `ErrorResponse` field readonly. Pass authored values at construction or create a new error instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
 
 Developer `reason`, `hint`, `fix`, and `link` no longer cross HTTP automatically. Move only approved client-facing values under `public`. Both JSON and negotiated text use that same projection.

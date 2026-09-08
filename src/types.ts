@@ -107,7 +107,10 @@ export interface VercelErrorOptions<TCode extends string = string> {
    */
   readonly statusCode?: number;
 
-  /** Details explicitly approved for client disclosure. */
+  /**
+   * Details explicitly approved for client disclosure. Construction stores a
+   * frozen snapshot so later mutation of the input object cannot change them.
+   */
   readonly public?: PublicErrorDetails;
 
   /** Reserved. Automatically captured from Error */

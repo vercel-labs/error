@@ -16,7 +16,8 @@ export type FrameSection =
  * `auto` detects tree and color support. `plain` uses indentation only, `tree`
  * uses Unicode connectors without color, and `ansi` uses connectors and ANSI
  * styling without consulting ambient terminal state. Every caller-controlled
- * physical line is sanitized and placed under a library-owned prefix.
+ * physical line is sanitized and placed under a library-owned prefix. Omitting
+ * `format` selects `auto`, the only preset that reads ambient terminal state.
  */
 export function formatError(
   error: VercelErrorLike,
