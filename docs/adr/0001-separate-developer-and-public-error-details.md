@@ -15,5 +15,3 @@ Explicit public details prevent developer text from becoming client-visible thro
 ## Consequences
 
 Authors provide separate public prose when clients need specific guidance. Reconstructed response prose remains public and must be reviewed before forwarding it to a different recipient.
-
-Implemented by [PR #14](https://github.com/vercel-labs/error/pull/14).

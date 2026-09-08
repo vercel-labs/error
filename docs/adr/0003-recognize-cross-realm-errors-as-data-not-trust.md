@@ -17,5 +17,3 @@ The combined check preserves cross-realm interoperability without turning a forg
 ## Consequences
 
 Callers use `instanceof VercelError` before invoking class or subclass methods. Security decisions require application-owned authentication and authorization beyond this data guard.
-
-Implemented by [PR #14](https://github.com/vercel-labs/error/pull/14).

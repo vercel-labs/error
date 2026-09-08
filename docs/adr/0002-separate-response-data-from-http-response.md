@@ -17,5 +17,3 @@ One normalized data path keeps JSON and ANSI disclosure rules aligned. Separatin
 ## Consequences
 
 Client parsing and reconstruction depend only on response data. Server serialization adds status and selects a body format without changing the normalized public fields.
-
-Implemented by [PR #14](https://github.com/vercel-labs/error/pull/14).
