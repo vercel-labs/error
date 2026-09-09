@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.1.2
+
+### Patch Changes
+
+- Move bundle-size data after the API documentation and simplify cross-realm recognition guidance.
+
 ## 0.1.1
 
 ### Patch Changes
