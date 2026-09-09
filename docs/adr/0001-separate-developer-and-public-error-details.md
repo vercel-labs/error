@@ -2,16 +2,16 @@
 
 ## Context
 
-Errors need rich technical details for diagnosis, but response recipients must not receive those details accidentally. A recognized `VercelError` and flat caller-authored response input have different disclosure defaults.
+Developers need technical details to diagnose errors, but clients must not receive those details by accident. A `VercelError` keeps developer and client details separate. Flat `ErrorResponseInput` is different: its caller supplies fields that are already safe to send.
 
 ## Decision
 
-Keep developer error details separate from a frozen snapshot of public error details. Treat every prose field in flat `ErrorResponseInput` as already approved for disclosure. When a `VercelError` has no public details, use a fixed generic message instead of developer text. Review error identity and HTTP status as separate disclosures.
+Keep developer details separate from a frozen copy of public details. Treat every prose field in flat `ErrorResponseInput` as approved for clients. When a `VercelError` has no public details, use a fixed generic message instead of developer text. Treat error identity and HTTP status as public information too.
 
 ## Reason
 
-Explicit public details prevent developer text from becoming client-visible through serialization or body-format negotiation. A fixed fallback fails closed when no approved prose exists, while flat input remains concise for callers that already own the public response contract.
+Explicit public details keep developer text out of serialized responses, regardless of body format. The fixed fallback is safe when no public message exists. Flat input stays concise for callers that already control the response body.
 
 ## Consequences
 
-Authors provide separate public prose when clients need specific guidance. Reconstructed response prose remains public and must be reviewed before forwarding it to a different recipient.
+Authors provide separate public text when clients need specific guidance. Text reconstructed from a response remains public, but callers must review it before sending it to a different audience.

@@ -1,17 +1,17 @@
-# Degrade error recognition where the brand check is missing
+# Fall back when `Error.isError` is unavailable
 
 ## Context
 
-The package is isomorphic: the same modules run in browsers, workers, edge runtimes, and Node, replacing utilities that already ship to client bundles. `Error.isError` gives precise, forgery-resistant cross-realm error recognition, but not every supported runtime provides it, and a guard that throws where the builtin is missing would make the package unusable there.
+The same package modules run in browsers, workers, edge runtimes, and Node. `Error.isError` accurately recognizes errors across realms and rejects forged errors, but older runtimes do not provide it. Requiring the builtin would make `isError` throw in those runtimes.
 
 ## Decision
 
-Capture `Error.isError` at module load and use it wherever the runtime provides it. Where it is missing, fall back to `instanceof` plus `Object.prototype.toString` branding on the value itself; an exception thrown by a trap or getter during those checks classifies the value as not an error. Never let client-safe serialization depend on recognition precision: the HTTP seam independently rejects any untagged value carrying `name` or `stack`.
+Capture `Error.isError` when the module loads and use it when available. Otherwise, use `instanceof` followed by `Object.prototype.toString` on the value. If a trap or getter throws during either check, classify the value as not an error. Client-safe serialization applies a separate rule: it rejects any untagged value with a `name` or `stack` field.
 
 ## Reason
 
-The brand check is strictly better where available, so it stays the primary path: only it avoids caller-observable reads, since the fallback's `instanceof` walks the same-realm prototype chain and the branding read consults `Symbol.toStringTag`. The fallback still recognizes real errors from every realm because the branding lives on the instance, while a recursive branding walk would additionally admit objects that merely inherit from an error. Keeping disclosure independent of the guard means the fallback's known forgeries degrade classification only, never what a client can see.
+The builtin is the more accurate check and does not read caller-controlled properties. The fallback is less precise: `instanceof` reads the same-realm prototype chain, and `Object.prototype.toString` reads `Symbol.toStringTag`. It still recognizes real errors from other realms. Checking only the value avoids the extra false positives of recursively checking its prototypes. The separate serialization check prevents ordinary recognition differences from changing which developer details reach clients.
 
 ## Consequences
 
-Recognition semantics differ by runtime for hostile inputs: prototype and tag forgeries are rejected under the brand check but a tag forgery is accepted by the fallback, and a deliberately stripped error (own `stack` deleted, prototype detached, tag masked) evades the fallback and is treated as flat input on old runtimes. Specs cover both branches. The published `engines` field is a separate support-matrix decision and does not define where the code can run.
+Hostile inputs can produce different results by runtime. The builtin rejects prototype and tag forgeries, while the fallback accepts a forged `Symbol.toStringTag`. On an older runtime, an error whose own `stack` is deleted, prototype is detached, and tag is masked also evades the fallback and is treated as flat input. Tests cover both branches. The published `engines` field defines supported Node versions, not every runtime where the code can execute.
