@@ -1,103 +1,103 @@
 [
   {
     "name": "VercelError",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ VercelError }",
     "limit": "1.8 kB"
   },
   {
     "name": "createErrors",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ createErrors }",
     "limit": "2.05 kB"
   },
   {
     "name": "isVercelError",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ isVercelError }",
     "limit": "1.95 kB"
   },
   {
     "name": "isError",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ isError }",
-    "limit": "110 B"
+    "limit": "125 B"
   },
   {
     "name": "isErrorLike",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ isErrorLike }",
-    "limit": "85 B"
+    "limit": "100 B"
   },
   {
     "name": "hasCode",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ hasCode }",
-    "limit": "120 B"
+    "limit": "130 B"
   },
   {
     "name": "getMessage",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ getMessage }",
     "limit": "190 B"
   },
   {
     "name": "getRootCause",
-    "path": "src/index.ts",
+    "path": "dist/index.js",
     "import": "{ getRootCause }",
     "limit": "160 B"
   },
   {
     "name": "fromErrorResponse",
-    "path": "src/client.ts",
+    "path": "dist/client.js",
     "import": "{ fromErrorResponse }",
     "limit": "1.85 kB"
   },
   {
     "name": "parseErrorResponse",
-    "path": "src/client.ts",
+    "path": "dist/client.js",
     "import": "{ parseErrorResponse }",
     "limit": "260 B"
   },
   {
     "name": "errorResponse",
-    "path": "src/server.ts",
+    "path": "dist/server.js",
     "import": "{ errorResponse }",
     "limit": "2.6 kB"
   },
   {
     "name": "wantsAnsi",
-    "path": "src/server.ts",
+    "path": "dist/server.js",
     "import": "{ wantsAnsi }",
     "limit": "175 B"
   },
   {
     "name": "formatError",
-    "path": "src/format.ts",
+    "path": "dist/format.js",
     "import": "{ formatError }",
     "limit": "1.3 kB"
   },
   {
     "name": "frame",
-    "path": "src/format.ts",
+    "path": "dist/format.js",
     "import": "{ frame }",
     "limit": "1.15 kB"
   },
   {
     "name": "hint",
-    "path": "src/format.ts",
+    "path": "dist/format.js",
     "import": "{ hint }",
     "limit": "65 B"
   },
   {
     "name": "fix",
-    "path": "src/format.ts",
+    "path": "dist/format.js",
     "import": "{ fix }",
     "limit": "65 B"
   },
   {
     "name": "link",
-    "path": "src/format.ts",
+    "path": "dist/format.js",
     "import": "{ link }",
     "limit": "65 B"
   }

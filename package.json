@@ -23,7 +23,7 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check",
     "format:fix": "oxfmt .",
-    "size": "size-limit",
+    "size": "pnpm build && node scripts/verify-size-coverage.mjs && size-limit",
     "size:readme": "node scripts/update-size-table.mjs",
     "prepublishOnly": "pnpm build",
     "prepare": "lefthook install || true",

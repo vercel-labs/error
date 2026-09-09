@@ -54,13 +54,7 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Build
-        run: pnpm build
-
-      - name: Check bundle size
-        run: pnpm size
-
-      - name: Verify README bundle-size table
+      - name: Verify bundle size and README table
         run: |
           pnpm size:readme
           git diff --exit-code README.md \

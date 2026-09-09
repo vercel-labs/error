@@ -5,16 +5,28 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const readmePath = resolve(root, 'README.md');
 const configPath = resolve(root, '.size-limit.json');
+const pnpmCli = process.env.npm_execpath;
+
+if (!pnpmCli) {
+  throw new Error('Run this script through pnpm size:readme');
+}
 
 const startMarker = '<!-- SIZE-TABLE:START -->';
 const endMarker = '<!-- SIZE-TABLE:END -->';
 
 const groupByPath = {
-  'src/index.ts': 'Root',
-  'src/client.ts': 'Client',
-  'src/server.ts': 'Server',
-  'src/format.ts': 'Format',
+  'dist/index.js': '@vercel/error',
+  'dist/client.js': '@vercel/error/client',
+  'dist/server.js': '@vercel/error/server',
+  'dist/format.js': '@vercel/error/format',
 };
+
+function runPnpm(args, options = {}) {
+  return execFileSync(process.execPath, [pnpmCli, ...args], {
+    cwd: root,
+    ...options,
+  });
+}
 
 function formatBytes(bytes) {
   if (bytes < 1000) return `${bytes} B`;
@@ -38,8 +50,17 @@ function buildTable(entries, config) {
     groups.get(group).push(entry);
   }
 
-  const rows = ['| Export | Size (min+brotli) |', '| --- | ---: |'];
-  for (const label of ['Root', 'Client', 'Server', 'Format', 'Other']) {
+  const rows = [
+    '| Entry point or export | Size (min+brotli) |',
+    '| --- | ---: |',
+  ];
+  for (const label of [
+    '@vercel/error',
+    '@vercel/error/client',
+    '@vercel/error/server',
+    '@vercel/error/format',
+    'Other',
+  ]) {
     const items = groups.get(label);
     if (!items) continue;
 
@@ -53,8 +74,16 @@ function buildTable(entries, config) {
 }
 
 const config = JSON.parse(readFileSync(configPath, 'utf8'));
-const output = execFileSync('pnpm', ['exec', 'size-limit', '--json'], {
-  cwd: root,
+runPnpm(['build'], { stdio: 'inherit' });
+execFileSync(
+  process.execPath,
+  [resolve(root, 'scripts/verify-size-coverage.mjs')],
+  {
+    cwd: root,
+    stdio: 'inherit',
+  },
+);
+const output = runPnpm(['exec', 'size-limit', '--json'], {
   encoding: 'utf8',
 });
 const table = buildTable(JSON.parse(output), config);
@@ -64,7 +93,9 @@ const startIndex = readme.indexOf(startMarker);
 const endIndex = readme.indexOf(endMarker);
 
 if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
-  throw new Error('Missing or invalid SIZE-TABLE markers in README.md');
+  throw new Error(
+    'README.md must contain SIZE-TABLE:START before SIZE-TABLE:END',
+  );
 }
 
 const updated = `${readme.slice(0, startIndex + startMarker.length)}
@@ -72,8 +103,7 @@ ${table}
 ${readme.slice(endIndex)}`;
 
 writeFileSync(readmePath, updated);
-execFileSync('pnpm', ['exec', 'oxfmt', readmePath], {
-  cwd: root,
+runPnpm(['exec', 'oxfmt', 'README.md'], {
   stdio: 'inherit',
 });
 console.log('README.md size table updated.');

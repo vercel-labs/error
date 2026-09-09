@@ -1,4 +1,4 @@
-name: Size
+name: Bundle Size
 
 on:
   pull_request:
@@ -34,6 +34,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          pnpm build
+          node scripts/verify-size-coverage.mjs
           pnpm exec size-limit --json | tee "$RUNNER_TEMP/size-limit.json"
           COUNT=$(node -p "JSON.parse(require('node:fs').readFileSync(process.env.RUNNER_TEMP + '/size-limit.json', 'utf8')).length")
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
@@ -59,7 +61,7 @@ jobs:
           set -o pipefail
           MARKER='<!-- error-size-report -->'
           if [[ "$SIZE_RESULT" == "success" ]]; then
-            MESSAGE="Bundle-size budgets passed for ${COUNT} measured exports."
+            MESSAGE="All ${COUNT} public runtime exports are within their bundle-size budgets."
           else
             MESSAGE="Bundle-size check failed. [View the workflow run]($RUN_URL) for details."
           fi

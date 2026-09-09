@@ -57,35 +57,35 @@ Everything outside `public` is developer-facing and stays out of HTTP responses.
 
 ## Bundle size
 
-Every runtime export is individually measured with [Size Limit](https://github.com/ai/size-limit) and budgeted in CI. Sizes reflect minified and Brotli-compressed bytes.
+[Size Limit](https://github.com/ai/size-limit) measures the minified, Brotli-compressed bundle produced when only one runtime export is imported from the built package, including the code it depends on. CI enforces a separate budget for every runtime export.
 
 > Regenerate with `pnpm size:readme`.
 
 <!-- SIZE-TABLE:START -->
 
-| Export               | Size (min+brotli) |
-| -------------------- | ----------------: |
-| **Root**             |                   |
-| `VercelError`        |           1.69 kB |
-| `createErrors`       |           1.92 kB |
-| `isVercelError`      |           1.84 kB |
-| `isError`            |              91 B |
-| `isErrorLike`        |              69 B |
-| `hasCode`            |              99 B |
-| `getMessage`         |             167 B |
-| `getRootCause`       |             135 B |
-| **Client**           |                   |
-| `fromErrorResponse`  |           1.75 kB |
-| `parseErrorResponse` |             233 B |
-| **Server**           |                   |
-| `errorResponse`      |           2.44 kB |
-| `wantsAnsi`          |             152 B |
-| **Format**           |                   |
-| `formatError`        |            1.2 kB |
-| `frame`              |           1.06 kB |
-| `hint`               |              52 B |
-| `fix`                |              51 B |
-| `link`               |              51 B |
+| Entry point or export    | Size (min+brotli) |
+| ------------------------ | ----------------: |
+| **@vercel/error**        |                   |
+| `VercelError`            |           1.69 kB |
+| `createErrors`           |           1.91 kB |
+| `isVercelError`          |           1.83 kB |
+| `isError`                |             108 B |
+| `isErrorLike`            |              85 B |
+| `hasCode`                |             111 B |
+| `getMessage`             |             170 B |
+| `getRootCause`           |             145 B |
+| **@vercel/error/client** |                   |
+| `fromErrorResponse`      |           1.76 kB |
+| `parseErrorResponse`     |             245 B |
+| **@vercel/error/server** |                   |
+| `errorResponse`          |           2.44 kB |
+| `wantsAnsi`              |             153 B |
+| **@vercel/error/format** |                   |
+| `formatError`            |            1.2 kB |
+| `frame`                  |           1.06 kB |
+| `hint`                   |              52 B |
+| `fix`                    |              51 B |
+| `link`                   |              51 B |
 
 <!-- SIZE-TABLE:END -->
 
