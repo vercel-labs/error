@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.1.1
+
+### Patch Changes
+
+- Add per-export bundle-size budgets, generated README measurements, and CI enforcement.
+
 ## 0.1.0
 
 ### Minor Changes

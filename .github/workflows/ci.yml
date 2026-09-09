@@ -37,8 +37,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Build
-        run: pnpm build
+      - name: Verify bundle size and README table
+        run: |
+          pnpm size:readme
+          git diff --exit-code README.md \
+            || (echo "README bundle-size table is stale. Run 'pnpm size:readme' and commit the result." && exit 1)
 
       - name: Verify packed package
         run: pnpm verify:packed

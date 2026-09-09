@@ -55,6 +55,40 @@ Everything outside `public` is developer-facing and stays out of HTTP responses.
 | `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike` |
 | `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                    |
 
+## Bundle size
+
+[Size Limit](https://github.com/ai/size-limit) measures the minified, Brotli-compressed bundle produced when only one runtime export is imported from the built package, including the code it depends on. CI enforces a separate budget for every runtime export.
+
+> Regenerate with `pnpm size:readme`.
+
+<!-- SIZE-TABLE:START -->
+
+| Entry point or export    | Size (min+brotli) |
+| ------------------------ | ----------------: |
+| **@vercel/error**        |                   |
+| `VercelError`            |           1.69 kB |
+| `createErrors`           |           1.91 kB |
+| `isVercelError`          |           1.83 kB |
+| `isError`                |             108 B |
+| `isErrorLike`            |              85 B |
+| `hasCode`                |             111 B |
+| `getMessage`             |             170 B |
+| `getRootCause`           |             145 B |
+| **@vercel/error/client** |                   |
+| `fromErrorResponse`      |           1.76 kB |
+| `parseErrorResponse`     |             245 B |
+| **@vercel/error/server** |                   |
+| `errorResponse`          |           2.44 kB |
+| `wantsAnsi`              |             153 B |
+| **@vercel/error/format** |                   |
+| `formatError`            |            1.2 kB |
+| `frame`                  |           1.06 kB |
+| `hint`                   |              52 B |
+| `fix`                    |              51 B |
+| `link`                   |              51 B |
+
+<!-- SIZE-TABLE:END -->
+
 ## Error contract
 
 ### Identity
@@ -347,26 +381,3 @@ All utilities below are exported from `@vercel/error`:
 The package runs in browsers, workers, edge runtimes, and Node. `isError` uses the `Error.isError` builtin brand check where the runtime provides it (Node 24, 2025+ evergreen browsers), recognizing errors across realms without traversing caller-controlled prototype chains or consulting `Symbol.toStringTag`. Older runtimes fall back to `instanceof` plus `Object.prototype.toString` branding. Disclosure never depends on the guard's precision: `errorResponse()` independently rejects untagged values carrying `name` or `stack`, so the fallback can only reject more inputs, never disclose more.
 
 `isVercelError` uses `instanceof` first, then a package-namespaced `Symbol.for` tag plus data-shape checks. Its cross-realm result narrows to `VercelErrorLike`, a data-only contract. The tag is forgeable, so recognition does not authenticate a producer or authorize disclosure. Use `instanceof VercelError` before invoking local class or subclass methods.
-
-## Migrating to 0.1
-
-Version 0.1 is a clean redesign without compatibility aliases:
-
-| Before 0.1                         | 0.1 replacement                                               |
-| ---------------------------------- | ------------------------------------------------------------- |
-| `userMessage: 'Safe message'`      | `public: { message: 'Safe message' }`                         |
-| Plain response `status: 429`       | Plain response `statusCode: 429`                              |
-| `errorResponse(error, request)`    | `errorResponse(error, { request })`                           |
-| Factory option `report`            | Factory option `onReport`                                     |
-| `ErrorConstructor` type            | `VercelErrorConstructor` type                                 |
-| Helper output such as `'fix: ...'` | Structured `FrameSection` from `fix(...)`                     |
-| Cross-realm class-method access    | Data access after `isVercelError`; methods after `instanceof` |
-| `ErrorResponseParams` type         | `ErrorResponseInput` type                                     |
-| Structured `ErrorResponse` type    | `ErrorResponseData` type                                      |
-| `ErrorResponseResult` type         | Concrete `ErrorResponse` type                                 |
-
-`ErrorResponseData.error.scope` is now included when set. Check that your `scope` values are safe to show clients before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. The 0.0 recognition tag has no meaning in 0.1: a 0.0 error instance is rejected like any untagged `Error`, and 0.0-tagged plain data is treated as ordinary flat public input, so every field it carries is disclosed. Recreate upstream errors with explicit `public` details.
-
-The 0.1 public types mark authored `VercelError` fields and every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new error instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
-
-Developer `reason`, `hint`, `fix`, and `link` no longer cross HTTP automatically. Move only approved client-facing values under `public`. Both JSON and negotiated text use those same `public` details.
