@@ -1,12 +1,23 @@
 # Terminal frames
 
-Use this reference for readable terminal output when the underlying failure should remain its existing type.
+Use this reference for deterministic terminal output or for readable output around a failure that should keep its existing type.
 
 ## Choose the presentation path
 
-- Call `String(error)` or `error.toString()` for a `VercelError`; it already renders its structured fields.
-- Use `frame`, `hint`, `fix`, and `link` from `@vercel/error/format` for third-party errors and custom CLI output.
-- Automation should use the original error, a stable code, or another structured object. Do not parse rendered output.
+- Call `String(error)` or `error.toString()` for a `VercelError`; it uses the `auto` preset.
+- Call `formatError(error, { format })` when the caller needs a specific preset.
+- Use `frame`, `hint`, `fix`, and `link` for third-party errors and custom CLI output.
+- Branch automation on the original error, stable code, or response object. Rendered text is not a protocol.
+
+## Presets
+
+`plain`, `tree`, and `ansi` are deterministic. Only `auto` reads ambient state: `NO_COLOR`, then `FORCE_COLOR`, then TTY detection. Use `plain` for deterministic logs, `tree` for deterministic readable snapshots, and `ansi` only for a destination that supports terminal controls.
+
+```ts
+import { formatError } from '@vercel/error/format';
+
+const logLine = formatError(error, { format: 'plain' });
+```
 
 ## Custom frame
 
@@ -22,41 +33,25 @@ function printSdkFailure(
   },
 ): void {
   console.error(
-    frame('SDK request failed', [
-      getMessage(error, 'The SDK returned an unknown error'),
-      hint(options.retrySuggestion),
-      link(options.docsUrl),
-    ]),
+    frame(
+      'SDK request failed',
+      [
+        getMessage(error, 'The SDK returned an unknown error'),
+        hint(options.retrySuggestion),
+        link(options.docsUrl),
+      ],
+      { format: 'tree' },
+    ),
   );
 }
 ```
 
-The formatting helpers return `undefined` for missing or empty text, and `frame()` filters absent sections. Keep optional values optional instead of printing placeholders such as `hint: undefined`.
+`hint`, `fix`, and `link` return structured `FrameSection` tokens or `undefined` for nil and empty text. Token kind controls labels, connectors, and color. A raw string that begins with `hint:` remains an ordinary detail; the renderer does not parse generated prefixes.
 
-Use a stable, concise header for what failed. Put explanation in ordinary sections and reserve `hint`, `fix`, and `link` for actionable content. Do not label speculation as a fix.
+Use a concise header for what failed. Put explanation in raw detail sections and reserve `hint`, `fix`, and `link` for actionable content. Keep speculation out of `fix`.
 
-## Rendering behavior
+## Containment
 
-| Environment                                      | Output                  |
-| ------------------------------------------------ | ----------------------- |
-| `NO_COLOR`                                       | Tree without ANSI color |
-| `FORCE_COLOR` or a TTY, unless `NO_COLOR` is set | Tree with ANSI color    |
-| Browser, pipe, CI, or non-Node runtime           | Plain text              |
+The renderer strips caller-provided ANSI, OSC, C1, DEL, and unsafe C0 controls. It normalizes CRLF to LF, removes bare carriage returns, preserves tabs and blank lines, and places every physical continuation line under library-owned indentation or a tree connector.
 
-Caller-provided control sequences are stripped. Tabs and line breaks are preserved, so normalize `\r` and `\n` before writing to a sink that requires one physical line per event. Verify these behaviors in the installed package version before relying on them.
-
-Do not build raw ANSI sequences. Use the package helpers, which handle colors, tree connectors, missing values, and environment detection.
-
-## For agents and automation
-
-A frame helps a person or coding agent scan an error consistently:
-
-```text
-header -> what failed
-detail -> why or relevant context
-hint   -> what may help
-fix    -> known remediation
-link   -> deeper documentation
-```
-
-It remains text. Downstream automation should branch on a structured error code or response object, not on `hint:`, `fix:`, connector glyphs, line positions, or color sequences.
+Apply the same framing behavior to headers, identity, messages, reasons, hints, fixes, links, and raw sections. Do not pre-flatten useful multiline text to work around log-forging risk; choose the required preset and let the renderer contain each line.

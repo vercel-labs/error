@@ -1,7 +1,8 @@
 {
   "name": "@vercel/error",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
+  "license": "MIT",
   "author": "Vercel",
   "repository": {
     "url": "git+https://github.com/vercel-labs/error.git"
@@ -16,6 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "verify:packed": "node scripts/verify-packed-package.mjs",
+    "verify:skill": "skills add . --list && node scripts/verify-skill-links.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check",
@@ -29,6 +32,7 @@
     "lefthook": "2.1.5",
     "oxfmt": "0.44.0",
     "oxlint": "1.59.0",
+    "skills": "1.5.23",
     "tsdown": "0.21.7",
     "typescript": "6.0.2",
     "vitest": "4.1.4"
@@ -40,24 +44,24 @@
   ],
   "exports": {
     ".": {
-      "default": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./client": {
-      "default": "./dist/client.js",
-      "types": "./dist/client.d.ts"
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
     },
     "./server": {
-      "default": "./dist/server.js",
-      "types": "./dist/server.d.ts"
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
     },
     "./format": {
-      "default": "./dist/format.js",
-      "types": "./dist/format.d.ts"
+      "types": "./dist/format.d.ts",
+      "default": "./dist/format.js"
     }
   },
   "engines": {
-    "node": "24.x"
+    "node": ">=24"
   },
   "packageManager": "pnpm@10.32.1"
 }

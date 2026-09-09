@@ -1,29 +1,25 @@
-import { VERCEL_ERROR_TAG } from '../constants';
-import { formatAuto } from '../format/index';
+import { pickPublicErrorDetails } from '../_internal';
+import { formatError } from '../format/index';
 import type {
   ErrorAttributes,
   ErrorMetadata,
+  PublicErrorDetails,
   VercelErrorOptions,
 } from '../types';
+import { VERCEL_ERROR_TAG } from './tag';
 
 /**
- * Structured error class for Vercel.
+ * An Error subclass with stable identity, separate developer and public details,
+ * diagnostic context, cause chaining, and terminal formatting.
  *
- * Every error should answer:
- * 1. **What** happened? → `message`
- * 2. **Why** did it happen? → `reason`
- * 3. **What** could help? → `hint`
- * 4. **How** to fix it? → `fix`
- * 5. **Where** to learn more? → `link`
- *
- * Key features:
- * - Zero runtime dependencies
- * - Human + agent readable context (`reason`, `hint`, `fix`, `link`, `userMessage`)
- * - Type-safe error codes via generics
- * - Separate `metadata` (domain context) and `attributes` (OTel observability)
- * - Error chaining with proper cause tracking
- * - Environment-aware `toString()` (auto-detects ANSI)
- * - Cross-realm compatibility via stable Symbol tag
+ * `message` is required. `reason`, `hint`, `fix`, and `link` are optional
+ * developer details; omit them when the cause or remediation is not known.
+ * When `public` is supplied, construction validates it (nonblank string
+ * `message`, optional string details), drops unknown fields, and stores a
+ * frozen copy; invalid `public` details throw `TypeError` here rather than
+ * later at serialization. Cross-realm recognition is data-only because the
+ * symbol tag is forgeable; use `instanceof VercelError` before invoking class
+ * methods.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -40,16 +36,18 @@ import type {
  * ```
  */
 export class VercelError<TCode extends string = string> extends Error {
+  declare readonly message: string;
+
   readonly code?: TCode;
   readonly scope?: string;
 
-  statusCode?: number;
+  readonly statusCode?: number;
 
-  reason?: string;
-  hint?: string;
-  fix?: string;
-  link?: string;
-  userMessage?: string;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+  readonly public?: PublicErrorDetails;
 
   requestId?: string;
   metadata?: ErrorMetadata;
@@ -67,7 +65,10 @@ export class VercelError<TCode extends string = string> extends Error {
     this.hint = options.hint;
     this.fix = options.fix;
     this.link = options.link;
-    this.userMessage = options.userMessage;
+    this.public =
+      options.public === undefined
+        ? undefined
+        : Object.freeze(pickPublicErrorDetails(options.public));
     this.requestId = options.requestId;
     this.metadata = options.metadata;
     this.attributes = options.attributes;
@@ -83,11 +84,13 @@ export class VercelError<TCode extends string = string> extends Error {
   private static readonly JSON_EXCLUDE = new Set(['name', 'cause']);
 
   /**
-   * JSON representation for `JSON.stringify`.
+   * Diagnostic object used by `JSON.stringify`.
    *
    * Surfaces non-enumerable Error properties (`name`, `message`, `stack`)
    * alongside all VercelError fields. Omits `cause` (may be circular or
-   * contain sensitive internals) and any `undefined` values.
+   * contain sensitive internals) and any `undefined` values. This output may
+   * contain developer prose and server context; use `errorResponse()` for
+   * client-safe HTTP serialization.
    */
   toJSON(): Record<string, unknown> {
     return {
@@ -108,6 +111,6 @@ export class VercelError<TCode extends string = string> extends Error {
    * Auto-detects ANSI support and renders accordingly.
    */
   override toString(): string {
-    return formatAuto(this);
+    return formatError(this, { format: 'auto' });
   }
 }

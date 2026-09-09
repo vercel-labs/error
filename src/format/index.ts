@@ -1,84 +1,95 @@
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+import type { VercelErrorLike } from '../types';
+
+/** Named rendering preset for error frames. */
+export type ErrorFormat = 'auto' | 'plain' | 'tree' | 'ansi';
+
+/** Structured content accepted by {@link frame}. */
+export type FrameSection =
+  | string
+  | { readonly kind: 'hint'; readonly text: string }
+  | { readonly kind: 'fix'; readonly text: string }
+  | { readonly kind: 'link'; readonly text: string };
 
 /**
- * Render a Unicode tree frame with auto-detected formatting.
+ * Render an error with deterministic or environment-detected formatting.
  *
- * Terminal control sequences in `header` and `sections` are stripped
- * (see {@link sanitize}).
- *
- * @param header - The main error message line
- * @param sections - Detail lines (falsy values are filtered out)
+ * `auto` detects tree and color support. `plain` uses indentation only, `tree`
+ * uses Unicode connectors without color, and `ansi` uses connectors and ANSI
+ * styling without consulting ambient terminal state. Every caller-controlled
+ * physical line is sanitized and placed under a library-owned prefix. Omitting
+ * `format` selects `auto`, the only preset that reads ambient terminal state.
  */
-export function frame(
-  header: string,
-  sections?: (string | undefined | null | false)[],
+export function formatError(
+  error: VercelErrorLike,
+  options: { readonly format?: ErrorFormat } = {},
 ): string {
-  const { tree, color } = detectFormat();
+  const capabilities = resolveFormat(options.format ?? 'auto');
+  const qualifier = [error.scope, error.code].filter(Boolean).join(':');
+  const name = error.name ?? 'VercelError';
+  const header = qualifier
+    ? error.message
+      ? `error: ${name} [${qualifier}] ${error.message}`
+      : `error: ${name} [${qualifier}]`
+    : error.message
+      ? `error: ${name}: ${error.message}`
+      : `error: ${name}`;
+
   return renderFrame({
-    color,
-    header: sanitize(header),
-    sections: sections?.map((s) => (typeof s === 'string' ? sanitize(s) : s)),
-    tree,
+    ...capabilities,
+    header,
+    sections: [
+      error.reason,
+      hint(error.hint),
+      fix(error.fix),
+      link(error.link),
+    ],
+    styleHeader: true,
   });
 }
 
 /**
- * Format a string as a hint. Nil-safe. Returns `undefined` if falsy.
+ * Compose a sanitized frame from a header and raw or structured sections.
  *
- * Terminal control sequences in `text` are stripped (see {@link sanitize}).
+ * Structured sections control labels, connectors, and ANSI styling without a
+ * string-prefix protocol. Falsy sections are omitted. `format` has the same
+ * preset meanings as {@link formatError} and defaults to `auto`.
  */
-export function hint(text: string | undefined | null): string | undefined {
-  if (!text) {
-    return undefined;
-  }
-  return `hint: ${sanitize(text)}`;
+export function frame(
+  header: string,
+  sections?: readonly (FrameSection | null | undefined | false)[],
+  options: { readonly format?: ErrorFormat } = {},
+): string {
+  return renderFrame({
+    ...resolveFormat(options.format ?? 'auto'),
+    header,
+    sections,
+    styleHeader: false,
+  });
 }
 
-/**
- * Format a string as a fix suggestion. Nil-safe. Returns `undefined` if falsy.
- *
- * Terminal control sequences in `text` are stripped (see {@link sanitize}).
- */
-export function fix(text: string | undefined | null): string | undefined {
-  if (!text) {
-    return undefined;
-  }
-  return `fix: ${sanitize(text)}`;
+/** Return a structured hint section, or `undefined` for nil or empty text. */
+export function hint(
+  text: string | null | undefined,
+): { readonly kind: 'hint'; readonly text: string } | undefined {
+  return text ? { kind: 'hint', text } : undefined;
 }
 
-/**
- * Format a URL as a link. Nil-safe. Returns `undefined` if falsy.
- *
- * Terminal control sequences in `url` are stripped (see {@link sanitize}).
- */
-export function link(url: string | undefined | null): string | undefined {
-  if (!url) {
-    return undefined;
-  }
-  return `read more: ${sanitize(url)}`;
+/** Return a structured fix section, or `undefined` for nil or empty text. */
+export function fix(
+  text: string | null | undefined,
+): { readonly kind: 'fix'; readonly text: string } | undefined {
+  return text ? { kind: 'fix', text } : undefined;
 }
 
-// ---------------------------------------------------------------------------
-// Internal API (used by VercelError.toString)
-// ---------------------------------------------------------------------------
+/** Return a structured link section, or `undefined` for nil or empty text. */
+export function link(
+  text: string | null | undefined,
+): { readonly kind: 'link'; readonly text: string } | undefined {
+  return text ? { kind: 'link', text } : undefined;
+}
 
-/**
- * Detect formatting capabilities of the current environment.
- *
- * - `tree`: use Unicode box-drawing characters (├──, ╰──)
- * - `color`: use ANSI escape codes (red, green, bold, underline)
- *
- * Detection:
- * 1. Non-Node (no `process`) → plain (no tree, no color)
- * 2. `NO_COLOR` env var → tree only, no color
- * 3. `FORCE_COLOR` env var → tree + color
- * 4. TTY → tree + color
- * 5. Browser → plain
- * 6. Fallback (piped, CI) → plain
- */
-export function detectFormat(): { tree: boolean; color: boolean } {
+/** @internal Detect capabilities used by the `auto` preset. */
+function detectFormat(): { tree: boolean; color: boolean } {
   try {
     if (typeof process === 'undefined') {
       return { color: false, tree: false };
@@ -89,79 +100,51 @@ export function detectFormat(): { tree: boolean; color: boolean } {
     if (process.env?.['FORCE_COLOR'] !== undefined) {
       return { color: true, tree: true };
     }
-    if (process.stdout && 'isTTY' in process.stdout && process.stdout.isTTY) {
+    if (process.stdout?.isTTY) {
       return { color: true, tree: true };
     }
   } catch {
     return { color: false, tree: false };
   }
 
-  if (typeof window !== 'undefined') {
-    return { color: false, tree: false };
-  }
-
   return { color: false, tree: false };
 }
 
-/**
- * Auto-format an error based on environment detection.
- * Used by `VercelError.toString()` for zero-config output.
- */
-export function formatAuto(error: ErrorShape): string {
-  const { tree, color } = detectFormat();
-  const header = buildHeader(error, color);
-
-  const reason =
-    error.reason !== undefined ? sanitize(error.reason) : undefined;
-
-  const sections = [reason, hint(error.hint), fix(error.fix), link(error.link)];
-
-  return renderFrame({ color, header, sections, tree });
+interface FormatCapabilities {
+  readonly tree: boolean;
+  readonly color: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-interface ErrorShape {
-  name: string;
-  message: string;
-  code?: string;
-  scope?: string;
-  reason?: string;
-  hint?: string;
-  fix?: string;
-  link?: string;
+function resolveFormat(format: ErrorFormat): FormatCapabilities {
+  switch (format) {
+    case 'plain':
+      return { color: false, tree: false };
+    case 'tree':
+      return { color: false, tree: true };
+    case 'ansi':
+      return { color: true, tree: true };
+    default:
+      return detectFormat();
+  }
 }
 
-/**
- * Matches complete ANSI escape sequences introduced by `ESC` (0x1b): CSI
- * (`ESC [ … final`), OSC (`ESC ] … BEL/ST`, e.g. OSC 8 hyperlinks and OSC 52
- * clipboard), and other two/three-byte escapes. Removing the whole sequence,
- * rather than only the `ESC` byte, keeps the visible text clean.
- */
 /* oxlint-disable no-control-regex -- intentional terminal control-char matching */
 const ANSI_ESCAPE =
-  /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][\s\S]*?(?:\x07|\x1b\\)|[@-Z\\-_])/g;
-
-/**
- * Matches standalone terminal control characters left after ANSI sequences are
- * removed: C0 controls (except `\t`, `\n`, `\r`), the C1 range, and `DEL`.
- */
-const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g;
+  /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-Z\\-_])/g;
+const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u2028\u2029]/g;
 /* oxlint-enable no-control-regex */
 
 /**
- * Strip terminal control sequences from caller-controlled text before it is
- * rendered to a terminal. Error fields can originate from an untrusted upstream
- * (e.g. an HTTP error body parsed by `parseErrorResponse`); without this a
- * malicious upstream could inject escape sequences that rewrite the screen,
- * forge log lines, or abuse terminal features (OSC 8 links, OSC 52 clipboard).
- * Full ANSI sequences are removed first, then any leftover control bytes.
- * Preserves `\t`, `\n`, `\r`.
+ * Remove terminal controls and Unicode line separators, normalize CRLF, and
+ * remove bare carriage returns. Tabs and line feeds remain useful and are
+ * contained during physical framing.
  */
 function sanitize(text: string): string {
-  return text.replace(ANSI_ESCAPE, '').replace(CONTROL_CHARS, '');
+  return text
+    .replace(ANSI_ESCAPE, '')
+    .replace(CONTROL_CHARS, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '');
 }
 
 const ANSI = {
@@ -170,7 +153,6 @@ const ANSI = {
   green: '\x1b[32m',
   red: '\x1b[31m',
   reset: '\x1b[0m',
-  resetBold: '\x1b[22m',
   underline: '\x1b[4m',
   yellow: '\x1b[33m',
 } as const;
@@ -183,136 +165,176 @@ const BOX = {
   teeArrow: '├─▸',
 } as const;
 
-const ACTIONABLE_PREFIXES = ['hint: ', 'fix: ', 'read more: '] as const;
+type SectionKind = 'detail' | 'hint' | 'fix' | 'link';
 
-/**
- * Build the error header line.
- *
- * With qualifier:    `error: VercelError [scope:code] message`
- * Without:           `error: VercelError: message`
- * Stripped message:  `error: VercelError [scope:code]` (qualifier only)
- * No message at all:  `error: VercelError`
- * ANSI:              `error:` red+bold, name red, `[qualifier]` red, message red+bold
- *
- * When `message` is empty, such as after production stripping, the qualifier
- * stands in for it so the error still identifies itself by `scope` and `code`.
- */
-function buildHeader(error: ErrorShape, color: boolean): string {
-  const parts: HeaderParts = {
-    name: sanitize(error.name),
-    message: sanitize(error.message),
-    qualifier: [error.scope, error.code]
-      .filter((part): part is string => Boolean(part))
-      .map(sanitize)
-      .join(':'),
-  };
-
-  return color ? buildColorHeader(parts) : buildPlainHeader(parts);
+interface PreparedSection {
+  readonly kind: SectionKind;
+  readonly lines: readonly string[];
 }
 
-interface HeaderParts {
-  name: string;
-  qualifier: string;
-  message: string;
+interface RenderFrameOptions extends FormatCapabilities {
+  readonly header: string;
+  readonly sections?: readonly (FrameSection | null | undefined | false)[];
+  readonly styleHeader: boolean;
 }
 
-function buildPlainHeader({ name, qualifier, message }: HeaderParts): string {
-  if (qualifier) {
-    return message
-      ? `error: ${name} [${qualifier}] ${message}`
-      : `error: ${name} [${qualifier}]`;
-  }
-  return message ? `error: ${name}: ${message}` : `error: ${name}`;
-}
-
-function buildColorHeader({ name, qualifier, message }: HeaderParts): string {
-  const label = `${ANSI.red}${ANSI.bold}error:${ANSI.resetBold}`;
-
-  if (qualifier) {
-    const head = `${label} ${ANSI.red}${name} [${qualifier}]`;
-    return message
-      ? `${head} ${ANSI.bold}${message}${ANSI.reset}`
-      : `${head}${ANSI.reset}`;
-  }
-
-  return message
-    ? `${label} ${ANSI.red}${name}: ${ANSI.bold}${message}${ANSI.reset}`
-    : `${label} ${ANSI.red}${name}${ANSI.reset}`;
-}
-
-function filterSections(
-  sections: (string | undefined | null | false)[] | undefined,
-): string[] | undefined {
-  const items = sections?.filter(
-    (s): s is string => typeof s === 'string' && s.length > 0,
-  );
-  return items && items.length > 0 ? items : undefined;
-}
-
-function colorizeLine(line: string): string {
-  if (line.startsWith('hint: ')) {
-    return `${ANSI.yellow}${ANSI.bold}hint:${ANSI.reset} ${line.slice(6)}`;
-  }
-  if (line.startsWith('fix: ')) {
-    return `${ANSI.green}${ANSI.bold}fix:${ANSI.reset} ${line.slice(5)}`;
-  }
-  if (line.startsWith('read more: ')) {
-    return `${ANSI.bold}read more:${ANSI.reset} ${ANSI.underline}${line.slice(11)}${ANSI.reset}`;
-  }
-  return line;
-}
-
-interface RenderFrameOptions {
-  header: string;
-  sections?: (string | undefined | null | false)[];
-  tree: boolean;
-  color: boolean;
-}
-
-function isActionable(line: string): boolean {
-  return ACTIONABLE_PREFIXES.some((prefix) => line.startsWith(prefix));
-}
-
-/**
- * Render the final framed output. Inputs must already be {@link sanitize}d:
- * this stage applies the library's own ANSI styling (`colorizeLine`,
- * connectors), so it cannot strip control characters without destroying that
- * styling. Callers (`frame`, `formatAuto`) own sanitization of untrusted text.
- */
 function renderFrame({
+  color,
   header,
   sections,
+  styleHeader,
   tree,
-  color,
 }: RenderFrameOptions): string {
-  const items = filterSections(sections);
-  if (!items) {
-    return header;
+  const headerLines = sanitize(header).split('\n');
+  const prepared = prepareSections(sections);
+  const lines: string[] = [];
+
+  const firstHeaderLine = headerLines[0] ?? '';
+  lines.push(
+    color && styleHeader ? colorizeHeader(firstHeaderLine) : firstHeaderLine,
+  );
+
+  for (const continuation of headerLines.slice(1)) {
+    if (tree) {
+      lines.push(
+        `${styleConnector(BOX.pipe, color)} ${
+          color && styleHeader ? colorizeHeader(continuation) : continuation
+        }`,
+      );
+    } else {
+      lines.push(`  ${continuation}`);
+    }
+  }
+
+  if (prepared.length === 0) {
+    return lines.join('\n');
   }
 
   if (!tree) {
-    return [header, ...items.map((item) => `  ${item}`)].join('\n');
+    for (const section of prepared) {
+      for (const [index, line] of section.lines.entries()) {
+        lines.push(`  ${renderSectionLine(line, section.kind, index, false)}`);
+      }
+    }
+    return lines.join('\n');
   }
 
-  const isLast = (i: number) => i === items.length - 1;
-  const spacer = color ? `${ANSI.dim}${BOX.pipe}${ANSI.reset}` : BOX.pipe;
-  const lines = [header, spacer];
+  lines.push(styleConnector(BOX.pipe, color));
 
-  for (const [i, item] of items.entries()) {
-    const actionable = isActionable(item);
-    const connector = isLast(i)
+  for (const [sectionIndex, section] of prepared.entries()) {
+    const isLast = sectionIndex === prepared.length - 1;
+    const actionable = section.kind !== 'detail';
+    const connector = isLast
       ? actionable
         ? BOX.cornerArrow
         : BOX.corner
       : actionable
         ? BOX.teeArrow
         : BOX.tee;
-    const content = color ? colorizeLine(item) : item;
-    const styledConnector = color
-      ? `${ANSI.dim}${connector}${ANSI.reset}`
-      : connector;
-    lines.push(`${styledConnector} ${content}`);
+
+    const [first = '', ...continuations] = section.lines;
+    lines.push(
+      `${styleConnector(connector, color)} ${renderSectionLine(
+        first,
+        section.kind,
+        0,
+        color,
+      )}`,
+    );
+
+    for (const [index, continuation] of continuations.entries()) {
+      lines.push(
+        `${styleConnector(BOX.pipe, color)}   ${renderSectionLine(
+          continuation,
+          section.kind,
+          index + 1,
+          color,
+        )}`,
+      );
+    }
   }
 
   return lines.join('\n');
+}
+
+function prepareSections(
+  sections: RenderFrameOptions['sections'],
+): PreparedSection[] {
+  const prepared: PreparedSection[] = [];
+
+  for (const section of sections ?? []) {
+    if (!section) continue;
+
+    if (typeof section === 'string') {
+      const text = sanitize(section);
+      if (text.length > 0) {
+        prepared.push({ kind: 'detail', lines: text.split('\n') });
+      }
+      continue;
+    }
+
+    if (!isStructuredSection(section)) {
+      throw new TypeError(
+        "Frame sections must be strings or { kind: 'hint' | 'fix' | 'link', text: string } objects",
+      );
+    }
+
+    const text = sanitize(section.text);
+    if (text.length === 0) continue;
+
+    prepared.push({ kind: section.kind, lines: text.split('\n') });
+  }
+
+  return prepared;
+}
+
+function styleConnector(connector: string, color: boolean): string {
+  return color ? `${ANSI.dim}${connector}${ANSI.reset}` : connector;
+}
+
+function colorizeHeader(line: string): string {
+  return `${ANSI.red}${ANSI.bold}${line}${ANSI.reset}`;
+}
+
+function isStructuredSection(
+  section: unknown,
+): section is Exclude<FrameSection, string> {
+  if (typeof section !== 'object' || section === null) return false;
+
+  const candidate = section as {
+    readonly kind?: unknown;
+    readonly text?: unknown;
+  };
+  return (
+    (candidate.kind === 'hint' ||
+      candidate.kind === 'fix' ||
+      candidate.kind === 'link') &&
+    typeof candidate.text === 'string'
+  );
+}
+
+function renderSectionLine(
+  line: string,
+  kind: SectionKind,
+  lineIndex: number,
+  color: boolean,
+): string {
+  if (kind === 'detail') return line;
+
+  if (lineIndex > 0) {
+    return color && kind === 'link'
+      ? `${ANSI.underline}${line}${ANSI.reset}`
+      : line;
+  }
+
+  const label = kind === 'link' ? 'read more:' : `${kind}:`;
+  if (!color) return `${label} ${line}`;
+
+  const labelColor = kind === 'hint' ? ANSI.yellow : ANSI.green;
+
+  if (kind === 'link') {
+    return `${ANSI.bold}${label}${ANSI.reset} ${ANSI.underline}${line}${ANSI.reset}`;
+  }
+
+  return `${labelColor}${ANSI.bold}${label}${ANSI.reset} ${line}`;
 }

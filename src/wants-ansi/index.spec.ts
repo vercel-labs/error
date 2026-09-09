@@ -48,7 +48,7 @@ describe('wantsAnsi', () => {
     expect(wantsAnsi(makeRequest())).toBe(false);
   });
 
-  it('prioritizes X-Error-Format over User-Agent', () => {
+  it('uses an explicit ANSI format before the User-Agent heuristic', () => {
     expect(
       wantsAnsi(
         makeRequest({
@@ -58,6 +58,21 @@ describe('wantsAnsi', () => {
       ),
     ).toBe(true);
   });
+
+  it.each(['json', 'plain', 'unsupported'])(
+    'uses explicit format %s before ANSI fallbacks',
+    (format) => {
+      expect(
+        wantsAnsi(
+          makeRequest({
+            Accept: 'text/plain+ansi',
+            'User-Agent': 'curl/8.1.2',
+            'X-Error-Format': format,
+          }),
+        ),
+      ).toBe(false);
+    },
+  );
 
   describe('with Headers object', () => {
     it('returns true for X-Error-Format: ansi', () => {

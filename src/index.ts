@@ -11,13 +11,16 @@ export type {
   CreateErrorsOptions,
   CreateErrorOptions,
   ErrorFactory,
-  ErrorConstructor,
+  VercelErrorConstructor,
 } from './create-errors';
 
 export type {
-  VercelErrorOptions,
-  ErrorMetadata,
   ErrorAttributes,
   ErrorLike,
-  ErrorResponse,
+  ErrorMetadata,
+  PublicErrorDetails,
+  SerializableValue,
+  VercelErrorLike,
+  VercelErrorOptions,
 } from './types';
+export type { ErrorResponseData } from './error-response-data';

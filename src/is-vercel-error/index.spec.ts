@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { isVercelError } from '.';
-import { VERCEL_ERROR_TAG } from '../constants';
 import { VercelError } from '../vercel-error';
+import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 describe('isVercelError', () => {
   it('returns true for VercelError instances', () => {
@@ -42,5 +42,32 @@ describe('isVercelError', () => {
       value: 'yes',
     });
     expect(isVercelError(fake)).toBe(false);
+  });
+
+  it.each([
+    {},
+    { message: 123 },
+    { message: 'error', statusCode: '500' },
+    { message: 'error', public: {} },
+    { message: 'error', metadata: [] },
+    { message: 'error', attributes: [] },
+  ])('rejects a tagged value with an invalid data shape: %o', (fields) => {
+    const fake = { ...fields, [VERCEL_ERROR_TAG]: true };
+    expect(isVercelError(fake)).toBe(false);
+  });
+
+  it('accepts a forged but valid cross-realm data contract', () => {
+    const fake = {
+      attributes: { retryable: true },
+      code: 'timeout',
+      message: 'Timed out',
+      metadata: { attempt: 2 },
+      public: { message: 'Please try again' },
+      scope: 'api',
+      statusCode: 504,
+      [VERCEL_ERROR_TAG]: true,
+    };
+
+    expect(isVercelError(fake)).toBe(true);
   });
 });

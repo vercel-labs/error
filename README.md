@@ -1,22 +1,6 @@
 # @vercel/error
 
-Structured error primitives for humans and agents.
-
-## Table of contents
-
-- [Install](#install)
-- [Agent skill](#agent-skill)
-- [Entry points](#entry-points)
-- [Philosophy](#philosophy)
-- [Errors for agents](#errors-for-agents)
-- [Quick start](#quick-start)
-- [Error anatomy](#error-anatomy)
-- [Error factories](#error-factories)
-- [Terminal formatting](#terminal-formatting)
-- [HTTP error responses](#http-error-responses)
-- [Parsing error responses](#parsing-error-responses)
-- [Error utilities](#error-utilities)
-- [Subclassing](#subclassing)
+Errors with two audiences: developers get the full story (cause, reason, hint, fix, metadata), and clients get only the `public` message you explicitly approved. `errorResponse()` turns any error into an HTTP response that never leaks internal details, and `formatError()` renders errors as readable terminal frames. Framework-neutral, with zero runtime dependencies.
 
 ## Install
 
@@ -24,435 +8,365 @@ Structured error primitives for humans and agents.
 pnpm add @vercel/error
 ```
 
-## Agent skill
-
-The optional `vercel-error` skill tells coding agents how to choose fields, implement errors, migrate existing code, and review error handling with this package. Install it separately from the npm package:
+The optional `vercel-error` skill helps coding agents choose fields, migrate existing errors, and review which details reach clients:
 
 ```bash
 npx skills add vercel-labs/error --skill vercel-error
 ```
 
-Installing `@vercel/error` does not activate the skill. The package supplies the runtime APIs; the skill tells agents which APIs to use and what to verify.
-
-The skill and npm package update independently, so the skill verifies the target project's installed public API before recommending imports.
-
-## Entry points
-
-| Import                 | Purpose                                                        |
-| ---------------------- | -------------------------------------------------------------- |
-| `@vercel/error`        | Core: `VercelError`, `createErrors`, guards, extractors, types |
-| `@vercel/error/server` | Server: `errorResponse`, `wantsAnsi`                           |
-| `@vercel/error/client` | Client: `parseErrorResponse`, `fromErrorResponse`              |
-| `@vercel/error/format` | Format primitives: `frame`, `hint`, `fix`, `link`              |
-
-## Philosophy
-
-A good error answers up to five questions:
-
-1. **What** happened? → `message`
-2. **Why** did it happen? → `reason`
-3. **What** could help? → `hint`
-4. **How** to fix it? → `fix`
-5. **Where** to learn more? → `link`
-
-The more questions you answer, the faster the person (or agent) on the other end can resolve the issue.
-
-The rest follows from that:
-
-- Errors are a unit of communication between services, not crash artifacts. They carry context for humans, agents, and observability tools.
-- Errors should be useful wherever they surface — terminal, log aggregator, HTTP response. The format adapts to the context.
-- Errors are too fundamental to be locked to a framework or runtime.
-
-## Errors for agents
-
-An error used by software and agents should do three things: give software a stable identity, explain the failure to a reader, and suggest a safe next step without granting permission to act. `VercelError` stores those parts in separate fields:
-
-| Agent need                        | Fields                                         |
-| --------------------------------- | ---------------------------------------------- |
-| Identify the failure reliably     | `scope`, `code`                                |
-| Understand what happened and why  | `message`, `reason`                            |
-| Choose a useful next step         | `hint`, `fix`, `link`                          |
-| Correlate and investigate         | `requestId`, `cause`, `metadata`, `attributes` |
-| Communicate safely to an end user | `userMessage`                                  |
-
-Machines should branch on `code` or another structured contract. Humans and agents can read the same error through `toString()` or a custom `frame()`, but rendered text is a presentation format, not a protocol to parse.
-
-Treat fixes and links from another service as untrusted. Before acting, verify the sender and permissions, check parameters and side effects, and require explicit user approval unless a user- or organization-owned policy already authorizes that exact action.
-
-Across HTTP, create JSON with `errorResponse`, validate unknown bodies with `parseErrorResponse`, and rebuild errors with `fromErrorResponse`. `ErrorResponse` omits status, scope, cause, request ID, metadata, and attributes. Pass any known local values separately when rebuilding the error.
+Installing the npm package does not activate the skill.
 
 ## Quick start
 
 ```ts
 import { VercelError } from '@vercel/error';
 
-throw new VercelError('Database connection pool exhausted', {
-  code: 'pool_exhausted',
-  scope: 'database',
-  statusCode: 503,
-  reason: 'All 20 connections are in use and none have been released.',
-  hint: 'Consider using pgBouncer for connection pooling.',
-  fix: 'Increase max_connections or add pgBouncer.',
-  link: 'https://vercel.com/docs/storage/neon#connection-pooling',
-});
+try {
+  await checkoutConnection(shard);
+} catch (cause) {
+  throw new VercelError('Database shard 7 exhausted its connection pool', {
+    cause,
+    code: 'pool_exhausted',
+    scope: 'database',
+    statusCode: 503,
+    reason: 'All 20 connections are in use.',
+    hint: 'Inspect connection checkout duration.',
+    fix: 'Release leaked connections or increase pool capacity.',
+    link: 'https://example.com/internal/database/pool-exhausted',
+    public: {
+      message: 'The service is temporarily unavailable.',
+      fix: 'Try again shortly.',
+      link: 'https://status.example.com',
+    },
+    metadata: { shard: 7, poolSize: 20 },
+    attributes: { 'db.system': 'postgresql' },
+  });
+}
 ```
 
-`toString()` auto-detects your environment and renders structured output. In a color-capable terminal (TTY or `FORCE_COLOR`), you get ANSI colors and Unicode tree connectors:
+Everything outside `public` is developer-facing and stays out of HTTP responses. Serialize with `errorResponse()`; `JSON.stringify(error)` includes developer text and stack.
 
-```
-error: VercelError [database:pool_exhausted] Database connection pool exhausted
-│
-├── All 20 connections are in use and none have been released.
-├─▸ hint: Consider using pgBouncer for connection pooling.
-├─▸ fix: Increase max_connections or add pgBouncer.
-╰─▸ read more: https://vercel.com/docs/storage/neon#connection-pooling
-```
+## Entry points
 
-In piped or browser environments, the output falls back to plain indented text. See [Terminal formatting](#terminal-formatting) for the full detection logic.
+| Import                 | Exports                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                            |
+| `@vercel/error/client` | `parseErrorResponse`, `fromErrorResponse`, `ErrorResponseData`, `FromErrorResponseOptions`                 |
+| `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike` |
+| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                    |
 
-For services that create many errors with shared context, see [Error factories](#error-factories).
-
-## Error anatomy
-
-Every `VercelError` field falls into one of three groups.
+## Error contract
 
 ### Identity
 
-| Field        | Type                | Description                                                                                             |
-| ------------ | ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `code`       | `string` (readonly) | Machine-readable error code, e.g. `"pool_exhausted"`                                                    |
-| `scope`      | `string` (readonly) | Namespace or service that produced the error, e.g. `"database"`                                         |
-| `statusCode` | `number`            | HTTP status code. `errorResponse` uses this to set the response status (falls back to `500` when unset) |
+`scope` and `code` form stable machine identity. Software should branch on these fields, never on rendered prose. The same rule applies to parsed responses on the client (see Consuming responses).
 
-### Context
+```ts
+if (hasCode(error, 'pool_exhausted')) {
+  // Apply an application-owned policy.
+}
+```
 
-| Field         | Type     | Description                                                                                                                                                 |
-| ------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `message`     | `string` | What happened. The first constructor argument                                                                                                               |
-| `reason`      | `string` | Why it happened. Explains the root cause                                                                                                                    |
-| `hint`        | `string` | What could help. Advisory information for the developer                                                                                                     |
-| `fix`         | `string` | How to fix it. An actionable remediation step                                                                                                               |
-| `link`        | `string` | Where to learn more. A URL to relevant documentation                                                                                                        |
-| `userMessage` | `string` | Client-safe message. Set this when `message` contains internal details you don't want in JSON. `errorResponse` uses it instead of `message` for JSON output |
+Keep codes stable when wording changes. A scope is useful when it names the service, package, or subsystem that owns the code.
 
-### Observability
+Both fields are sent to clients. A code like `admin_key_invalid` reveals that the resource exists; where that matters, return a generic scope and code (or none) for protected resources.
 
-| Field        | Type                                                 | Description                                                                                                                     |
-| ------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `metadata`   | `Record<string, SerializableValue>`                  | Structured context for debugging and logging. Supports arbitrary nesting. Server-side only — excluded from HTTP error responses |
-| `attributes` | `Record<string, string \| number \| boolean \| ...>` | Flat key-value pairs for OpenTelemetry spans, Sentry tags, and metrics dashboards                                               |
-| `requestId`  | `string`                                             | Correlation ID for tracing an error across services                                                                             |
-| `cause`      | `unknown`                                            | Standard Error `cause` for chaining. Passed through to `super()` and walkable via `getRootCause`                                |
+### Developer context
+
+The constructor `message` and optional `reason`, `hint`, `fix`, and `link` are developer-facing diagnostics. They are readonly after construction and appear in `toString()` and diagnostic `toJSON()` output.
+
+| Field     | Meaning                                          |
+| --------- | ------------------------------------------------ |
+| `message` | What failed                                      |
+| `reason`  | Why it failed, when the cause is known           |
+| `hint`    | Advisory information that may help investigation |
+| `fix`     | A known remediation and its required action      |
+| `link`    | Documentation for the technical failure          |
+
+Preserve an original failure through `cause`. Put nested debugging context in `metadata` and flat telemetry values in `attributes`.
+
+### Client-facing details (`public`)
+
+`public` is the only prose from a `VercelError` that `errorResponse()` sends to a client. If it is present, `public.message` is required and must be nonblank; the constructor validates this and throws `TypeError` for invalid details. It also copies and freezes `public` and drops unknown fields, so mutating the object you passed in later cannot change the approved copy.
+
+```ts
+interface PublicErrorDetails {
+  readonly message: string;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+}
+```
+
+When `public` is absent, `errorResponse()` uses the fixed message `An error occurred.`. It never falls back to developer prose. `docsBaseUrl` derives only the developer `link`; a public link must be set explicitly under `public.link`.
+
+The fallback keeps developer text out of responses. `scope`, `code`, and the HTTP status still reach the client.
+
+### Transport
+
+`statusCode` is the HTTP status this error should get if it becomes an HTTP response. `errorResponse()` validates it at serialization: integers 400 through 599 only; omission defaults to 500. The finished response uses the concrete property `status`.
+
+`statusCode` is an HTTP category, not application identity. Several codes can share one status.
+
+### Diagnostics and enrichment
+
+`requestId`, `metadata`, and `attributes` remain mutable so request and telemetry boundaries can add context after construction. They stay server-side during HTTP serialization.
+
+`VercelError#toJSON()` is diagnostic serialization. It includes the developer message, stack, `public` details, metadata, attributes, and other defined enumerable fields; it excludes `cause`. Its output may contain sensitive data. Use `errorResponse()` for client-safe HTTP serialization.
 
 ## Error factories
 
-`createErrors` defines a scoped error namespace for a service or module. Every error created through the factory gets the scope injected automatically. The `report` callback defaults to `console.error` when not provided.
+`createErrors` creates a typed family with shared scope, documentation, metadata, attributes, reporting, or a custom class.
 
 ```ts
 import { createErrors } from '@vercel/error';
 
-const errors = createErrors({
+type DatabaseCode = 'connection_failed' | 'pool_exhausted' | 'timeout';
+
+const errors = createErrors<DatabaseCode>({
   scope: 'database',
-  report: (error) => sentry.captureException(error),
+  docsBaseUrl: 'https://example.com/internal/errors/database',
+  attributes: { 'service.name': 'database-api' },
+  onReport: (error) => {
+    sentry.captureException(error);
+  },
 });
 ```
 
-The factory returns three methods:
+The factory always returns three methods:
 
-| Method                      | Behavior                                    |
-| --------------------------- | ------------------------------------------- |
-| `create(message, options?)` | Create and return a `VercelError`           |
-| `raise(message, options?)`  | Create and throw (return type: `never`)     |
-| `report(message, options?)` | Create, report via the callback, and return |
+| Method                      | Behavior                                               |
+| --------------------------- | ------------------------------------------------------ |
+| `create(message, options?)` | Create and return an error                             |
+| `raise(message, options?)`  | Create and throw                                       |
+| `report(message, options?)` | Create, call `onReport`, then return the same instance |
 
-```ts
-errors.create('Connection failed', { code: 'conn_failed' });
-errors.raise('Timeout', { code: 'timeout' }); // throws
-errors.report('Pool exhausted', { code: 'pool_exhausted' }); // reports + returns
-```
+Without `onReport`, `report()` calls `console.error`. `create()` and `raise()` never invoke the callback, which leaves the operation boundary responsible for recording thrown errors once.
 
-### Factory-level attributes and metadata
+`onReport` is synchronous and returns `undefined`. A synchronous callback exception propagates and replaces the error that `report()` would have returned. Async callbacks are rejected by TypeScript.
 
-Set attributes and metadata at the factory level. These merge with per-error values automatically, so every error gets baseline context without repetition.
+Factory and per-error `metadata` and `attributes` merge one level deep, with per-error keys winning. A per-error `link` also takes precedence over `docsBaseUrl`.
 
-```ts
-const errors = createErrors({
-  scope: 'billing',
-  attributes: { 'service.name': 'billing-api' },
-  metadata: { region: 'us-east-1' },
-});
+### Custom classes
 
-errors.create('Charge failed', {
-  code: 'charge_failed',
-  attributes: { 'stripe.error': 'card_declined' },
-  metadata: { customerId: 'cus_123' },
-});
-// attributes: { 'service.name': 'billing-api', 'stripe.error': 'card_declined' }
-// metadata: { region: 'us-east-1', customerId: 'cus_123' }
-```
-
-### Custom error classes
-
-Pass `ErrorClass` to create instances of a custom subclass. Type inference flows through, so `create`, `raise`, and `report` all return your subclass type.
+Pass `ErrorClass` to infer a custom subtype:
 
 ```ts
 import { VercelError, createErrors } from '@vercel/error';
 import type { VercelErrorOptions } from '@vercel/error';
 
-class DatabaseError extends VercelError {
+class DatabaseError extends VercelError<'pool_exhausted'> {
   readonly retryable = true;
 
-  constructor(message: string, options?: VercelErrorOptions) {
+  constructor(
+    message: string,
+    options: VercelErrorOptions<'pool_exhausted'> = {},
+  ) {
     super(message, options);
     this.name = 'DatabaseError';
   }
 }
 
 const errors = createErrors({
-  scope: 'database',
   ErrorClass: DatabaseError,
+  scope: 'database',
 });
 
-const err = errors.create('Pool exhausted');
-err.retryable; // true, fully typed as DatabaseError
+errors.create('Pool exhausted', { code: 'pool_exhausted' }).retryable;
 ```
 
-## Terminal formatting
+A custom `TError` type argument requires its matching `ErrorClass`. Omitting `ErrorClass` always returns the base `VercelError<TCode>` type and instance.
 
-`VercelError.toString()` auto-detects your environment and renders structured output with zero configuration.
+## Formatting
 
-### Auto-detection
+`VercelError#toString()` delegates to `formatError(error, { format: 'auto' })`. Import `formatError` from `@vercel/error/format` when a caller needs an explicit preset.
 
-The formatter checks the environment in order and uses the first match:
+| Preset  | Tree connectors | ANSI color | Reads ambient state |
+| ------- | --------------- | ---------- | ------------------- |
+| `auto`  | Detected        | Detected   | Yes                 |
+| `plain` | No              | No         | No                  |
+| `tree`  | Yes             | No         | No                  |
+| `ansi`  | Yes             | Yes        | No                  |
 
-| Environment               | Tree structure | ANSI color | Example                        |
-| ------------------------- | -------------- | ---------- | ------------------------------ |
-| `NO_COLOR` env var set    | Yes            | No         | `NO_COLOR=1 node app.js`       |
-| `FORCE_COLOR` env var set | Yes            | Yes        | `FORCE_COLOR=1 node app.js`    |
-| TTY terminal              | Yes            | Yes        | Running directly in a terminal |
-| Piped, CI, non-TTY        | No             | No         | `node app.js \| cat`           |
-| Browser                   | No             | No         | `window` is defined            |
-
-`NO_COLOR` respects the [no-color.org](https://no-color.org) convention. You still get Unicode tree characters for structure, but no escape codes. `FORCE_COLOR` forces full ANSI output even without a TTY, which is useful in Docker containers or CI systems that support color.
-
-### Color hierarchy
-
-When ANSI color is active, each element has a distinct visual treatment:
-
-| Element                                 | Color     | Weight               |
-| --------------------------------------- | --------- | -------------------- |
-| `error:` label                          | Red       | Bold                 |
-| Error name and `[scope:code]` qualifier | Red       | Normal               |
-| Error message                           | Red       | Bold                 |
-| `hint:` prefix                          | Yellow    | Bold                 |
-| `fix:` prefix                           | Green     | Bold                 |
-| `read more:` prefix                     | Inherited | Bold, URL underlined |
-| `reason` text                           | Inherited | Normal               |
-| Connectors (`├──`, `│`)                 | Inherited | Dim                  |
-
-### Connector types
-
-The tree uses arrow connectors (`├─▸`) for actionable items (`hint`, `fix`, `link`) and line connectors (`├──`) for informational items (`reason`).
-
-### Plain text fallback
-
-When tree structure is disabled (piped output, browser), sections are indented with two spaces:
-
-```
-error: VercelError [database:pool_exhausted] Database connection pool exhausted
-  All 20 connections are in use and none have been released.
-  hint: Consider using pgBouncer for connection pooling.
-  fix: Increase max_connections or add pgBouncer.
-  read more: https://vercel.com/docs/storage/neon#connection-pooling
-```
-
-### Format primitives
-
-The `@vercel/error/format` entry point exports functions for building custom formatted output outside of `VercelError`. Use these when formatting errors you don't own or building custom CLI output.
+`auto` checks `NO_COLOR`, then `FORCE_COLOR`, then TTY support. `NO_COLOR` selects tree output without ANSI; otherwise, `FORCE_COLOR` or TTY support selects ANSI tree output. All other environments use plain output. Explicit presets are deterministic; `ansi` produces ANSI output even when the server is not a TTY.
 
 ```ts
-import { frame, hint, fix, link } from '@vercel/error/format';
+import { formatError } from '@vercel/error/format';
 
-const output = frame('Build failed: missing entry point', [
-  'No index.ts or index.js found in the src/ directory.',
-  hint('Check your tsconfig.json paths configuration.'),
-  fix('Create src/index.ts or update the "main" field in package.json.'),
-  link('https://vercel.com/docs/builds#entry-points'),
-]);
-
-console.error(output);
+const text = formatError(error, { format: 'plain' });
 ```
 
-All format functions are nil-safe: pass `undefined` or `null` and they return `undefined`, which `frame` filters out. `frame` auto-detects formatting the same way `VercelError.toString()` does.
+Formatted output follows this structure:
 
-## HTTP error responses
+```text
+error: VercelError [database:pool_exhausted] Database pool exhausted
+│
+├── All connections are in use.
+├─▸ hint: Inspect connection checkout duration.
+├─▸ fix: Release leaked connections.
+╰─▸ read more: https://example.com/internal/database/pool-exhausted
+```
 
-`errorResponse` builds a complete HTTP error response with content negotiation. It returns `{ status, body, headers }` for use with any framework.
+### Custom frames
+
+`hint`, `fix`, and `link` return structured `FrameSection` values. `frame` uses those tokens to select labels, connectors, and color. A raw string such as `hint: text` remains an ordinary detail; the renderer does not parse prefixes to infer meaning.
+
+```ts
+import { fix, frame, hint, link } from '@vercel/error/format';
+
+const output = frame(
+  'Build failed: missing entry point',
+  [
+    'No index.ts or index.js was found.',
+    hint('Check the configured source directory.'),
+    fix('Create src/index.ts or update the package entry.'),
+    link('https://vercel.com/docs/builds'),
+  ],
+  { format: 'tree' },
+);
+```
+
+All caller-controlled text is sanitized. CRLF becomes LF, bare carriage returns are removed, and every extra line of multiline input is prefixed by the frame's own connector or indentation, so input text can't fake a frame line. Tabs, blank lines, and multiline content remain readable.
+
+## HTTP responses
+
+`errorResponse` returns a framework-neutral `ErrorResponse` with `{ status, body, headers }`:
 
 ```ts
 import { errorResponse } from '@vercel/error/server';
 
-const { status, body, headers } = errorResponse(error);
-return new Response(body, { status, headers });
+const result = errorResponse(error);
+return new Response(result.body, result);
 ```
 
-### Content negotiation
+`errorResponse()` throws `TypeError` on a plain `Error` rather than guessing its message is safe to publish. Wrap it instead: `new VercelError('…', { cause: err, public: { message: '…' } })`.
 
-Pass a `Request` or `HeadersLike` object as the second argument to enable content negotiation. The response body switches from JSON to structured ANSI text when the client signals a preference:
+The JSON body uses the same `{ "error": { "code", "message", … } }` envelope as the Vercel REST API, not RFC 9457 problem details. If a consumer needs `application/problem+json`, map `code` (with `link`) to `type`, `message` to `detail`, and the remaining fields to extension members.
+
+JSON is the default body. To let the request choose between JSON and ANSI text, pass the request:
 
 ```ts
-const { status, body, headers } = errorResponse(error, request);
-return new Response(body, { status, headers });
+const result = errorResponse(error, {
+  request,
+  onSerialize: (source, context) => {
+    recordSerialization(source, context);
+  },
+});
 ```
 
-Clients signal ANSI preference in three ways (checked in order):
+`request` accepts a `Request` or `HeadersLike`. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Without that header, `Accept: text/plain+ansi` or a `curl/` user agent selects ANSI, in that order. Headers choose the body format; they do not authenticate or authorize the caller.
 
-| Signal                           | Example                          |
-| -------------------------------- | -------------------------------- |
-| `X-Error-Format: ansi` header    | `curl -H "X-Error-Format: ansi"` |
-| `Accept: text/plain+ansi` header | Custom client header             |
-| `User-Agent` containing `curl/`  | Auto-detected for curl users     |
+JSON and negotiated ANSI text render the same `public` details. ANSI negotiation never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
 
-Without a signal (or without a request object), the response is always JSON.
+`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Server-side instrumentation can inspect metadata and attributes, but they're only as trustworthy as wherever the error came from; recognition doesn't verify the producer. Callback exceptions propagate and replace the response the caller would have received.
 
-### Plain parameters
+### Plain public input
 
-You can pass plain parameters instead of a `VercelError` instance.
+Use flat params when every supplied field is already public:
 
 ```ts
-import { errorResponse } from '@vercel/error/server';
-
-const { status, body, headers } = errorResponse({
-  status: 429,
+const result = errorResponse({
+  scope: 'api',
   code: 'rate_limited',
-  message: 'Too many requests',
-  hint: 'Wait 60 seconds before retrying.',
+  statusCode: 429,
+  message: 'Too many requests.',
+  hint: 'Wait before retrying.',
 });
-
-return new Response(body, { status, headers });
 ```
 
-### Wire format
+The input uses `statusCode`; the result uses `status`.
 
-The JSON response body follows a canonical shape:
-
-```json
-{
-  "error": {
-    "code": "rate_limited",
-    "message": "Too many requests",
-    "reason": "You exceeded 100 requests per minute.",
-    "hint": "Wait 60 seconds before retrying.",
-    "fix": "Implement exponential backoff in your client.",
-    "link": "https://vercel.com/docs/limits#rate-limits"
-  }
-}
-```
-
-All fields except `message` are optional. For JSON output from a `VercelError`, `userMessage` is used for `message`, falling back to `error.message` when `userMessage` isn't set.
-
-Passing request headers to `errorResponse` lets the caller request ANSI text. For a `VercelError`, that text comes from `toString()` and may include the developer-facing `message`, `reason`, `hint`, `fix`, and `link`; it does not use `userMessage`. Headers choose the format but do not authenticate the caller. Pass them only after authorizing the caller to see those fields. Otherwise omit the request, set a client-safe `userMessage`, and make every JSON-visible field safe.
-
-### Manual ANSI detection
-
-Use `wantsAnsi` directly when you need to check ANSI preference outside of `errorResponse`:
+### Response data
 
 ```ts
-import { wantsAnsi } from '@vercel/error/server';
-
-if (wantsAnsi(request)) {
-  // render ANSI-formatted output
+interface ErrorResponseData {
+  readonly error: {
+    readonly scope?: string;
+    readonly code?: string;
+    readonly message: string;
+    readonly reason?: string;
+    readonly hint?: string;
+    readonly fix?: string;
+    readonly link?: string;
+  };
 }
 ```
 
-Accepts a `Request`, any `HeadersLike` object, or `null`/`undefined`.
+`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. Use the actual HTTP response status as the source of truth.
 
-## Parsing error responses
-
-### Validate unknown JSON
-
-`parseErrorResponse` validates that unknown data matches the `ErrorResponse` shape. Returns the validated response or `undefined` if invalid.
+The completed server result is:
 
 ```ts
-import { parseErrorResponse } from '@vercel/error/client';
-
-const res = await fetch('/api/deploy');
-if (!res.ok) {
-  const parsed = parseErrorResponse(await res.json());
-  if (parsed) {
-    console.log(parsed.error.code, parsed.error.message);
-  }
+interface ErrorResponse {
+  readonly status: number;
+  readonly body: string;
+  readonly headers: Record<string, string>;
 }
 ```
 
-### Reconstruct a VercelError
+## Consuming responses
 
-`fromErrorResponse` reconstructs a `VercelError` from a validated `ErrorResponse`. Use this at service boundaries when you want to re-throw, enrich, or chain an upstream error.
+`parseErrorResponse()` validates unknown JSON. It requires a nonblank string message. A present known field with the wrong type rejects the entire response; unknown fields are ignored so producers can add fields later.
 
 ```ts
-import { parseErrorResponse, fromErrorResponse } from '@vercel/error/client';
+import { fromErrorResponse, parseErrorResponse } from '@vercel/error/client';
 
-const res = await fetch('https://api.vercel.com/v1/deployments');
-if (!res.ok) {
-  const parsed = parseErrorResponse(await res.json());
-  if (parsed) {
-    throw fromErrorResponse(parsed, {
-      statusCode: res.status,
-      scope: 'upstream',
-      cause: new Error(`${res.url} returned ${res.status}`),
-    });
-  }
+const response = await fetch(url);
+if (!response.ok) {
+  const failedFetch = new Error(`${response.url} returned ${response.status}`);
+  const parsed = parseErrorResponse(
+    await response.json().catch(() => undefined),
+  );
+
+  if (!parsed) throw failedFetch;
+
+  throw fromErrorResponse(parsed, {
+    cause: failedFetch,
+    requestId: response.headers.get('x-request-id') ?? undefined,
+    statusCode: response.status,
+  });
 }
 ```
 
-The response `message` becomes both the VercelError `message` and `userMessage`, since it was already client-safe on the wire.
+`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies status, cause, request ID, metadata, and attributes. Parsing validates shape only. It does not tell you who sent the response. Verify the producer, review each field before showing it to a different recipient, and check permissions before acting on a `fix` or `link`.
 
-## Error utilities
+## Recognition and utilities
 
-Guards and extractors for working with errors from any source. All exported from `@vercel/error`.
+All utilities below are exported from `@vercel/error`:
 
-| Function                       | Description                                                                                                |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `isVercelError(value)`         | Type guard for `VercelError`. Uses `instanceof` with a `Symbol.for` fallback for cross-realm detection     |
-| `isError(value)`               | Type guard for `Error`. Handles cross-realm errors via prototype walking                                   |
-| `isErrorLike(value)`           | Type guard for objects with a `message` string property                                                    |
-| `hasCode(error, code)`         | Check if an error has a specific `code`. Also accepts an array of codes                                    |
-| `getMessage(error, fallback?)` | Extract a message from any value. Returns `undefined` when no message is found and no fallback is provided |
-| `getRootCause(error)`          | Walk the `cause` chain to the root. Handles cycles via `WeakSet`                                           |
+| Function                       | Behavior                                                                |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `isVercelError(value)`         | Recognize local instances or tagged cross-realm data                    |
+| `isError(value)`               | Recognize standard errors across realms (iframes, workers, VM contexts) |
+| `isErrorLike(value)`           | Recognize an object with a string `message`                             |
+| `hasCode(error, codeOrCodes)`  | Narrow an error by one code or a readonly list                          |
+| `getMessage(error, fallback?)` | Extract a message from an unknown value                                 |
+| `getRootCause(error)`          | Follow `cause` to the root while stopping object cycles                 |
 
-## Subclassing
+The package runs in browsers, workers, edge runtimes, and Node. `isError` uses the `Error.isError` builtin brand check where the runtime provides it (Node 24, 2025+ evergreen browsers), recognizing errors across realms without traversing caller-controlled prototype chains or consulting `Symbol.toStringTag`. Older runtimes fall back to `instanceof` plus `Object.prototype.toString` branding. Disclosure never depends on the guard's precision: `errorResponse()` independently rejects untagged values carrying `name` or `stack`, so the fallback can only reject more inputs, never disclose more.
 
-`VercelError` is designed for subclassing. The [Custom error classes](#custom-error-classes) section above shows how to use subclasses with `createErrors` — this section covers the general pattern.
+`isVercelError` uses `instanceof` first, then a package-namespaced `Symbol.for` tag plus data-shape checks. Its cross-realm result narrows to `VercelErrorLike`, a data-only contract. The tag is forgeable, so recognition does not authenticate a producer or authorize disclosure. Use `instanceof VercelError` before invoking local class or subclass methods.
 
-Two things to keep in mind:
+## Migrating to 0.1
 
-1. **Hardcode `this.name`** in your constructor. Bundler minification turns class names into single letters, which breaks Sentry grouping and log readability. String literals are minification-safe.
+Version 0.1 is a clean redesign without compatibility aliases:
 
-2. **Accept `VercelErrorOptions`** as the options type so your subclass stays compatible with `createErrors`.
+| Before 0.1                         | 0.1 replacement                                               |
+| ---------------------------------- | ------------------------------------------------------------- |
+| `userMessage: 'Safe message'`      | `public: { message: 'Safe message' }`                         |
+| Plain response `status: 429`       | Plain response `statusCode: 429`                              |
+| `errorResponse(error, request)`    | `errorResponse(error, { request })`                           |
+| Factory option `report`            | Factory option `onReport`                                     |
+| `ErrorConstructor` type            | `VercelErrorConstructor` type                                 |
+| Helper output such as `'fix: ...'` | Structured `FrameSection` from `fix(...)`                     |
+| Cross-realm class-method access    | Data access after `isVercelError`; methods after `instanceof` |
+| `ErrorResponseParams` type         | `ErrorResponseInput` type                                     |
+| Structured `ErrorResponse` type    | `ErrorResponseData` type                                      |
+| `ErrorResponseResult` type         | Concrete `ErrorResponse` type                                 |
 
-```ts
-import { VercelError } from '@vercel/error';
-import type { VercelErrorOptions } from '@vercel/error';
+`ErrorResponseData.error.scope` is now included when set. Check that your `scope` values are safe to show clients before upgrading. `parseErrorResponse()` now rejects the whole response when any present known field has the wrong type; it still ignores unknown fields. `errorResponse()` rejects non-integer `statusCode` values and integers outside 400 through 599. `onReport` must be synchronous; an async legacy `report` callback no longer type-checks. The 0.0 recognition tag has no meaning in 0.1: a 0.0 error instance is rejected like any untagged `Error`, and 0.0-tagged plain data is treated as ordinary flat public input, so every field it carries is disclosed. Recreate upstream errors with explicit `public` details.
 
-class NetworkError extends VercelError {
-  readonly retryable: boolean;
+The 0.1 public types mark authored `VercelError` fields and every `ErrorResponseInput`, `ErrorResponseData`, and `ErrorResponse` field readonly. Pass authored values at construction or create a new error instead of mutating them. `requestId`, `metadata`, and `attributes` remain mutable for boundary enrichment.
 
-  constructor(
-    message: string,
-    options?: VercelErrorOptions & { retryable?: boolean },
-  ) {
-    super(message, options);
-    this.name = 'NetworkError';
-    this.retryable = options?.retryable ?? false;
-  }
-}
-
-const error = new NetworkError('Connection refused', {
-  code: 'conn_refused',
-  retryable: true,
-});
-
-error.name; // 'NetworkError' (stable across minification)
-error.retryable; // true
-error.toString(); // uses NetworkError in the header
-```
+Developer `reason`, `hint`, `fix`, and `link` no longer cross HTTP automatically. Move only approved client-facing values under `public`. Both JSON and negotiated text use those same `public` details.

@@ -1,4 +1,15 @@
-import type { HeadersLike } from '../types';
+/**
+ * Minimal header lookup interface accepted by ANSI content negotiation.
+ * Compatible with `Headers`, Next.js `ReadonlyHeaders`, and plain adapters.
+ *
+ * Negotiation looks up lowercase header names (`x-error-format`, `accept`,
+ * `user-agent`), so `get` must match names case-insensitively, as WHATWG
+ * `Headers` does. An adapter that only matches verbatim keys will miss
+ * headers stored in other casings.
+ */
+export interface HeadersLike {
+  get(name: string): string | null;
+}
 
 /**
  * Detect whether an HTTP request wants ANSI-formatted error responses.
@@ -7,7 +18,7 @@ import type { HeadersLike } from '../types';
  * (e.g. Next.js `ReadonlyHeaders`, `Headers`, etc).
  *
  * Checks (in order):
- * 1. `X-Error-Format: ansi` header
+ * 1. A present `X-Error-Format` header is authoritative; only `ansi` enables ANSI
  * 2. `Accept: text/plain+ansi` header
  * 3. `User-Agent` containing `curl/` (curl users get ANSI by default)
  *
@@ -23,8 +34,8 @@ export function wantsAnsi(
   const headers = _getHeadersLike(requestOrHeaders);
 
   const errorFormat = headers.get('x-error-format');
-  if (errorFormat === 'ansi') {
-    return true;
+  if (errorFormat !== null) {
+    return errorFormat === 'ansi';
   }
 
   const accept = headers.get('accept');
@@ -41,12 +52,9 @@ export function wantsAnsi(
 }
 
 /**
- * Helper function to get a HeadersLike object from a Request or HeadersLike.
- *
  * If `input` has a `.headers` property with a `.get()` method, treat it as
- * a Request-like object and unwrap its headers.
- *
- * Otherwise assume `input` itself is already a HeadersLike (e.g. `Headers`, `ReadonlyHeaders`, etc).
+ * a Request-like object and unwrap its headers. Otherwise assume `input`
+ * itself is already a HeadersLike (e.g. `Headers`, `ReadonlyHeaders`).
  */
 function _getHeadersLike(input: Request | HeadersLike): HeadersLike {
   if (

@@ -22,7 +22,7 @@ describe('createErrors', () => {
 
     it('works when options are provided without a scope', () => {
       const report = vi.fn();
-      const errors = createErrors({ report });
+      const errors = createErrors({ onReport: report });
       const error = errors.report('boom', { code: 'oops' });
       expect(error.scope).toBeUndefined();
       expect(error.code).toBe('oops');
@@ -66,6 +66,15 @@ describe('createErrors', () => {
         query: 'SELECT',
       });
     });
+
+    it('does not call onReport', () => {
+      const onReport = vi.fn();
+      const errors = createErrors({ onReport });
+
+      errors.create('fail');
+
+      expect(onReport).not.toHaveBeenCalled();
+    });
   });
 
   describe('raise', () => {
@@ -75,26 +84,26 @@ describe('createErrors', () => {
     });
 
     it('does not call the reporter', () => {
-      const report = vi.fn();
-      const errors = createErrors({ report, scope: 'auth' });
+      const onReport = vi.fn();
+      const errors = createErrors({ onReport, scope: 'auth' });
       try {
         errors.raise('denied');
       } catch {
         // Expected
       }
-      expect(report).not.toHaveBeenCalled();
+      expect(onReport).not.toHaveBeenCalled();
     });
   });
 
   describe('report', () => {
     it('calls custom reporter, creates and returns the error', () => {
-      const report = vi.fn();
-      const errors = createErrors({ report, scope: 'analytics' });
+      const onReport = vi.fn();
+      const errors = createErrors({ onReport, scope: 'analytics' });
       const error = errors.report('tracking failed');
 
       expect(error).toBeInstanceOf(VercelError);
-      expect(report).toHaveBeenCalledOnce();
-      expect(report).toHaveBeenCalledWith(error);
+      expect(onReport).toHaveBeenCalledOnce();
+      expect(onReport).toHaveBeenCalledWith(error);
     });
 
     it('defaults to console.error when no reporter provided', () => {
@@ -108,6 +117,31 @@ describe('createErrors', () => {
       expect(spy).toHaveBeenCalledOnce();
       expect(spy).toHaveBeenCalledWith(error);
       spy.mockRestore();
+    });
+
+    it('creates the error before calling onReport', () => {
+      let observed: VercelError | undefined;
+      const errors = createErrors({
+        onReport: (error) => {
+          observed = error;
+        },
+      });
+
+      const returned = errors.report('failed', { code: 'failure' });
+
+      expect(observed).toBe(returned);
+      expect(observed?.code).toBe('failure');
+    });
+
+    it('propagates a synchronous onReport failure', () => {
+      const failure = new Error('diagnostics failed');
+      const errors = createErrors({
+        onReport: () => {
+          throw failure;
+        },
+      });
+
+      expect(() => errors.report('failed')).toThrow(failure);
     });
   });
 
@@ -170,15 +204,15 @@ describe('createErrors', () => {
     });
 
     it('report returns the custom class', () => {
-      const report = vi.fn();
+      const onReport = vi.fn();
       const errors = createErrors({
         ErrorClass: DatabaseError,
-        report,
+        onReport,
         scope: 'db',
       });
       const error = errors.report('query timeout');
       expect(error).toBeInstanceOf(DatabaseError);
-      expect(report).toHaveBeenCalledWith(error);
+      expect(onReport).toHaveBeenCalledWith(error);
     });
 
     it('merges attributes and metadata with custom class', () => {

@@ -1,302 +1,330 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { detectFormat, fix, formatAuto, frame, hint, link } from '.';
+import { fix, formatError, frame, hint, link, type ErrorFormat } from '.';
+
+/* oxlint-disable no-control-regex -- intentional ANSI/control assertions */
+const ANSI_PATTERN = /\x1b\[[0-?]*[ -/]*[@-~]/g;
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI_PATTERN, '');
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('format', () => {
-  describe('fix', () => {
-    it("prefixes text with 'fix: '", () => {
-      expect(fix('Use a connection pool')).toBe('fix: Use a connection pool');
-    });
-
-    it('returns undefined for null', () => {
-      expect(fix(null)).toBeUndefined();
-    });
-
-    it('returns undefined for undefined', () => {
-      expect(fix(undefined)).toBeUndefined();
-    });
-
-    it('returns undefined for empty string', () => {
-      expect(fix('')).toBeUndefined();
-    });
-  });
-
-  describe('hint', () => {
-    it("prefixes text with 'hint: '", () => {
-      expect(hint('Try using a connection pool')).toBe(
-        'hint: Try using a connection pool',
-      );
-    });
-
-    it('returns undefined for null', () => {
-      expect(hint(null)).toBeUndefined();
-    });
-
-    it('returns undefined for undefined', () => {
-      expect(hint(undefined)).toBeUndefined();
-    });
-
-    it('returns undefined for empty string', () => {
-      expect(hint('')).toBeUndefined();
-    });
-  });
-
-  describe('link', () => {
-    it("prefixes URL with 'read more: '", () => {
-      expect(link('https://vercel.com/docs')).toBe(
-        'read more: https://vercel.com/docs',
-      );
-    });
-
-    it('returns undefined for null', () => {
-      expect(link(null)).toBeUndefined();
-    });
-
-    it('returns undefined for undefined', () => {
-      expect(link(undefined)).toBeUndefined();
-    });
-
-    it('returns undefined for empty string', () => {
-      expect(link('')).toBeUndefined();
-    });
-  });
-
-  describe('frame', () => {
-    it('renders header when no sections', () => {
-      expect(frame('Hello')).toBe('Hello');
-    });
-
-    it('renders sections (auto-detects format)', () => {
-      const result = frame('Error', ['detail']);
-      expect(result).toContain('detail');
-    });
-
-    it('filters out falsy sections', () => {
-      const result = frame('Error', ['a', undefined, null, false, 'b']);
-      expect(result).toContain('a');
-      expect(result).toContain('b');
-    });
-
-    it('returns header only when all sections are falsy', () => {
-      expect(frame('Error', [undefined, null, false])).toBe('Error');
-    });
-  });
-
-  describe('formatAuto', () => {
-    it('renders error with auto-detected format', () => {
-      const result = formatAuto({
-        fix: 'Add pgBouncer.',
-        link: 'https://vercel.com/docs',
-        message: 'Pool exhausted',
-        name: 'VercelError',
-        reason: 'All connections in use.',
+  describe('structured sections', () => {
+    it('returns typed hint, fix, and link sections', () => {
+      expect(hint('Try a smaller request')).toEqual({
+        kind: 'hint',
+        text: 'Try a smaller request',
       });
-      expect(result).toContain('error:');
-      expect(result).toContain('VercelError');
-      expect(result).toContain('Pool exhausted');
-      expect(result).toContain('All connections in use.');
+      expect(fix('Reduce the request size')).toEqual({
+        kind: 'fix',
+        text: 'Reduce the request size',
+      });
+      expect(link('https://docs.example.com')).toEqual({
+        kind: 'link',
+        text: 'https://docs.example.com',
+      });
     });
 
-    it('renders header only when no context fields', () => {
-      const result = formatAuto({
-        message: 'simple',
-        name: 'VercelError',
-      });
-      expect(result).toContain('error:');
-      expect(result).toContain('VercelError');
-      expect(result).toContain('simple');
-    });
+    it.each([hint, fix, link])(
+      'returns undefined for nil or empty text',
+      (fn) => {
+        expect(fn(undefined)).toBeUndefined();
+        expect(fn(null)).toBeUndefined();
+        expect(fn('')).toBeUndefined();
+      },
+    );
 
-    it('includes scope and code in qualifier', () => {
-      const result = formatAuto({
-        code: 'rate_limited',
-        message: 'fail',
-        name: 'VercelError',
-        scope: 'auth',
-      });
-      expect(result).toContain('error:');
-      expect(result).toContain('VercelError [auth:rate_limited]');
-    });
-
-    it('includes hint in output', () => {
-      const result = formatAuto({
-        fix: 'Replace setTimeout with await sleep(ms)',
-        hint: 'Use the sleep function from the workflow package',
-        message: 'setTimeout not available',
-        name: 'VercelError',
-      });
-      expect(result).toContain('hint: Use the sleep function');
-      expect(result).toContain('fix: Replace setTimeout');
-    });
-  });
-
-  describe('formatAuto: tree structure', () => {
-    it('includes spacer line between header and sections', () => {
-      const result = formatAuto({
-        message: 'fail',
-        name: 'VercelError',
-        reason: 'Something broke',
-      });
-      const lines = result.split('\n');
-      if (lines.length > 2) {
-        expect(lines[1]).toMatch(/│/);
-      }
-    });
-
-    it('uses arrow connectors for actionable items', () => {
-      const result = formatAuto({
-        fix: 'Do this',
-        link: 'https://example.com',
-        message: 'fail',
-        name: 'VercelError',
-      });
-      if (result.includes('▸')) {
-        expect(result).toContain('▸');
-      }
-    });
-
-    it('uses plain connectors for reason (non-actionable)', () => {
-      const result = formatAuto({
-        fix: 'Do this',
-        message: 'fail',
-        name: 'VercelError',
-        reason: 'Context info',
-      });
-      expect(result).toContain('Context info');
-      expect(result).toContain('fix: Do this');
-    });
-
-    it('omits colon after qualifier in header', () => {
-      const result = formatAuto({
-        code: 'timeout',
-        message: 'fail',
-        name: 'VercelError',
-        scope: 'db',
-      });
-      expect(result).toContain('VercelError [db:timeout]');
-      expect(result).not.toContain('[db:timeout]:');
-    });
-
-    it('uses colon after name when no qualifier', () => {
-      const result = formatAuto({
-        message: 'fail',
-        name: 'VercelError',
-      });
-      expect(result).toContain('VercelError:');
-    });
-  });
-
-  describe('formatAuto: stripped message fallback', () => {
-    it('renders the qualifier as the header when message is empty', () => {
-      const result = formatAuto({
-        code: 'pool_exhausted',
-        message: '',
-        name: 'VercelError',
-        scope: 'database',
-      });
-      expect(result).toContain('VercelError [database:pool_exhausted]');
-      expect(result).not.toContain('[database:pool_exhausted] ');
-    });
-
-    it('renders code-only qualifier when message and scope are empty', () => {
-      const result = formatAuto({
-        code: 'timeout',
-        message: '',
-        name: 'VercelError',
-      });
-      expect(result).toContain('VercelError [timeout]');
-    });
-
-    it('renders just the name when message and qualifier are empty', () => {
-      const result = formatAuto({
-        message: '',
-        name: 'VercelError',
-      });
-      const firstLine = result.split('\n')[0];
-      expect(firstLine).toContain('VercelError');
-      expect(firstLine).not.toContain('VercelError:');
-      expect(firstLine).not.toContain('[');
-    });
-
-    it('keeps a surviving link section alongside a stripped message', () => {
-      const result = formatAuto({
-        code: 'pool_exhausted',
-        link: 'https://vercel.com/docs/errors/database/pool_exhausted',
-        message: '',
-        name: 'VercelError',
-        scope: 'database',
-      });
-      expect(result).toContain('VercelError [database:pool_exhausted]');
-      expect(result).toContain(
-        'read more: https://vercel.com/docs/errors/database/pool_exhausted',
+    it('does not infer semantics from prefixes in raw details', () => {
+      expect(
+        frame('Error', ['hint: raw detail', hint('Structured hint')], {
+          format: 'tree',
+        }),
+      ).toBe(
+        [
+          'Error',
+          '│',
+          '├── hint: raw detail',
+          '╰─▸ hint: Structured hint',
+        ].join('\n'),
       );
     });
   });
 
-  describe('detectFormat', () => {
-    it('returns tree and color booleans', () => {
-      const result = detectFormat();
-      expect(typeof result.tree).toBe('boolean');
-      expect(typeof result.color).toBe('boolean');
+  describe('presets', () => {
+    const error = {
+      code: 'timeout',
+      fix: 'Retry the request',
+      hint: 'Check service health',
+      link: 'https://status.example.com',
+      message: 'Request timed out',
+      name: 'VercelError',
+      reason: 'The upstream did not respond',
+      scope: 'payments',
+    };
+
+    it('renders plain without tree connectors or color', () => {
+      expect(formatError(error, { format: 'plain' })).toBe(
+        [
+          'error: VercelError [payments:timeout] Request timed out',
+          '  The upstream did not respond',
+          '  hint: Check service health',
+          '  fix: Retry the request',
+          '  read more: https://status.example.com',
+        ].join('\n'),
+      );
+    });
+
+    it('renders tree connectors without color', () => {
+      expect(formatError(error, { format: 'tree' })).toBe(
+        [
+          'error: VercelError [payments:timeout] Request timed out',
+          '│',
+          '├── The upstream did not respond',
+          '├─▸ hint: Check service health',
+          '├─▸ fix: Retry the request',
+          '╰─▸ read more: https://status.example.com',
+        ].join('\n'),
+      );
+    });
+
+    it('renders ANSI with tree connectors and color without ambient detection', () => {
+      vi.stubGlobal('process', {
+        env: { NO_COLOR: '1' },
+        stdout: { isTTY: false },
+      });
+
+      const result = formatError(error, { format: 'ansi' });
+      expect(result).toContain('\x1b[');
+      expect(stripAnsi(result)).toBe(formatError(error, { format: 'tree' }));
+    });
+
+    it.each(['plain', 'tree', 'ansi'] as const)(
+      'keeps explicit %s output stable across ambient changes',
+      (format) => {
+        vi.stubGlobal('process', {
+          env: { FORCE_COLOR: '1' },
+          stdout: { isTTY: true },
+        });
+        const first = formatError(error, { format });
+
+        vi.stubGlobal('process', {
+          env: { NO_COLOR: '1' },
+          stdout: { isTTY: false },
+        });
+        expect(formatError(error, { format })).toBe(first);
+      },
+    );
+
+    it('defaults a missing cross-realm name to VercelError', () => {
+      expect(formatError({ message: 'Failed' }, { format: 'plain' })).toBe(
+        'error: VercelError: Failed',
+      );
+    });
+  });
+
+  describe('auto detection', () => {
+    it.each([
+      [undefined, false, false, false],
+      [{}, false, false, false],
+      [{ NO_COLOR: '' }, true, true, false],
+      [{ FORCE_COLOR: '1' }, false, true, true],
+      [{}, true, true, true],
+    ] as const)(
+      'maps environment %o and TTY %s to tree=%s color=%s',
+      (env, isTTY, tree, color) => {
+        if (env === undefined) {
+          vi.stubGlobal('process', undefined);
+        } else {
+          vi.stubGlobal('process', { env, stdout: { isTTY } });
+        }
+
+        const result = formatError(
+          { message: 'Failed', reason: 'Detail' },
+          { format: 'auto' },
+        );
+        expect({
+          color: result.includes('\x1b['),
+          tree: stripAnsi(result).includes('│'),
+        }).toEqual({ color, tree });
+      },
+    );
+
+    it('gives NO_COLOR precedence over FORCE_COLOR', () => {
+      vi.stubGlobal('process', {
+        env: { FORCE_COLOR: '1', NO_COLOR: '1' },
+        stdout: { isTTY: true },
+      });
+      const result = formatError(
+        { message: 'Failed', reason: 'Detail' },
+        { format: 'auto' },
+      );
+      expect(result).not.toContain('\x1b[');
+      expect(result).toContain('│');
+    });
+
+    it('uses detected capabilities only for auto', () => {
+      vi.stubGlobal('process', {
+        env: { FORCE_COLOR: '1' },
+        stdout: { isTTY: false },
+      });
+      const error = { message: 'Failed' };
+
+      expect(formatError(error)).toContain('\x1b[');
+      expect(formatError(error, { format: 'auto' })).toContain('\x1b[');
+      expect(formatError(error, { format: 'plain' })).not.toContain('\x1b[');
+    });
+  });
+
+  describe('multiline containment', () => {
+    const fields = [
+      'name',
+      'message',
+      'scope',
+      'code',
+      'reason',
+      'hint',
+      'fix',
+      'link',
+    ] as const;
+
+    it.each(fields)(
+      'frames every physical line supplied through %s',
+      (field) => {
+        const error = {
+          message: 'Failed',
+          name: 'VercelError',
+          [field]: 'safe\tcolumn\r\nforged\rbad\n\nlast',
+        };
+
+        for (const format of ['plain', 'tree', 'ansi'] as const) {
+          const output = stripAnsi(formatError(error, { format }));
+          expect(output).not.toContain('\r');
+          expect(output).toContain('safe\tcolumn');
+          const continuationLines = output.split('\n').slice(1);
+          const prefix = format === 'plain' ? /^ {2}/ : /^(?:│|├|╰)/;
+          expect(continuationLines.length).toBeGreaterThan(0);
+          expect(continuationLines.every((line) => prefix.test(line))).toBe(
+            true,
+          );
+          expect(continuationLines).not.toContain('forgedbad');
+          expect(continuationLines).not.toContain('last');
+        }
+      },
+    );
+
+    it('frames multiline raw and structured frame sections', () => {
+      expect(
+        frame(
+          'Header\ncontinued',
+          ['detail\ncontinued', hint('hint\ncontinued'), '\n'],
+          { format: 'tree' },
+        ),
+      ).toBe(
+        [
+          'Header',
+          '│ continued',
+          '│',
+          '├── detail',
+          '│   continued',
+          '├─▸ hint: hint',
+          '│   continued',
+          '╰── ',
+          '│   ',
+        ].join('\n'),
+      );
+    });
+
+    it('preserves tabs while normalizing CRLF and removing bare CR', () => {
+      expect(
+        frame('Header', ['one\r\ntwo\rthree\tfour'], { format: 'plain' }),
+      ).toBe('Header\n  one\n  twothree\tfour');
     });
   });
 
   describe('control-character sanitization', () => {
     const ESC = '\x1b';
 
-    it('strips ANSI/CSI escape sequences from hint', () => {
-      const result = hint(`${ESC}[31mred${ESC}[0m`);
-      expect(result).toBe('hint: red');
-      expect(result).not.toContain(ESC);
+    it('strips CSI, OSC, C1, DEL, and unsafe C0 controls from every field', () => {
+      const hostile = `safe${ESC}[31mred${ESC}[0m${ESC}]52;c;ZXZpbA==${ESC}\\end\x9b\x7f\x00`;
+      const output = formatError(
+        {
+          code: hostile,
+          fix: hostile,
+          hint: hostile,
+          link: hostile,
+          message: hostile,
+          name: hostile,
+          reason: hostile,
+          scope: hostile,
+        },
+        { format: 'tree' },
+      );
+
+      expect(output).not.toContain(ESC);
+      expect(output).not.toMatch(/[\x00\x7f-\x9f]/);
+      expect(output).toContain('saferedend');
     });
 
-    it('strips escape sequences from fix', () => {
-      const result = fix(`do ${ESC}[2K this`);
-      expect(result).toBe('fix: do  this');
+    it('sanitizes raw and structured frame sections at render time', () => {
+      const result = frame(
+        `${ESC}]8;;https://evil.example${ESC}\\Header`,
+        [`raw${ESC}[2K`, fix(`fix${ESC}[31m`)],
+        { format: 'tree' },
+      );
+
       expect(result).not.toContain(ESC);
+      expect(result).toContain('Header');
+      expect(result).toContain('raw');
+      expect(result).toContain('fix: fix');
     });
 
-    it('strips OSC 8 hyperlink sequences from link', () => {
-      const result = link(`${ESC}]8;;https://evil.example${ESC}\\text`);
-      expect(result).not.toContain(ESC);
-      expect(result).toContain('read more:');
-    });
-
-    it('strips OSC 52 clipboard sequences from frame header', () => {
-      const result = frame(`${ESC}]52;c;ZXZpbA==${ESC}\\title`);
-      expect(result).not.toContain(ESC);
-    });
-
-    it('strips control chars from frame sections', () => {
-      const result = frame('header', [`bad${ESC}[1mline`]);
-      expect(result).not.toContain(ESC);
-      expect(result).toContain('badline');
-    });
-
-    it('strips escape sequences from every formatAuto field', () => {
-      const result = formatAuto({
-        code: `code${ESC}[0m`,
-        fix: `fix${ESC}[0m`,
-        hint: `hint${ESC}[0m`,
-        link: `https://x${ESC}[0m`,
-        message: `msg${ESC}[31m`,
-        name: `Vercel${ESC}[1mError`,
-        reason: `reason${ESC}[2K`,
-        scope: `scope${ESC}]52;c;x${ESC}\\`,
+    it('removes Unicode line and paragraph separators from caller text', () => {
+      const output = frame('Header', ['before\u2028middle\u2029after'], {
+        format: 'tree',
       });
-      expect(result).not.toContain(ESC);
-      expect(result).toContain('msg');
-      expect(result).toContain('reason');
+
+      expect(output).not.toContain('\u2028');
+      expect(output).not.toContain('\u2029');
+      expect(output).toContain('beforemiddleafter');
     });
 
-    it('strips DEL and C1 control characters', () => {
-      const result = hint('a\x7fb\x9bc');
-      expect(result).toBe('hint: abc');
+    it('rejects malformed structured sections before rendering', () => {
+      expect(() =>
+        frame('Header', [{ kind: 'hint\nforged', text: 'unsafe' } as never], {
+          format: 'tree',
+        }),
+      ).toThrow(TypeError);
+      expect(() =>
+        frame('Header', [{ kind: 'hint', text: 123 } as never], {
+          format: 'tree',
+        }),
+      ).toThrow(TypeError);
     });
 
-    it('preserves tab, newline, and carriage return', () => {
-      const result = hint('line1\tcol\nline2\r');
-      expect(result).toBe('hint: line1\tcol\nline2\r');
-    });
+    it(
+      'sanitizes large unterminated OSC input without pathological rescanning',
+      { timeout: 1000 },
+      () => {
+        const hostile = `${'\x1b]'.repeat(65_536)}visible`;
+        const output = formatError({ message: hostile }, { format: 'tree' });
+
+        expect(output).not.toContain('\x1b');
+      },
+    );
   });
+
+  it.each(['auto', 'plain', 'tree', 'ansi'] satisfies ErrorFormat[])(
+    'accepts the %s ErrorFormat preset',
+    (format) => {
+      expect(formatError({ message: 'Failed' }, { format })).toContain(
+        'VercelError',
+      );
+    },
+  );
 });
+/* oxlint-enable no-control-regex */

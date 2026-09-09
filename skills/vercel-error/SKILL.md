@@ -16,7 +16,7 @@ Read the target project's `package.json`, lockfile, existing errors, output path
 
 - Use the installed `@vercel/error` version's public exports as the contract. Do not deep-import unexported source paths.
 - If the package is absent, resolve the intended version from workspace constraints or the current release, then inspect its published exports and `engines`. Add it as a production dependency only for requested implementation work.
-- Compare the target project's runtime with the selected version's `engines`. Report an incompatibility instead of silently changing the runtime or installing an unsupported combination.
+- Compare a Node target's version with the selected version's `engines`, and report an incompatibility instead of silently changing the runtime. The package itself is isomorphic (browsers, workers, edge runtimes), so treat `engines` as the Node support matrix, not a runtime allowlist.
 - Record the project's existing code and scope names and the callers that depend on them. In step 4, preserve or challenge those conventions based on evidence.
 - Leave dependencies unchanged for advice and review.
 
@@ -37,13 +37,13 @@ Use a structured error only when you can name the caller, transport, logger, or 
 
 ### 3. Choose the public API
 
-| Need                                                                                                    | Public API                                                 | Read                                                    |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
-| Add, change, or audit a code, scope, field, or diagnostic contract                                      | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md)        |
-| Construct one error, define a subclass, preserve a cause, or inspect a caught value                     | `VercelError`, core guards and extractors                  | [Core errors](references/core.md)                       |
-| Create a typed error family with shared scope, diagnostics, documentation, reporting, or a custom class | `createErrors`                                             | [`createErrors` factories](references/create-errors.md) |
-| Produce or consume HTTP error responses                                                                 | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP errors](references/http.md)                       |
-| Format an error you do not own for people and agents                                                    | `frame`, `hint`, `fix`, `link`                             | [Terminal output](references/format.md)                 |
+| Need                                                                                                                 | Public API                                                 | Read                                                    |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| Add, change, or audit identity, developer context, the client-visible `public` projection, transport, or diagnostics | `VercelErrorOptions`                                       | [Contract design](references/contract-design.md)        |
+| Construct one error, define a subclass, preserve a cause, or inspect a caught value                                  | `VercelError`, core guards and extractors                  | [Core errors](references/core.md)                       |
+| Create a typed error family with shared scope, diagnostics, documentation, reporting, or a custom class              | `createErrors`                                             | [`createErrors` factories](references/create-errors.md) |
+| Produce or consume HTTP error responses                                                                              | `errorResponse`, `parseErrorResponse`, `fromErrorResponse` | [HTTP errors](references/http.md)                       |
+| Format an error you do not own for people and agents                                                                 | `formatError`, `frame`, `hint`, `fix`, `link`              | [Terminal output](references/format.md)                 |
 
 Use `VercelError#toString()` for a `VercelError`; it already uses the package formatter. Use `frame()` for errors or CLI output that should remain another type.
 
@@ -69,7 +69,7 @@ Test the behavior that consumes the error, not private formatting helpers:
 
 - creation, throwing, and reporting through the factory when those paths matter
 - stable code and preserved cause for programmatic handling
-- client-safe JSON and the returned HTTP status
+- client-safe JSON and ANSI text parity, plus the returned HTTP status
 - rejection of invalid unknown response data before reconstruction
 - terminal output with and without optional sections
 - the actual public package entry point used by the target project

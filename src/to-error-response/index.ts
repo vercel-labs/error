@@ -1,171 +1,141 @@
-import { fix, frame, hint, link } from '../format/index';
-import { isVercelError } from '../is-vercel-error';
-import type { ErrorResponse, HeadersLike } from '../types';
-import type { VercelError } from '../vercel-error';
-import { wantsAnsi } from '../wants-ansi';
+import { isObject } from '../_internal';
+import {
+  buildErrorResponseData,
+  type ErrorResponseData,
+} from '../error-response-data';
+import { formatError } from '../format/index';
+import type { PublicErrorDetails, VercelErrorLike } from '../types';
+import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
 /**
- * Plain error parameters for building a response without a VercelError instance.
+ * Flat, explicitly public input for callers that do not have a VercelError.
+ * `scope`, `code`, every prose field, and the resulting concrete status are
+ * client-visible disclosures. `statusCode` defaults to 500 and must be an
+ * integer from 400 through 599; {@link errorResponse} throws `RangeError`
+ * otherwise. Explicitly `undefined` optional fields are omitted from response
+ * data.
  */
-export interface ErrorResponseParams {
-  /** HTTP status code for the response. Defaults to 500. */
-  status?: number;
-  /** Stable, machine-readable identifier for this error. */
-  code?: string;
-  /** Client-safe message describing what happened. */
-  message: string;
-  /** Why the error happened, the root-cause explanation. */
-  reason?: string;
-  /** Advisory tip that helps the developer, shown before `fix`. */
-  hint?: string;
-  /** Actionable step that resolves the error. */
-  fix?: string;
-  /** URL to documentation for this error. */
-  link?: string;
+export interface ErrorResponseInput extends PublicErrorDetails {
+  readonly scope?: string;
+  readonly code?: string;
+  readonly statusCode?: number;
 }
 
-export interface ErrorResponseResult {
-  /** HTTP status code to send. */
-  status: number;
-  /** Serialized response body, either JSON or structured text. */
-  body: string;
-  /** Content-Type and any other headers to spread into the response. */
-  headers: Record<string, string>;
+/** Options for HTTP negotiation and serialization diagnostics. */
+export interface ErrorResponseOptions {
+  /**
+   * Request or headers used to select the body format. Omission uses JSON. A
+   * present `X-Error-Format` is authoritative, followed by `Accept`, then the
+   * `User-Agent` curl heuristic; see {@link wantsAnsi}.
+   */
+  readonly request?: Request | HeadersLike;
+
+  /**
+   * Synchronous diagnostics callback invoked after the complete
+   * `ErrorResponse` result is built.
+   *
+   * The callback receives the original source so server-side instrumentation
+   * can inspect its context. The source retains its existing trust level.
+   * Exceptions propagate and replace the response the caller would otherwise
+   * receive. Async callbacks are rejected by the `undefined` return type.
+   */
+  readonly onSerialize?: (
+    source: VercelErrorLike | ErrorResponseInput,
+    context: {
+      /** Concrete HTTP status selected for this response. */
+      readonly status: number;
+      /** `json` for a JSON body or `ansi` for ANSI-formatted text. */
+      readonly bodyFormat: 'json' | 'ansi';
+    },
+  ) => undefined;
+}
+
+/**
+ * Complete framework-neutral HTTP response returned by {@link errorResponse}.
+ * The body is already serialized. Use `body`, `status`, and `headers` to
+ * construct a native or framework response.
+ */
+export interface ErrorResponse {
+  /** Concrete HTTP status to send. */
+  readonly status: number;
+  /** Serialized JSON or structured ANSI text body. */
+  readonly body: string;
+  /** Headers to pass to the response constructor. */
+  readonly headers: Record<string, string>;
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
 
 /**
- * Build a complete HTTP error response from a VercelError or plain parameters.
+ * Build a framework-neutral HTTP response from an error or explicit public data.
  *
- * Returns `{ status, body, headers }`. Spread `headers` directly into your
- * framework's response constructor. Content negotiation is handled internally
- * when a request or headers object is provided.
+ * Local `VercelError` instances and tagged `VercelErrorLike` values expose only
+ * their approved `public` details, or the fixed generic fallback when those
+ * details are absent. Untagged native, cross-realm, and Error-shaped objects
+ * (carrying `name` or `stack`) throw `TypeError`; other untagged objects are
+ * treated as `ErrorResponseInput`.
+ * Scope, code, status, and every flat prose field are client-visible. Request
+ * headers select the body format; they do not authorize access.
  *
- * JSON output from a VercelError uses `userMessage` or falls back to `message`.
- * ANSI output uses `toString()` and may include the developer-facing
- * `message`, `reason`, `hint`, `fix`, and `link`. Request headers select the
- * format; they do not authorize access. Pass them only for callers allowed to
- * see those fields. Omitting headers disables ANSI negotiation, but every JSON
- * field must still be client-safe.
- *
- * @param error - A VercelError instance or plain `{ message, code?, status? }` params
- * @param requestOrHeaders - Optional Request or HeadersLike for content negotiation.
- *   When present and the client signals ANSI preference (curl, `X-Error-Format: ansi`),
- *   the body is rendered as structured text. When absent, always returns JSON.
+ * `statusCode` defaults to 500 and must be an integer from 400 through 599.
+ * Status validation runs before projection and throws `RangeError` for invalid
+ * values. Invalid tagged data or public fields throw `TypeError` during
+ * projection. `onSerialize` runs synchronously only after the complete result
+ * is built; its exceptions propagate.
  *
  * @example
  * ```ts
- * // Minimal: always JSON
- * const { status, body, headers } = errorResponse(error);
- * return new Response(body, { status, headers });
- *
- * // With content negotiation
- * const { status, body, headers } = errorResponse(error, req);
- * return new Response(body, { status, headers });
- *
- * // Express
- * const { status, body, headers } = errorResponse(error, req);
- * res.status(status).set(headers).send(body);
+ * const result = errorResponse(error, {
+ *   request,
+ *   onSerialize: (source, context) => {
+ *     recordSerialization(source, context);
+ *   },
+ * });
+ * return new Response(result.body, result);
  * ```
  */
 export function errorResponse(
-  error: VercelError | ErrorResponseParams,
-  requestOrHeaders?: Request | HeadersLike,
-): ErrorResponseResult {
-  const data = extractResponseData(error);
+  source: VercelErrorLike | ErrorResponseInput,
+  options: ErrorResponseOptions = {},
+): ErrorResponse {
+  const status = resolveStatus(source);
+  const responseData = buildErrorResponseData(source);
+  const bodyFormat = wantsAnsi(options.request) ? 'ansi' : 'json';
 
-  if (wantsAnsi(requestOrHeaders)) {
-    const text = isVercelError(error)
-      ? error.toString()
-      : frame(buildPlainHeader(data.error), [
-          data.error.reason,
-          hint(data.error.hint),
-          fix(data.error.fix),
-          link(data.error.link),
-        ]);
+  const result: ErrorResponse =
+    bodyFormat === 'ansi'
+      ? {
+          body: renderPublicError(responseData.error),
+          headers: { ...TEXT_HEADERS },
+          status,
+        }
+      : {
+          body: JSON.stringify(responseData),
+          headers: { ...JSON_HEADERS },
+          status,
+        };
 
-    return {
-      body: text,
-      headers: { ...TEXT_HEADERS },
-      status: data.status,
-    };
+  options.onSerialize?.(source, { bodyFormat, status });
+  return result;
+}
+
+function resolveStatus(source: VercelErrorLike | ErrorResponseInput): number {
+  const value = isObject(source) ? source['statusCode'] : undefined;
+  const status = value === undefined ? 500 : value;
+
+  if (
+    typeof status !== 'number' ||
+    !Number.isInteger(status) ||
+    status < 400 ||
+    status > 599
+  ) {
+    throw new RangeError('statusCode must be an integer between 400 and 599');
   }
 
-  return {
-    body: JSON.stringify({ error: data.error }),
-    headers: { ...JSON_HEADERS },
-    status: data.status,
-  };
+  return status;
 }
 
-interface ExtractedData {
-  status: number;
-  error: ErrorResponse['error'];
-}
-
-function buildPlainHeader(error: ErrorResponse['error']): string {
-  if (!error.message) {
-    return error.code ? `error: [${error.code}]` : 'error:';
-  }
-  return error.code
-    ? `error: [${error.code}] ${error.message}`
-    : `error: ${error.message}`;
-}
-
-interface WireMessageParts {
-  message: string;
-  scope?: string;
-  code?: string;
-}
-
-/**
- * Resolve the client-facing wire message. After production stripping the
- * message can be empty, so fall back to a `[scope:code]` identifier built from
- * whatever structured fields survive. The wire format omits `scope`, so it is
- * folded into the message here.
- */
-function resolveWireMessage({
-  message,
-  scope,
-  code,
-}: WireMessageParts): string {
-  if (message) return message;
-  const qualifier = [scope, code].filter(Boolean).join(':');
-  return qualifier ? `[${qualifier}]` : '';
-}
-
-function extractResponseData(
-  error: VercelError | ErrorResponseParams,
-): ExtractedData {
-  if (isVercelError(error)) {
-    return {
-      error: {
-        message: resolveWireMessage({
-          message: error.userMessage ?? error.message,
-          scope: error.scope,
-          code: error.code,
-        }),
-        ...(error.code ? { code: error.code } : {}),
-        ...(error.reason ? { reason: error.reason } : {}),
-        ...(error.hint ? { hint: error.hint } : {}),
-        ...(error.fix ? { fix: error.fix } : {}),
-        ...(error.link ? { link: error.link } : {}),
-      },
-      status: error.statusCode ?? 500,
-    };
-  }
-
-  return {
-    error: {
-      message: resolveWireMessage({ message: error.message, code: error.code }),
-      ...(error.code ? { code: error.code } : {}),
-      ...(error.reason ? { reason: error.reason } : {}),
-      ...(error.hint ? { hint: error.hint } : {}),
-      ...(error.fix ? { fix: error.fix } : {}),
-      ...(error.link ? { link: error.link } : {}),
-    },
-    status: error.status ?? 500,
-  };
+function renderPublicError(error: ErrorResponseData['error']): string {
+  return formatError(error, { format: 'ansi' });
 }

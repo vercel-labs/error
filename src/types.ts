@@ -1,6 +1,6 @@
 /**
- * Recursive type for structured metadata values.
- * Supports arbitrary nesting for domain-specific context.
+ * Recursive type for structured metadata values, allowing arbitrarily nested
+ * domain context.
  */
 export type SerializableValue =
   | string
@@ -16,7 +16,7 @@ export type SerializableValue =
  * Can contain arbitrarily nested values. Server-side only, so it is excluded
  * from HTTP error responses.
  *
- * Route to: serialization, logging, debugging tools.
+ * Use in internal diagnostic serialization, logging, and debugging tools.
  *
  * @example { userId: '123', query: { table: 'users', limit: 50 } }
  */
@@ -45,6 +45,25 @@ export interface ErrorLike {
 }
 
 /**
+ * Error details explicitly approved for disclosure to clients.
+ *
+ * `message` is required and must be nonblank; optional fields must be
+ * strings. The `VercelError` constructor validates these rules, and
+ * `errorResponse()` re-validates flat and tagged cross-realm input at
+ * serialization; invalid details throw `TypeError`. This prevents transport
+ * serialization from falling back to developer-facing prose. Applications
+ * remain responsible for ensuring every supplied field is safe for the
+ * intended audience.
+ */
+export interface PublicErrorDetails {
+  readonly message: string;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+}
+
+/**
  * Configuration options for creating a VercelError instance.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
@@ -52,7 +71,7 @@ export interface VercelErrorOptions<TCode extends string = string> {
   attributes?: ErrorAttributes;
 
   /** The underlying error or value that triggered this one, for chaining. */
-  cause?: unknown;
+  readonly cause?: unknown;
 
   /**
    * Stable, machine-readable identifier for this error. Keep it constant even
@@ -61,63 +80,71 @@ export interface VercelErrorOptions<TCode extends string = string> {
    * (`pool_exhausted`), numeric codes (`E1001`), or namespaced numbers
    * (`B2011`). Numbering is optional, so use words when you prefer them.
    */
-  code?: TCode;
+  readonly code?: TCode;
 
-  /** Actionable step that resolves the error, such as a command or config change. */
-  fix?: string;
+  /** Known developer remediation and any required precondition. It suggests an action but does not authorize it. */
+  readonly fix?: string;
 
   /** Advisory tip that helps the developer, shown before `fix`. */
-  hint?: string;
+  readonly hint?: string;
 
-  /** URL to documentation for this error. Derivable from `code` via `docsBaseUrl`. */
-  link?: string;
+  /** URL to documentation for this error. A `createErrors` factory with `docsBaseUrl` derives it from `code`. */
+  readonly link?: string;
 
   /** Nested domain context for debugging and logging. Never sent to clients. */
   metadata?: ErrorMetadata;
 
   /** Why the error happened, the root-cause explanation behind the message. */
-  reason?: string;
+  readonly reason?: string;
 
   /** Correlation ID for tracing this error across services. */
   requestId?: string;
 
   /** Namespace that produced the error, such as a service or subsystem. */
-  scope?: string;
+  readonly scope?: string;
 
-  /** HTTP status code for the response. Defaults to 500 on the wire. */
-  statusCode?: number;
+  /**
+   * Authored HTTP status mapping. `errorResponse()` accepts integers from 400
+   * through 599, defaults omission to 500, and throws `RangeError` otherwise.
+   */
+  readonly statusCode?: number;
 
-  /** Client-safe message sent over the wire instead of the developer `message`. */
-  userMessage?: string;
+  /**
+   * Details explicitly approved for client disclosure. Construction validates
+   * the fields (nonblank string `message`, optional string details), throws
+   * `TypeError` for invalid values, drops unknown fields, and stores a frozen
+   * copy so later mutation of the input object cannot change them.
+   */
+  readonly public?: PublicErrorDetails;
 
-  /** Reserved. Automatically captured from Error */
-  stack?: never;
-  /** Reserved. Pass message as the first constructor argument */
-  message?: never;
-  /** Reserved. Hardcoded to "VercelError" for minification safety */
-  name?: never;
+  /** Reserved. Automatically captured from Error. */
+  readonly stack?: never;
+  /** Reserved. Pass message as the first constructor argument. */
+  readonly message?: never;
+  /** Reserved. Hardcoded to "VercelError" for minification safety. */
+  readonly name?: never;
 }
 
 /**
- * The canonical wire format for all Vercel HTTP error responses.
+ * Data contract recognized by {@link isVercelError} across realms.
  *
- * `message` maps to `userMessage` from VercelError, falling back to `message`.
+ * The stable symbol tag used for recognition is forgeable. This interface is
+ * suitable for reading data fields, not for authenticating the producer,
+ * authorizing disclosure, or invoking local class methods.
  */
-export interface ErrorResponse {
-  error: {
-    code?: string;
-    message: string;
-    reason?: string;
-    hint?: string;
-    fix?: string;
-    link?: string;
-  };
-}
-
-/**
- * Minimal interface for any object that can look up headers by name.
- * Compatible with `Headers`, `ReadonlyHeaders` (Next.js), and plain objects.
- */
-export interface HeadersLike {
-  get(name: string): string | null;
+export interface VercelErrorLike<
+  TCode extends string = string,
+> extends ErrorLike {
+  readonly cause?: unknown;
+  readonly code?: TCode;
+  readonly scope?: string;
+  readonly statusCode?: number;
+  readonly reason?: string;
+  readonly hint?: string;
+  readonly fix?: string;
+  readonly link?: string;
+  readonly public?: PublicErrorDetails;
+  requestId?: string;
+  metadata?: ErrorMetadata;
+  attributes?: ErrorAttributes;
 }

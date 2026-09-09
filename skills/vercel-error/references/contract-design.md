@@ -46,7 +46,7 @@ Review every populated field and every missing field required by a known caller 
 - Use a string-literal union or domain registry when callers branch on a known set.
 - Never recycle a published code for different semantics. Consumers should have an unknown-code fallback so new codes can be added safely.
 - Some callers may parse error messages. Add a stable field and migrate those callers before changing the wording.
-- If a transport omits `scope`, `code` alone must distinguish every condition its callers handle differently.
+- If an application omits `scope`, `code` alone must distinguish every condition its callers handle differently.
 
 Assume the project uses lowercase snake case in these examples:
 
@@ -70,9 +70,11 @@ Codes are separate when callers need different recovery behavior. They can share
 
 ### `name`
 
-Assign a subclass a literal stable `name`; minification can change `constructor.name` and split logs or error groups.
+Assign a subclass a literal stable `name` (see [subclasses](core.md#subclasses)).
 
 ## Transport and audience
+
+Authored fields are readonly on `VercelError`; pass values at construction. `requestId`, `metadata`, and `attributes` stay mutable for boundary enrichment.
 
 ### `statusCode`
 
@@ -86,24 +88,26 @@ Assign a subclass a literal stable `name`; minification can change `constructor.
 - State what failed for a technical reader in plain language. Keep machine-relevant values structured instead of requiring message parsing.
 - Treat the message as developer-facing unless the output path explicitly defines it as client-safe.
 
-### `userMessage`
+### `public`
 
-- Use application-owned, client-safe wording when `message` or other diagnostics are private.
+- Put application-owned, client-safe prose under `public`. When present, `public.message` is required and nonblank; `public.reason`, `public.hint`, `public.fix`, and `public.link` are optional.
 - State what happened and a supported next step. Exclude implementation details, topology, raw provider text, secrets, and promises the application cannot guarantee.
-- If no approved client copy exists, the public HTTP handler should use its established generic fallback. Do not invent product copy or fall back to private diagnostics.
-- Remember that `errorResponse()` substitutes `userMessage` only for JSON. ANSI-negotiated `VercelError` output uses developer-facing fields.
+- If no approved client copy exists, omit `public`. `errorResponse()` uses its fixed generic message and never falls back to private diagnostics.
+- JSON and ANSI-negotiated HTTP output use the same public projection. Scope, code, and status remain visible and require their own disclosure review.
 
 ### `reason`, `hint`, and `fix`
 
 - `reason` explains a verified cause for a human; it is not a second machine code and should not repeat `message`.
 - `hint` is advisory context or a likely investigation lead, not a promise.
 - `fix` is a known remediation with a clear actor, action, and relevant precondition.
+- Constructor fields are developer-facing. Copy only approved client wording into the matching `public` fields.
 - Omit speculation. Do not infer retryability or remediation from a familiar error name.
 
 ### `link`
 
 - Use a verified absolute HTTPS documentation URL owned by the current project, product, or documented vendor, or allowlisted by repository policy. Otherwise omit it or ask for the approved destination.
 - Link to the specific error or troubleshooting section where possible. Documentation supplements the immediate explanation; it does not replace it.
+- `docsBaseUrl` derives the developer link only. Set `public.link` explicitly when a client may receive it.
 
 ## Recovery authority
 
@@ -130,31 +134,33 @@ Assign a subclass a literal stable `name`; minification can change `constructor.
 
 ## Diagnostics
 
+Attach diagnostics at the one boundary that owns reporting. `createErrors.report()` invokes `onReport`; `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions. Record a thrown error at the final operation boundary instead of adding duplicate reporting to wrappers.
+
 ### `metadata`
 
 - Store allowlisted nested context needed for debugging.
 - Bound depth, size, string length, and collection counts at untrusted boundaries.
 - Exclude credentials, tokens, sessions, payment data, raw bodies, headers, and whole provider request or response payloads.
-- Use metadata for debugging, not machine decisions. `toJSON()` includes metadata, while `ErrorResponse` does not. Use `toJSON()` only for internal diagnostics, not public HTTP responses.
+- Use metadata for debugging, not machine decisions. `toJSON()` includes metadata, while `ErrorResponseData` does not. Use `toJSON()` only for internal diagnostics, not public HTTP responses.
 
 ### `attributes`
 
 - Use flat values accepted by every telemetry destination that consumes the error.
 - Apply destination-specific allowlists and the same secret, token, session, personal-data, raw-payload, and internal-topology exclusions used for metadata.
 - Prefer applicable OpenTelemetry semantic names and namespace custom keys.
-- List the attributes used as metric dimensions. Restrict each one to a documented, bounded set of values, which is what low cardinality means here. A scalar type does not prove that values are bounded or safe to expose.
+- List the attributes used as metric dimensions. Restrict each one to a documented, bounded set of values (low cardinality). A scalar type does not prove that values are bounded or safe to expose.
 - Do not use messages, stacks, arbitrary URLs, or occurrence IDs as `error.type` or metric dimensions.
 - Use the dedicated `requestId` field unless instrumentation explicitly expects a request-ID attribute.
 - Record handled or successfully retried failures only when the local telemetry contract calls for them. Do not mark a successful enclosing operation as failed or record the same exception repeatedly.
 
 ## Boundary checks
 
-- Unknown errors are internal diagnostics. Public output should accept known error types rather than trusting arbitrary objects with `code`, status, or message fields.
+- Unknown errors are internal diagnostics. Public output should accept known error types rather than trusting arbitrary objects with code, status, or message fields.
 - Review every publicly visible field and transport signal, including code, HTTP status, JSON fields, and ANSI output. Unauthorized callers must not learn whether a protected resource exists through different codes or statuses.
-- Every publicly visible message, reason, hint, fix, and link must be client-safe. Disable ANSI negotiation on public HTTP endpoints unless the caller is authenticated and authorized to receive every rendered field.
+- Every field under `public` must be client-safe. JSON and ANSI use the same projection; headers select the body format rather than authorization.
 - Parsing validates fields, not who sent them or whether they are safe. Apply the Recovery authority rules before acting on error text or links.
 - Automation should branch on stable fields and rules defined by the receiving application, never rendered text.
-- `ErrorResponse` omits HTTP status, scope, request ID, cause, metadata, and attributes. When rebuilding an error, add only context the receiving application already knows.
+- `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. When rebuilding an error, use the observed response status and add only context the receiving application already knows.
 
 ## Audit output
 

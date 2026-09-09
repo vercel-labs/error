@@ -1,4 +1,6 @@
-export { parseErrorResponse } from './parse-error-response';
-export { fromErrorResponse } from './from-error-response';
+export { fromErrorResponse, parseErrorResponse } from './error-response-data';
 
-export type { FromErrorResponseOptions } from './from-error-response';
+export type {
+  ErrorResponseData,
+  FromErrorResponseOptions,
+} from './error-response-data';

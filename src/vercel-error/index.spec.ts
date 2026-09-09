@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { VercelError } from '.';
-import { VERCEL_ERROR_TAG } from '../constants';
 import type { VercelErrorOptions } from '../types';
+import { VERCEL_ERROR_TAG } from './tag';
 
 describe('VercelError', () => {
   describe('construction', () => {
@@ -23,11 +23,15 @@ describe('VercelError', () => {
         fix: 'Refresh the token',
         link: 'https://docs.example.com/errors/op-failed',
         metadata: { userId: '456' },
+        public: {
+          fix: 'Sign in again',
+          message: 'Your session expired',
+          reason: 'The session is no longer valid',
+        },
         reason: 'Token expired',
         requestId: 'req-123',
         scope: 'auth',
         statusCode: 500,
-        userMessage: 'Please try again',
       });
 
       expect(error.code).toBe('OP_FAILED');
@@ -36,11 +40,44 @@ describe('VercelError', () => {
       expect(error.reason).toBe('Token expired');
       expect(error.fix).toBe('Refresh the token');
       expect(error.link).toBe('https://docs.example.com/errors/op-failed');
-      expect(error.userMessage).toBe('Please try again');
+      expect(error.public).toEqual({
+        fix: 'Sign in again',
+        message: 'Your session expired',
+        reason: 'The session is no longer valid',
+      });
       expect(error.requestId).toBe('req-123');
       expect(error.cause).toBe(cause);
       expect(error.metadata).toEqual({ userId: '456' });
       expect(error.attributes).toEqual({ 'http.method': 'POST' });
+    });
+
+    it.each([
+      {},
+      { message: '' },
+      { message: '   ' },
+      { message: 123 },
+      { message: 'Safe', hint: 123 },
+      'not an object',
+    ])(
+      'throws TypeError at construction for invalid public details: %o',
+      (publicDetails) => {
+        expect(
+          () => new VercelError('test', { public: publicDetails as never }),
+        ).toThrow(TypeError);
+      },
+    );
+
+    it('drops unknown public fields at construction', () => {
+      const error = new VercelError('test', {
+        public: {
+          message: 'Public message',
+          scope: 'must not ride along',
+          stack: 'must not ride along',
+        } as never,
+      });
+
+      expect(error.public).toEqual({ message: 'Public message' });
+      expect(Object.isFrozen(error.public)).toBe(true);
     });
 
     it('ignores reserved properties from options', () => {
@@ -89,7 +126,10 @@ describe('VercelError', () => {
       expect(
         (error as unknown as Record<symbol, unknown>)[VERCEL_ERROR_TAG],
       ).toBe(true);
-      expect(Object.keys(error)).not.toContain(VERCEL_ERROR_TAG);
+      expect(
+        Object.prototype.propertyIsEnumerable.call(error, VERCEL_ERROR_TAG),
+      ).toBe(false);
+      expect(Object.getOwnPropertySymbols({ ...error })).toEqual([]);
     });
 
     it('is not writable or configurable', () => {
@@ -117,6 +157,7 @@ describe('VercelError', () => {
       const error = new VercelError('test', {
         code: 'TEST_CODE',
         metadata: { key: 'value' },
+        public: { message: 'Public test message' },
         reason: 'test reason',
         scope: 'test-scope',
       });
@@ -125,6 +166,7 @@ describe('VercelError', () => {
       expect(json['scope']).toBe('test-scope');
       expect(json['reason']).toBe('test reason');
       expect(json['metadata']).toEqual({ key: 'value' });
+      expect(json['public']).toEqual({ message: 'Public test message' });
     });
 
     it('excludes undefined values', () => {
@@ -134,7 +176,7 @@ describe('VercelError', () => {
       expect(json).not.toHaveProperty('fix');
       expect(json).not.toHaveProperty('hint');
       expect(json).not.toHaveProperty('link');
-      expect(json).not.toHaveProperty('userMessage');
+      expect(json).not.toHaveProperty('public');
       expect(json).not.toHaveProperty('requestId');
       expect(json).not.toHaveProperty('metadata');
       expect(json).not.toHaveProperty('attributes');

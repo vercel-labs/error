@@ -1,18 +1,21 @@
 # HTTP boundaries
 
-Use this reference for producing, validating, and reconstructing `ErrorResponse` JSON.
+Use this reference for producing `ErrorResponse`, validating `ErrorResponseData`, and reconstructing errors.
 
 ## Producer
 
-Call `errorResponse(error)` without request headers to always return JSON. If the developer-facing `message` is private, set a client-safe `userMessage`. Also make `reason`, `hint`, `fix`, and `link` safe because JSON includes them. Without `userMessage`, JSON uses the developer-facing `message`.
+Put every client-approved prose field under `public`. A `VercelError` without `public` receives the fixed response message `An error occurred.`; developer prose never fills the response.
 
-The following example assumes the application contract defines HTTP 503 and the exact client message for `deployment_unavailable`.
+The example assumes the application contract approves HTTP 503, the `deployments:deployment_unavailable` identity, and the public copy.
 
 ```ts
 import { VercelError } from '@vercel/error';
-import { errorResponse } from '@vercel/error/server';
+import { errorResponse, type ErrorResponse } from '@vercel/error/server';
 
-export function deploymentErrorResponse(cause: unknown): Response {
+export function deploymentErrorResponse(
+  cause: unknown,
+  request: Request,
+): Response {
   const error = new VercelError(
     'Deployment dep_123 failed against builder.internal',
     {
@@ -20,47 +23,71 @@ export function deploymentErrorResponse(cause: unknown): Response {
       code: 'deployment_unavailable',
       scope: 'deployments',
       statusCode: 503,
-      userMessage: 'Deployment is temporarily unavailable',
+      reason: 'The internal builder stopped before producing an artifact.',
+      public: {
+        message: 'The deployment is temporarily unavailable.',
+        fix: 'Try the deployment again shortly.',
+      },
     },
   );
 
-  const { status, body, headers } = errorResponse(error);
-  return new Response(body, { status, headers });
+  const result: ErrorResponse = errorResponse(error, { request });
+  return new Response(result.body, result);
 }
 ```
 
-Passing a `Request` or `HeadersLike` lets the caller request ANSI text. For a `VercelError`, ANSI output comes from `toString()` and may include the developer-facing `message`, `reason`, `hint`, `fix`, and `link`; it does not use `userMessage`. `X-Error-Format`, `Accept`, and `User-Agent` choose the format but do not authenticate the caller. Pass these headers only after authorizing the caller to see those fields. Otherwise call `errorResponse(error)` without the request and make every JSON-visible field client-safe.
+`statusCode` must be an integer from 400 through 599. Omission defaults to 500. Invalid values throw before public projection or diagnostics run.
 
-Plain parameter input has no separate `userMessage`; its `message`, reason, hint, fix, and link are all client-facing.
+Passing `request` through the options enables ANSI negotiation. JSON and ANSI text contain the same public identity and prose. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Otherwise `Accept` and `User-Agent` provide fallbacks. These headers choose the body format; they do not authenticate the caller.
 
-If `VercelError.statusCode` or the plain parameter `status` is absent, `errorResponse()` returns status 500.
+Scope, code, and status are public disclosures even when the generic message is used. Protected-resource handlers own neutral mappings that do not reveal whether a resource exists.
 
-## Wire contract
+### Plain public input
 
-The JSON shape is:
+`ErrorResponseInput` is flat and has no developer/public split. Treat every supplied prose field as approved for the response:
 
 ```ts
-interface ErrorResponse {
-  error: {
-    message: string;
-    code?: string;
-    reason?: string;
-    hint?: string;
-    fix?: string;
-    link?: string;
-  };
-}
+const result = errorResponse({
+  scope: 'api',
+  code: 'rate_limited',
+  statusCode: 429,
+  message: 'Too many requests.',
+  hint: 'Wait before retrying.',
+});
 ```
 
-`message` is required. The producer omits empty optional fields. It does not send status, scope, request ID, cause, stack, metadata, or attributes. `reason`, `hint`, `fix`, and `link` do cross the boundary, so keep them client-safe too.
+Plain input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`.
 
-Use the HTTP status outside the body. Do not infer it from a code unless the application owns and tests that mapping.
+Pass native, cross-realm, or Proxy-wrapped `Error` values through `cause` on a `VercelError`. `errorResponse()` rejects untagged Error-shaped objects instead of treating their developer message as public flat input.
+
+### Serialization diagnostics
+
+`onSerialize` runs synchronously after the complete response is built:
+
+```ts
+import { isVercelError } from '@vercel/error';
+
+const result = errorResponse(error, {
+  onSerialize: (source, context) => {
+    if (isVercelError(source)) {
+      recordErrorResponse(source.attributes, context);
+    }
+  },
+  request,
+});
+```
+
+The callback receives the original source plus `{ status, bodyFormat }`. `bodyFormat` is `json` or `ansi` and describes the serialized body. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
+
+## Response data contract
+
+`message` is required and nonblank. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data.
+
+The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 
 ## Consumer
 
-Validate unknown JSON before rebuilding an error. If parsing fails, keep the local HTTP failure instead of assuming the response is valid.
-
-The application supplies `url` in this example.
+Validate unknown JSON before rebuilding an error. If parsing fails, retain the local HTTP failure instead of assuming the upstream response is trustworthy.
 
 ```ts
 import { fromErrorResponse, parseErrorResponse } from '@vercel/error/client';
@@ -73,24 +100,22 @@ if (!response.ok) {
     await response.json().catch(() => undefined),
   );
 
-  if (!parsed) {
-    throw failedFetch;
-  }
+  if (!parsed) throw failedFetch;
 
   throw fromErrorResponse(parsed, {
     cause: failedFetch,
-    scope: 'deployments-client',
+    requestId: response.headers.get('x-request-id') ?? undefined,
     statusCode: response.status,
   });
 }
 ```
 
-`parseErrorResponse()` requires a non-empty string message, keeps non-empty optional strings, and drops invalid or unknown fields. It checks types, not who sent the response. Treat recovery fields as untrusted; before following a link or running a suggested fix, verify the sender and apply the [Recovery authority rules](contract-design.md#recovery-authority).
+`parseErrorResponse()` requires a nonblank string message. A present known field with the wrong type rejects the entire response. Unknown fields are ignored for additive evolution.
 
-`fromErrorResponse()` copies the response message to both `message` and `userMessage`. The response's code, reason, hint, fix, and link take precedence over additional options. Pass the local status, scope, cause, metadata, attributes, and request ID through the options.
+`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies only status, cause, request ID, metadata, and attributes. The observed response status is authoritative.
+
+Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 
 ## Boundary checks
 
-Test the serialized body, returned status, and headers together. Include a case where the developer message differs from `userMessage`, a malformed unknown response, and reconstruction with status and cause.
-
-If ANSI negotiation is enabled, add a separate test for the diagnostic fields it exposes. Verify that an unauthenticated caller cannot expose them by spoofing format-preference headers.
+Test body, concrete status, and headers together. Cover explicit public prose, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.
