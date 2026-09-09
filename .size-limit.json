@@ -1,0 +1,104 @@
+[
+  {
+    "name": "VercelError",
+    "path": "src/index.ts",
+    "import": "{ VercelError }",
+    "limit": "1.8 kB"
+  },
+  {
+    "name": "createErrors",
+    "path": "src/index.ts",
+    "import": "{ createErrors }",
+    "limit": "2.05 kB"
+  },
+  {
+    "name": "isVercelError",
+    "path": "src/index.ts",
+    "import": "{ isVercelError }",
+    "limit": "1.95 kB"
+  },
+  {
+    "name": "isError",
+    "path": "src/index.ts",
+    "import": "{ isError }",
+    "limit": "110 B"
+  },
+  {
+    "name": "isErrorLike",
+    "path": "src/index.ts",
+    "import": "{ isErrorLike }",
+    "limit": "85 B"
+  },
+  {
+    "name": "hasCode",
+    "path": "src/index.ts",
+    "import": "{ hasCode }",
+    "limit": "120 B"
+  },
+  {
+    "name": "getMessage",
+    "path": "src/index.ts",
+    "import": "{ getMessage }",
+    "limit": "190 B"
+  },
+  {
+    "name": "getRootCause",
+    "path": "src/index.ts",
+    "import": "{ getRootCause }",
+    "limit": "160 B"
+  },
+  {
+    "name": "fromErrorResponse",
+    "path": "src/client.ts",
+    "import": "{ fromErrorResponse }",
+    "limit": "1.85 kB"
+  },
+  {
+    "name": "parseErrorResponse",
+    "path": "src/client.ts",
+    "import": "{ parseErrorResponse }",
+    "limit": "260 B"
+  },
+  {
+    "name": "errorResponse",
+    "path": "src/server.ts",
+    "import": "{ errorResponse }",
+    "limit": "2.6 kB"
+  },
+  {
+    "name": "wantsAnsi",
+    "path": "src/server.ts",
+    "import": "{ wantsAnsi }",
+    "limit": "175 B"
+  },
+  {
+    "name": "formatError",
+    "path": "src/format.ts",
+    "import": "{ formatError }",
+    "limit": "1.3 kB"
+  },
+  {
+    "name": "frame",
+    "path": "src/format.ts",
+    "import": "{ frame }",
+    "limit": "1.15 kB"
+  },
+  {
+    "name": "hint",
+    "path": "src/format.ts",
+    "import": "{ hint }",
+    "limit": "65 B"
+  },
+  {
+    "name": "fix",
+    "path": "src/format.ts",
+    "import": "{ fix }",
+    "limit": "65 B"
+  },
+  {
+    "name": "link",
+    "path": "src/format.ts",
+    "import": "{ link }",
+    "limit": "65 B"
+  }
+]

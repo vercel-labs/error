@@ -1,6 +1,6 @@
 {
   "name": "@vercel/error",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
   "license": "MIT",
   "author": "Vercel",
@@ -23,16 +23,20 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check",
     "format:fix": "oxfmt .",
+    "size": "size-limit",
+    "size:readme": "node scripts/update-size-table.mjs",
     "prepublishOnly": "pnpm build",
     "prepare": "lefthook install || true",
-    "validate": "pnpm run --parallel '/^(typecheck|lint|format|test)$/'"
+    "validate": "pnpm run --parallel '/^(typecheck|lint|format|test|size)$/'"
   },
   "devDependencies": {
+    "@size-limit/preset-small-lib": "12.1.0",
     "@types/node": "25.6.0",
     "lefthook": "2.1.5",
     "oxfmt": "0.44.0",
     "oxlint": "1.59.0",
     "skills": "1.5.23",
+    "size-limit": "12.1.0",
     "tsdown": "0.21.7",
     "typescript": "6.0.2",
     "vitest": "4.1.4"
