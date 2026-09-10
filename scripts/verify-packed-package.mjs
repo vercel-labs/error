@@ -174,7 +174,6 @@ function verifyPackedManifest(installedPackageRoot) {
     }
   }
 
-  let artifactCount = 0;
   for (const file of files) {
     if (file.split('/').some((segment) => segment.startsWith('.'))) {
       throw new Error(`Packed package contains hidden path ${file}`);
@@ -183,21 +182,75 @@ function verifyPackedManifest(installedPackageRoot) {
     if (!file.startsWith('dist/')) {
       throw new Error(`Packed package contains unexpected file ${file}`);
     }
-    if (/\.spec\.[^/]+$/.test(file)) {
-      throw new Error(`Packed package contains test file ${file}`);
+    if (file.slice('dist/'.length).includes('/')) {
+      throw new Error(`Packed package contains nested artifact ${file}`);
     }
-    if (
-      !['.d.ts', '.d.ts.map', '.js', '.js.map'].some((suffix) =>
-        file.endsWith(suffix),
-      )
-    ) {
-      throw new Error(`Packed package contains unexpected artifact ${file}`);
-    }
-    artifactCount += 1;
   }
 
-  if (artifactCount === 0) {
-    throw new Error('Packed package contains no dist artifacts');
+  const remainingArtifacts = new Set(
+    files.filter((file) => file.startsWith('dist/')),
+  );
+  for (const required of [
+    'dist/client.d.ts',
+    'dist/client.js',
+    'dist/format.d.ts',
+    'dist/format.d.ts.map',
+    'dist/format.js',
+    'dist/index.d.ts',
+    'dist/index.d.ts.map',
+    'dist/index.js',
+    'dist/index.js.map',
+    'dist/server.d.ts',
+    'dist/server.d.ts.map',
+    'dist/server.js',
+    'dist/server.js.map',
+  ]) {
+    if (!remainingArtifacts.delete(required)) {
+      throw new Error(`Packed package is missing artifact ${required}`);
+    }
+  }
+
+  for (const family of ['error-response-data', 'format', 'is-vercel-error']) {
+    consumeChunkFamily(remainingArtifacts, family, ['.js', '.js.map']);
+  }
+  for (const family of ['index', 'types']) {
+    consumeChunkFamily(remainingArtifacts, family, ['.d.ts', '.d.ts.map']);
+  }
+
+  if (remainingArtifacts.size > 0) {
+    throw new Error(
+      `Packed package contains unexpected artifacts: ${[...remainingArtifacts].toSorted().join(', ')}`,
+    );
+  }
+}
+
+function consumeChunkFamily(files, family, suffixes) {
+  const prefix = `dist/${family}-`;
+  const matches = [];
+  for (const file of files) {
+    if (!file.startsWith(prefix)) continue;
+    const suffix = suffixes.find((candidate) => file.endsWith(candidate));
+    if (!suffix) continue;
+    matches.push({
+      file,
+      hash: file.slice(prefix.length, -suffix.length),
+      suffix,
+    });
+  }
+
+  if (
+    matches.length !== suffixes.length ||
+    new Set(matches.map((match) => match.hash)).size !== 1 ||
+    new Set(matches.map((match) => match.suffix)).size !== suffixes.length ||
+    matches.some((match) => match.hash === '')
+  ) {
+    throw new Error(
+      `Packed package must contain one ${family} chunk with ${suffixes.join(' and ')}`,
+    );
+  }
+
+  for (const match of matches) {
+    files.delete(match.file);
   }
 }
 
