@@ -37,13 +37,11 @@ export interface ErrorResponseOptions {
   readonly request?: Request | HeadersLike;
 
   /**
-   * Synchronous diagnostics callback invoked after the complete
-   * `ErrorResponse` result is built.
+   * Called synchronously after the complete `ErrorResponse` is built.
    *
-   * The callback receives the original source so server-side instrumentation
-   * can inspect its context. The source retains its existing trust level.
-   * Exceptions propagate and replace the response the caller would otherwise
-   * receive. Async callbacks are rejected by the `undefined` return type.
+   * The callback receives the original source for server-side diagnostics.
+   * Exceptions propagate instead of returning the response. The callback must
+   * return `undefined`, so TypeScript rejects async callbacks.
    */
   readonly onSerialize?: (
     source: VercelErrorLike | ErrorResponseInput,
@@ -91,7 +89,8 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * Status validation runs before projection and throws `RangeError` for invalid
  * values. Invalid tagged data or public fields throw `TypeError` during
  * projection. `onSerialize` runs synchronously only after the complete result
- * is built; its exceptions propagate.
+ * is built; its exceptions propagate. Source accessors and Proxy traps may run,
+ * and their exceptions propagate without invoking `onSerialize`.
  *
  * @example
  * ```ts

@@ -54,8 +54,9 @@ export interface ErrorFactory<
   /** Create and throw an error without reporting it. */
   raise(message: string, options?: CreateErrorOptions<TCode>): never;
   /**
-   * Create, synchronously report, and return the same error. Without
-   * `onReport`, reporting uses `console.error`; reporter exceptions propagate.
+   * Create an error, report it synchronously through `onReport` or
+   * `console.error`, then return the same error. If reporting throws, this
+   * method does not return.
    */
   report(message: string, options?: CreateErrorOptions<TCode>): TError;
 }
@@ -108,9 +109,9 @@ export interface CreateErrorsOptions<
   metadata?: ErrorMetadata;
 
   /**
-   * Synchronous callback used only by `report` after the error is created.
-   * Exceptions propagate and replace the return value. Async callbacks are
-   * rejected by the `undefined` return type.
+   * Called synchronously after `report` creates an error. It is not called by
+   * `create` or `raise`. Exceptions propagate. The callback must return
+   * `undefined`, so TypeScript rejects async callbacks.
    */
   onReport?: (error: TError) => undefined;
 }

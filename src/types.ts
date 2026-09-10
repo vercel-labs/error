@@ -38,14 +38,12 @@ export type ErrorAttributes = Record<
 >;
 
 /**
- * Minimal interface for error-like objects with a message property.
+ * Minimal object shape recognized by {@link isErrorLike}. Only `message` is
+ * checked, and empty strings pass.
  */
 export interface ErrorLike {
-  /** Required string inspected by {@link isErrorLike}; blank strings pass. */
   message: string;
-  /** Optional descriptive error name; {@link isErrorLike} does not inspect it. */
   name?: string;
-  /** Optional diagnostic stack; {@link isErrorLike} does not inspect it. */
   stack?: string;
 }
 
@@ -61,15 +59,15 @@ export interface ErrorLike {
  * intended audience.
  */
 export interface PublicErrorDetails {
-  /** Required nonblank description explicitly approved for clients. */
+  /** Client-facing description containing non-whitespace text. */
   readonly message: string;
-  /** Optional client-approved explanation of why the error occurred. */
+  /** Optional client-facing explanation of why the error occurred. */
   readonly reason?: string;
-  /** Optional client-approved advisory guidance. */
+  /** Optional client-facing investigation advice. */
   readonly hint?: string;
-  /** Optional client-approved remediation suggestion, not authorization. */
+  /** Optional client-facing recovery guidance. */
   readonly fix?: string;
-  /** Optional client-approved URL; it does not establish trust or authority. */
+  /** Optional client-facing documentation URL. */
   readonly link?: string;
 }
 
@@ -158,19 +156,22 @@ export interface VercelErrorLike<
 > extends ErrorLike {
   /** Underlying diagnostic value; not sent in error responses. */
   readonly cause?: unknown;
-  /** Stable identity code sent to clients when defined. */
+  /** Stable machine-readable code included by `errorResponse()` when defined. */
   readonly code?: TCode;
-  /** Optional identity namespace sent to clients when defined. */
+  /** Error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
-  /** Authored HTTP mapping, not a completed response status. */
+  /**
+   * Authored status mapping used by `errorResponse()`. Omission becomes 500;
+   * defined values must be integers from 400 through 599.
+   */
   readonly statusCode?: number;
-  /** Developer-facing explanation unless repeated under `public`. */
+  /** Developer-facing explanation; responses use only `public.reason`. */
   readonly reason?: string;
-  /** Developer-facing advice unless repeated under `public`. */
+  /** Developer-facing advice; responses use only `public.hint`. */
   readonly hint?: string;
-  /** Developer-facing remediation unless repeated under `public`. */
+  /** Developer-facing recovery guidance; responses use only `public.fix`. */
   readonly fix?: string;
-  /** Developer-facing URL unless repeated under `public`. */
+  /** Developer-facing URL; responses use only `public.link`. */
   readonly link?: string;
   /** Details explicitly approved for client responses. */
   readonly public?: PublicErrorDetails;

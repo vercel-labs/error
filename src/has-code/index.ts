@@ -1,10 +1,11 @@
 import { isObject } from '../_internal';
 
 /**
- * Check an object's string `code` against one exact, case-sensitive value.
- * Accepts branded errors and plain non-array objects and narrows a match to the
- * supplied literal code. This structural check does not establish trust or
- * disclosure approval; property-access exceptions propagate.
+ * Return `true` when a non-array object's string `code` exactly matches `code`,
+ * using a case-sensitive comparison. A match narrows the object to
+ * `{ code: TCode }`. This verifies the field, not who created the object or
+ * whether the code may be disclosed. Property accessors and Proxy traps may run
+ * and throw.
  */
 export function hasCode<TCode extends string>(
   error: unknown,
@@ -12,10 +13,11 @@ export function hasCode<TCode extends string>(
 ): error is { code: TCode };
 
 /**
- * Check an object's string `code` against exact, case-sensitive values.
- * A match narrows `code` to the union of list elements; an empty list never
- * matches. Plain non-array objects are accepted. This structural check does not
- * establish trust or disclosure approval; property-access exceptions propagate.
+ * Return `true` when a non-array object's string `code` exactly matches one of
+ * `codes`, using case-sensitive comparisons. A match narrows `code` to the
+ * union of the list elements; an empty list never matches. This verifies the
+ * field, not who created the object or whether the code may be disclosed.
+ * Property accessors and Proxy traps may run and throw.
  */
 export function hasCode<TCode extends string>(
   error: unknown,

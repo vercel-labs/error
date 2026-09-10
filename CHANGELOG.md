@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- Complete generated API documentation for public fields, guards, factories, response data, and formatting types.
+- Keep `getMessage()` within its declared string return contract for stateful inputs, and complete generated API documentation for public fields, guards, factories, response data, and formatting types.
 
 ## 0.1.3
 

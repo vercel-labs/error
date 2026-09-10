@@ -23,7 +23,8 @@ export interface HeadersLike {
  * 2. `Accept: text/plain+ansi` header
  * 3. `User-Agent` containing `curl/` (curl users get ANSI by default)
  *
- * Returns `false` if no input is provided or none of the checks match.
+ * Returns `false` if no input is provided or none of the checks match. Header
+ * access and `get()` exceptions propagate.
  */
 export function wantsAnsi(
   requestOrHeaders?: Request | HeadersLike | null,

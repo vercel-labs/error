@@ -1,36 +1,48 @@
 import { isObject } from '../_internal';
-import { isErrorLike } from '../is-error-like';
 
 /**
- * Extract a string from an unknown error value.
+ * Get a message string or fallback from an unknown value.
  *
- * Returns an error-like object's string `message`, then a string input, then
- * JSON for another non-array object. If object serialization throws, returns
- * `[ConstructorName - Unable to Stringify Error Object]`. Other values return
- * `fallback`, which defaults to `undefined`. Property access and Proxy traps
- * can still throw outside the guarded serialization step.
+ * Returns, in order, an object's string `message`, a string input, or the result
+ * of `JSON.stringify` for another non-array object. Object serialization may
+ * return `undefined`. If serialization throws, returns
+ * `[ConstructorName - Unable to Stringify Error Object]`; failed constructor
+ * lookup uses `Object`. Other values return `fallback`, which defaults to
+ * `undefined`. Message accessors and Proxy traps may run and throw.
  */
 export function getMessage(
   error: unknown,
   fallback?: string,
 ): string | undefined {
-  if (isErrorLike(error)) {
-    return error.message;
-  }
-
   if (typeof error === 'string') {
     return error;
   }
 
   if (isObject(error)) {
+    if ('message' in error) {
+      const message = error.message;
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+
     try {
       return JSON.stringify(error);
     } catch {
-      const constructorName =
-        (error.constructor as { name?: string } | undefined)?.name ?? 'Object';
+      const constructorName = getConstructorName(error);
       return `[${constructorName} - Unable to Stringify Error Object]`;
     }
   }
 
   return fallback;
+}
+
+function getConstructorName(error: Record<PropertyKey, unknown>): string {
+  try {
+    const constructor = error.constructor as { name?: unknown } | undefined;
+    const name = constructor?.name;
+    return typeof name === 'string' ? name : 'Object';
+  } catch {
+    return 'Object';
+  }
 }

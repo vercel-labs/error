@@ -1,16 +1,17 @@
 import type { VercelErrorLike } from '../types';
 
 /**
- * Rendering preset for error frames. `auto` reads `NO_COLOR`, `FORCE_COLOR`,
- * and TTY state. `plain` uses indentation only, `tree` adds Unicode connectors,
- * and `ansi` adds connectors and ANSI styling without reading ambient state.
+ * Rendering preset for error frames. `auto` checks `NO_COLOR`, then
+ * `FORCE_COLOR`, then TTY state; any defined environment value counts as
+ * present. `plain` uses indentation, `tree` adds Unicode connectors, and
+ * `ansi` adds connectors and ANSI styling without reading ambient state.
  */
 export type ErrorFormat = 'auto' | 'plain' | 'tree' | 'ansi';
 
 /**
- * Content accepted by {@link frame}. Strings are unlabeled details. Structured
- * variants select library-owned labels, connectors, and styles; their text is
- * sanitized during rendering. Raw string prefixes carry no special meaning.
+ * A section accepted by {@link frame}. Strings render as unlabeled details.
+ * Structured sections add the label, connector, and style for their `kind`.
+ * Rendering sanitizes all text; prefixes in string sections are not parsed.
  * Use {@link hint}, {@link fix}, and {@link link} to create structured sections.
  */
 export type FrameSection =
@@ -20,13 +21,13 @@ export type FrameSection =
   | { readonly kind: 'link'; readonly text: string };
 
 /**
- * Render an error with deterministic or environment-detected formatting.
+ * Render developer-facing error fields as a sanitized terminal frame.
  *
- * `auto` detects tree and color support. `plain` uses indentation only, `tree`
- * uses Unicode connectors without color, and `ansi` uses connectors and ANSI
- * styling without consulting ambient terminal state. Every caller-controlled
- * physical line is sanitized and placed under a library-owned prefix. Omitting
- * `format` selects `auto`, the only preset that reads ambient terminal state.
+ * Control characters are removed, CRLF is normalized, and continuation lines
+ * are prefixed by the renderer. This output may contain developer-only details;
+ * use `errorResponse()` from `@vercel/error/server` for client-safe transport.
+ * `format` defaults to `auto`; see {@link ErrorFormat}. Accessors and Proxy traps
+ * on structural input may execute, and their exceptions propagate.
  */
 export function formatError(
   error: VercelErrorLike,
@@ -60,12 +61,14 @@ export function formatError(
 }
 
 /**
- * Compose a sanitized frame from a header and raw or structured sections.
+ * Render a header and optional sections as a sanitized terminal frame.
  *
- * Structured sections control labels, connectors, and ANSI styling without a
- * string-prefix protocol. Falsy sections are omitted. `format` has the same
- * preset meanings as {@link formatError} and defaults to `auto`. A malformed
- * structured section supplied at runtime throws `TypeError`.
+ * `null`, `undefined`, `false`, and empty string sections are omitted. String
+ * sections remain unlabeled; structured sections receive the label and style
+ * for their `kind`. Malformed objects with ordinary data properties throw
+ * `TypeError`. Accessors and Proxy traps may execute during validation, and
+ * their exceptions propagate. `format` defaults to `auto`; see
+ * {@link ErrorFormat}.
  */
 export function frame(
   header: string,

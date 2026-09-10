@@ -2,10 +2,10 @@ import { isObject } from '../_internal';
 import type { ErrorLike } from '../types';
 
 /**
- * Check whether a non-array object has an own or inherited string `message`.
- * Blank messages pass. This structural check does not establish Error branding
- * or producer trust and does not validate `name` or `stack`. Property access
- * may invoke accessors or Proxy traps, and their exceptions propagate.
+ * Return `true` for a non-array object whose own or inherited `message` is a
+ * string, including an empty string. Does not check `name`, `stack`, or whether
+ * the object is an `Error` instance. Property accessors and Proxy traps may run
+ * and throw.
  */
 export function isErrorLike(error: unknown): error is ErrorLike {
   return (

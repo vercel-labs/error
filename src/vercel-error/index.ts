@@ -9,20 +9,18 @@ import type {
 import { VERCEL_ERROR_TAG } from './tag';
 
 /**
- * An Error subclass with stable identity, separate developer and public details,
- * diagnostic context, cause chaining, and terminal formatting.
+ * An `Error` subclass with stable identity, separate developer and public
+ * details, cause chaining, diagnostic context, and terminal formatting.
  *
- * `message` is required. `reason`, `hint`, `fix`, and `link` are optional
- * developer details; omit them when the cause or remediation is not known.
- * When `public` is supplied, construction validates it (nonblank string
- * `message`, optional string details), drops unknown fields, and stores a
- * frozen copy; invalid `public` details throw `TypeError` here rather than
- * later at serialization. Cross-realm recognition is data-only because the
- * symbol tag is forgeable; use `instanceof VercelError` before invoking class
- * methods. Construction sets `name` to `"VercelError"`; subclasses must assign
- * a different stable name explicitly. Identity and prose fields are readonly,
- * while `requestId`, `metadata`, and `attributes` remain mutable for diagnostic
- * enrichment.
+ * `message`, `reason`, `hint`, `fix`, and `link` are developer-facing. Put
+ * client-facing text under `public`. Construction validates that object, drops
+ * unknown fields, and stores a frozen copy; invalid fields throw `TypeError`.
+ *
+ * The cross-realm symbol tag identifies data only and can be forged. Use
+ * `instanceof VercelError` before calling class methods. `requestId`,
+ * `metadata`, and `attributes` remain mutable; the other authored fields are
+ * readonly. Construction sets `name` to `"VercelError"`; subclasses that need
+ * another stable name must assign it explicitly.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -39,12 +37,15 @@ import { VERCEL_ERROR_TAG } from './tag';
  * ```
  */
 export class VercelError<TCode extends string = string> extends Error {
-  /** Developer-facing description of what failed; not approved for clients. */
+  /**
+   * Developer-facing message. `errorResponse()` uses `public.message` or a
+   * fixed generic message instead.
+   */
   declare readonly message: string;
 
-  /** Stable machine-readable identity sent to clients when defined. */
+  /** Stable machine-readable code included by `errorResponse()` when defined. */
   readonly code?: TCode;
-  /** Optional identity namespace sent to clients when defined. */
+  /** Error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
 
   /**
@@ -55,11 +56,14 @@ export class VercelError<TCode extends string = string> extends Error {
 
   /** Developer-facing explanation of why the failure occurred. */
   readonly reason?: string;
-  /** Developer-facing advisory guidance rendered before `fix`. */
+  /** Developer-facing advice rendered before `fix`. */
   readonly hint?: string;
-  /** Developer-facing remediation suggestion; it does not authorize action. */
+  /** Developer-facing recovery guidance; it does not authorize action. */
   readonly fix?: string;
-  /** Developer-facing documentation URL; not automatically safe for clients. */
+  /**
+   * Developer-facing documentation URL. Set `public.link` separately to
+   * include a URL in an error response.
+   */
   readonly link?: string;
   /**
    * Client-approved details, validated and copied at construction. Unknown

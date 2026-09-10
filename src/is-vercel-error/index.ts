@@ -4,19 +4,18 @@ import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 /**
- * Check whether a value is a local VercelError instance or valid tagged
- * cross-realm VercelErrorLike data.
+ * Return `true` for a local `VercelError` instance or an object with the package
+ * symbol tag and valid `VercelErrorLike` fields.
  *
  * Two checks, in order:
  * 1. Fast path: `instanceof` check for same-realm objects
  * 2. Fallback: stable tag plus structural validation for cross-realm data
  *
- * The tag is forgeable. A successful check does not authenticate the producer,
- * authorize disclosure, or make class methods safe to invoke. Use
- * `instanceof VercelError` when local class behavior is required. Recognition
- * permits a blank `public.message` that response serialization rejects later;
- * `metadata` and `attributes` are checked only as non-array objects. Property
- * access may invoke accessors or Proxy traps, and their exceptions propagate.
+ * The tag can be forged, so tagged-object recognition validates field shape but
+ * does not verify who created the value or approve its fields for disclosure.
+ * Use `instanceof VercelError` before calling class methods. Tagged objects may
+ * have a blank `public.message`; `metadata` and `attributes` need only be
+ * non-array objects. Property accessors and Proxy traps may run and throw.
  */
 export function isVercelError(error: unknown): error is VercelErrorLike {
   if (error instanceof VercelError) {

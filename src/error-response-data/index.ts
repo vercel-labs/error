@@ -23,24 +23,23 @@ const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
  * request ID, metadata, attributes, cause, stack, and developer name. Shape
  * validation does not authenticate the producer or authorize acting on its
  * prose, fixes, or links. `error.message` must be nonblank. Pass unknown input
- * through {@link parseErrorResponse} before reconstruction.
+ * to `parseErrorResponse` from `@vercel/error/client` before reconstruction.
  */
 export interface ErrorResponseData {
-  /** Canonical Vercel error envelope shared by JSON and ANSI responses. */
   readonly error: {
-    /** Optional disclosed identity namespace. */
+    /** Optional error scope included in the response. */
     readonly scope?: string;
-    /** Optional disclosed stable error code. */
+    /** Optional stable error code included in the response. */
     readonly code?: string;
-    /** Required nonblank client-facing description. */
+    /** Client-facing description containing non-whitespace text. */
     readonly message: string;
-    /** Optional client-facing explanation. */
+    /** Optional client-facing explanation of why the error occurred. */
     readonly reason?: string;
-    /** Optional client-facing advisory guidance. */
+    /** Optional client-facing investigation advice. */
     readonly hint?: string;
-    /** Optional remediation suggestion; it does not authorize action. */
+    /** Optional client-facing recovery guidance. */
     readonly fix?: string;
-    /** Optional client link; it does not establish producer trust or authority. */
+    /** Optional client-facing documentation URL. */
     readonly link?: string;
   };
 }
@@ -56,11 +55,11 @@ interface PublicErrorInput extends PublicErrorDetails {
 }
 
 /**
- * Caller-owned context accepted while reconstructing an upstream response.
- * Response identity and prose always win and cannot be overridden here.
+ * Local context added when reconstructing an upstream response.
+ *
  * `statusCode` should normally come from the observed HTTP response because
- * status is not part of `ErrorResponseData`; all other fields add local
- * diagnostic context.
+ * `ErrorResponseData` does not contain it. `cause`, `requestId`, `metadata`,
+ * and `attributes` remain local diagnostic context.
  */
 export type FromErrorResponseOptions = Pick<
   VercelErrorOptions,
