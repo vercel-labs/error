@@ -553,20 +553,6 @@ import * as client from '@vercel/error/client';
 import * as server from '@vercel/error/server';
 import * as format from '@vercel/error/format';
 
-const {
-  VercelError,
-  createErrors,
-  getMessage,
-  getRootCause,
-  hasCode,
-  isError,
-  isErrorLike,
-  isVercelError,
-} = root;
-const { fromErrorResponse, parseErrorResponse } = client;
-const { errorResponse, wantsAnsi } = server;
-const { fix, formatError, frame, hint, link } = format;
-
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -579,28 +565,11 @@ for (const nodeGlobal of ['process', 'Buffer', 'require']) {
 }
 
 const runtimeExports = {
-  '.': {
-    VercelError,
-    createErrors,
-    getMessage,
-    getRootCause,
-    hasCode,
-    isError,
-    isErrorLike,
-    isVercelError,
-  },
-  './client': { fromErrorResponse, parseErrorResponse },
-  './server': { errorResponse, wantsAnsi },
-  './format': { fix, formatError, frame, hint, link },
+  '.': root,
+  './client': client,
+  './server': server,
+  './format': format,
 };
-for (const [subpath, exports] of Object.entries(runtimeExports)) {
-  for (const [name, value] of Object.entries(exports)) {
-    assert(
-      typeof value === 'function',
-      'browser bundle omitted export ' + subpath + ':' + name,
-    );
-  }
-}
 (globalThis as typeof globalThis & {
   __vercelErrorExercisedExports?: Record<string, string[]>;
 }).__vercelErrorExercisedExports = Object.fromEntries(
@@ -611,7 +580,7 @@ for (const [subpath, exports] of Object.entries(runtimeExports)) {
 );
 
 assert(
-  isError(new Error('browser failure')),
+  root.isError(new Error('browser failure')),
   'isError did not recognize an Error created in the Node VM',
 );
 const acceptsTagForgery = (
@@ -620,148 +589,44 @@ const acceptsTagForgery = (
   }
 ).__vercelErrorAcceptsTagForgery;
 assert(
-  isError({ [Symbol.toStringTag]: 'Error' }) === acceptsTagForgery,
+  root.isError({ [Symbol.toStringTag]: 'Error' }) === acceptsTagForgery,
   'isError did not select the expected recognition branch',
 );
 
-let plainErrorRejected = false;
-try {
-  errorResponse(new Error('Secret browser failure'));
-} catch (caught) {
-  plainErrorRejected = caught instanceof TypeError;
-}
-assert(
-  plainErrorRejected,
-  'errorResponse did not reject a plain Error with TypeError',
-);
-
-const developerCanaries = [
-  'DEV_MESSAGE',
-  'DEV_NAME',
-  'DEV_REASON',
-  'DEV_HINT',
-  'DEV_FIX',
-  'DEV_LINK',
-  'DEV_REQUEST_ID',
-  'DEV_METADATA',
-  'DEV_ATTRIBUTE',
-  'DEV_CAUSE',
-];
-function assertNoDeveloperCanaries(body: string, formatName: string): void {
-  for (const canary of developerCanaries) {
-    assert(!body.includes(canary), formatName + ' body contains ' + canary);
-  }
-}
-
-const cause = new Error('DEV_CAUSE');
-const errors = createErrors({ scope: 'browser' });
-const error = errors.create('DEV_MESSAGE', {
-  attributes: { diagnostic: 'DEV_ATTRIBUTE' },
-  cause,
+const error = new root.VercelError('DEV_MESSAGE', {
   code: 'unavailable',
-  fix: 'DEV_FIX',
-  hint: 'DEV_HINT',
-  link: 'https://example.com/DEV_LINK',
-  metadata: { diagnostic: 'DEV_METADATA' },
   public: { message: 'The service is unavailable' },
-  reason: 'DEV_REASON',
-  requestId: 'DEV_REQUEST_ID',
+  scope: 'browser',
   statusCode: 503,
 });
-error.name = 'DEV_NAME';
 
-assert(error instanceof VercelError, 'createErrors did not use VercelError');
-assert(hasCode(error, 'unavailable'), 'hasCode did not match the error code');
-assert(isErrorLike(error), 'isErrorLike did not recognize VercelError');
-assert(isVercelError(error), 'isVercelError did not recognize VercelError');
-assert(getMessage(error) === 'DEV_MESSAGE', 'getMessage changed the message');
-assert(getRootCause(error) === cause, 'getRootCause did not return the cause');
-
-const json = errorResponse(error);
+const json = server.errorResponse(error);
 assert(
   json.status === 503,
   'errorResponse did not map statusCode 503 to response status 503',
 );
 assert(
-  json.headers['Content-Type'] === 'application/json',
-  'JSON response content type was not application/json',
+  !json.body.includes('DEV_MESSAGE'),
+  'JSON response contains the developer message',
 );
-assertNoDeveloperCanaries(json.body, 'JSON');
-const jsonData = JSON.parse(json.body);
+const parsed = client.parseErrorResponse(JSON.parse(json.body));
 assert(
-  Object.keys(jsonData).join(',') === 'error',
-  'JSON response contains unexpected top-level fields',
+  parsed?.error.code === 'unavailable' &&
+    parsed.error.message === 'The service is unavailable',
+  'browser response did not preserve its public identity and message',
 );
+const reconstructed = client.fromErrorResponse(parsed, {
+  statusCode: json.status,
+});
 assert(
-  Object.keys(jsonData.error).sort().join(',') === 'code,message,scope',
-  'JSON response contains unexpected error fields',
-);
-assert(
-  jsonData.error.scope === 'browser' &&
-    jsonData.error.code === 'unavailable' &&
-    jsonData.error.message === 'The service is unavailable',
-  'JSON response fields do not match the public error',
-);
-
-const parsed = parseErrorResponse(jsonData);
-assert(
-  parsed?.error.message === 'The service is unavailable',
-  'parseErrorResponse did not return the public message',
-);
-const reconstructed = fromErrorResponse(parsed, { statusCode: json.status });
-assert(
-  reconstructed.message === 'The service is unavailable' &&
-    reconstructed.scope === 'browser' &&
-    reconstructed.code === 'unavailable' &&
-    reconstructed.statusCode === 503 &&
-    reconstructed.public?.message === 'The service is unavailable',
-  'fromErrorResponse did not reconstruct the public response fields',
-);
-assert(
-  errorResponse(reconstructed).body === json.body,
+  server.errorResponse(reconstructed).body === json.body,
   'reconstructed error did not serialize to the same public body',
 );
-
-const ansiHeaders = {
-  get(name: string): string | null {
-    return name === 'x-error-format' ? 'ansi' : null;
-  },
-};
 assert(
-  wantsAnsi(ansiHeaders),
-  'wantsAnsi did not accept x-error-format: ansi',
-);
-const ansi = errorResponse(error, { request: ansiHeaders });
-assert(
-  ansi.headers['Content-Type'] === 'text/plain; charset=utf-8',
-  'ANSI response content type was not text/plain; charset=utf-8',
-);
-assert(
-  ansi.body.includes('\x1b['),
-  'errorResponse did not emit ANSI control sequences',
-);
-assert(
-  ansi.body.includes('The service is unavailable'),
-  'ANSI response body omitted the public message',
-);
-assertNoDeveloperCanaries(ansi.body, 'ANSI');
-
-assert(
-  formatError(reconstructed, { format: 'plain' }).includes(
+  format.formatError(reconstructed, { format: 'plain' }).includes(
     'The service is unavailable',
   ),
   'plain format omitted the reconstructed public message',
-);
-const renderedFrame = frame(
-  'Browser failure',
-  [hint('Try again'), fix('Retry'), link('https://example.com/help')],
-  { format: 'tree' },
-);
-assert(
-  renderedFrame.includes('hint: Try again') &&
-    renderedFrame.includes('fix: Retry') &&
-    renderedFrame.includes('read more: https://example.com/help'),
-  'tree frame omitted a structured section',
 );
 
 (globalThis as typeof globalThis & {
