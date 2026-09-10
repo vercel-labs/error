@@ -23,11 +23,12 @@ export type FrameSection =
 /**
  * Render developer-facing error fields as a sanitized terminal frame.
  *
- * Control characters are removed, CRLF is normalized, and continuation lines
- * are prefixed by the renderer. This output may contain developer-only details;
- * use `errorResponse()` from `@vercel/error/server` for client-safe transport.
- * `format` defaults to `auto`; see {@link ErrorFormat}. Accessors and Proxy traps
- * on structural input may execute, and their exceptions propagate.
+ * ANSI escapes, terminal controls other than tabs and line feeds, Unicode line
+ * separators, and bare carriage returns are removed. CRLF is normalized, and
+ * continuation lines are prefixed by the renderer. This output may contain
+ * developer-facing text; use `errorResponse()` from `@vercel/error/server` for
+ * client-safe transport. `format` defaults to `auto`; see {@link ErrorFormat}.
+ * Accessors and Proxy traps on structural input may run and throw.
  */
 export function formatError(
   error: VercelErrorLike,
@@ -65,10 +66,11 @@ export function formatError(
  *
  * `null`, `undefined`, `false`, and empty string sections are omitted. String
  * sections remain unlabeled; structured sections receive the label and style
- * for their `kind`. Malformed objects with ordinary data properties throw
- * `TypeError`. Accessors and Proxy traps may execute during validation, and
- * their exceptions propagate. `format` defaults to `auto`; see
- * {@link ErrorFormat}.
+ * for their `kind`. At runtime, an object section throws `TypeError` unless
+ * `kind` is `hint`, `fix`, or `link` and `text` is a string. Reading these
+ * properties may invoke accessors or Proxy traps, and their exceptions
+ * propagate. Stateful accessors may change values between validation and
+ * rendering. `format` defaults to `auto`; see {@link ErrorFormat}.
  */
 export function frame(
   header: string,

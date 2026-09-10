@@ -18,9 +18,10 @@ import { VERCEL_ERROR_TAG } from './tag';
  *
  * The cross-realm symbol tag identifies data only and can be forged. Use
  * `instanceof VercelError` before calling class methods. `requestId`,
- * `metadata`, and `attributes` remain mutable; the other authored fields are
- * readonly. Construction sets `name` to `"VercelError"`; subclasses that need
- * another stable name must assign it explicitly.
+ * `metadata`, and `attributes` remain mutable. `message`, `scope`, `code`,
+ * `statusCode`, the developer detail fields, and `public` are readonly.
+ * Construction sets `name` to `"VercelError"`; subclasses that need another
+ * stable name must assign it explicitly.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -132,9 +133,9 @@ export class VercelError<TCode extends string = string> extends Error {
   }
 
   /**
-   * Render developer-facing details with environment-detected formatting.
-   * This output may contain sensitive diagnostics; use `errorResponse()` for
-   * client-safe HTTP serialization.
+   * Render the developer-facing message, identity, reason, hint, fix, and link
+   * using environment-detected formatting. Use `errorResponse()` from
+   * `@vercel/error/server` for client-facing HTTP output.
    */
   override toString(): string {
     return formatError(this, { format: 'auto' });

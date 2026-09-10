@@ -7,10 +7,6 @@ import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
  * Return `true` for a local `VercelError` instance or an object with the package
  * symbol tag and valid `VercelErrorLike` fields.
  *
- * Two checks, in order:
- * 1. Fast path: `instanceof` check for same-realm objects
- * 2. Fallback: stable tag plus structural validation for cross-realm data
- *
  * The tag can be forged, so tagged-object recognition validates field shape but
  * does not verify who created the value or approve its fields for disclosure.
  * Use `instanceof VercelError` before calling class methods. Tagged objects may

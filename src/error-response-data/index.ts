@@ -20,10 +20,11 @@ const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
  * Normalized structured data for client-facing errors.
  *
  * The data feeds JSON serialization and ANSI rendering. It excludes status,
- * request ID, metadata, attributes, cause, stack, and developer name. Shape
- * validation does not authenticate the producer or authorize acting on its
- * prose, fixes, or links. `error.message` must be nonblank. Pass unknown input
- * to `parseErrorResponse` from `@vercel/error/client` before reconstruction.
+ * request ID, metadata, attributes, cause, stack, and error name.
+ * `parseErrorResponse` validates this shape only; it does not verify who
+ * produced the data or whether its recovery guidance is safe to follow.
+ * `error.message` must be nonblank. Pass unknown input to
+ * `parseErrorResponse` from `@vercel/error/client` before reconstruction.
  */
 export interface ErrorResponseData {
   readonly error: {
@@ -37,9 +38,9 @@ export interface ErrorResponseData {
     readonly reason?: string;
     /** Optional client-facing investigation advice. */
     readonly hint?: string;
-    /** Optional client-facing recovery guidance. */
+    /** Optional client-facing recovery guidance; it does not authorize action. */
     readonly fix?: string;
-    /** Optional client-facing documentation URL. */
+    /** Optional client-facing URL; verify its producer before following it. */
     readonly link?: string;
   };
 }
@@ -125,9 +126,9 @@ export function buildErrorResponseData(
  *
  * Unknown fields are ignored for additive compatibility. A missing or blank
  * message, or any present known field with the wrong type, rejects the entire
- * value and returns `undefined`. A parsed response remains untrusted data;
- * applications must authenticate its producer and authorize suggested actions.
- * Accessors and Proxy traps in unknown input may execute, and their exceptions
+ * value and returns `undefined`. Successful parsing validates field shape only;
+ * it does not verify who produced the data or whether suggested actions are
+ * safe to perform. Accessors and Proxy traps may run, and their exceptions
  * propagate instead of returning `undefined`.
  */
 export function parseErrorResponse(
@@ -156,12 +157,12 @@ export function parseErrorResponse(
  * Reconstruct a VercelError from validated upstream ErrorResponseData.
  *
  * Response identity populates `scope` and `code`. Response prose populates the
- * developer fields and is also stored under `public`, so a later
- * `errorResponse()` call sends that identity and prose again. Status, cause,
- * request ID, metadata, and attributes remain caller-owned. Validation does
- * not authenticate the producer, make the fields safe for another recipient,
- * or authorize following fixes and links. Pass unknown input through
- * {@link parseErrorResponse} before calling this function.
+ * developer fields and `public`, so a later `errorResponse()` call includes the
+ * same identity and prose. Status, cause, request ID, metadata, and attributes
+ * come from `options`. This function does not verify who produced `data`.
+ * Review its fields before forwarding them to another recipient, and decide
+ * independently whether to follow fixes or links. Pass unknown input through
+ * {@link parseErrorResponse} first.
  */
 export function fromErrorResponse(
   data: ErrorResponseData,

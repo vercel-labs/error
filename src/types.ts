@@ -65,9 +65,9 @@ export interface PublicErrorDetails {
   readonly reason?: string;
   /** Optional client-facing investigation advice. */
   readonly hint?: string;
-  /** Optional client-facing recovery guidance. */
+  /** Optional client-facing recovery guidance; it does not authorize action. */
   readonly fix?: string;
-  /** Optional client-facing documentation URL. */
+  /** Optional client-facing URL; verify its producer before following it. */
   readonly link?: string;
 }
 
@@ -161,8 +161,8 @@ export interface VercelErrorLike<
   /** Error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
   /**
-   * Authored status mapping used by `errorResponse()`. Omission becomes 500;
-   * defined values must be integers from 400 through 599.
+   * Authored status mapping used by `errorResponse()`. Omission defaults to
+   * 500; invalid values cause `errorResponse()` to throw `RangeError`.
    */
   readonly statusCode?: number;
   /** Developer-facing explanation; responses use only `public.reason`. */

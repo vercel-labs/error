@@ -16,12 +16,12 @@ import { wantsAnsi, type HeadersLike } from '../wants-ansi';
  * data.
  */
 export interface ErrorResponseInput extends PublicErrorDetails {
-  /** Optional public identity namespace. */
+  /** Optional error scope included in the response. */
   readonly scope?: string;
-  /** Optional public stable error code. */
+  /** Optional stable error code included in the response. */
   readonly code?: string;
   /**
-   * Public HTTP status mapping. Omission defaults to 500; only integers from
+   * Authored HTTP status mapping. Omission defaults to 500; only integers from
    * 400 through 599 are accepted.
    */
   readonly statusCode?: number;
@@ -40,8 +40,9 @@ export interface ErrorResponseOptions {
    * Called synchronously after the complete `ErrorResponse` is built.
    *
    * The callback receives the original source for server-side diagnostics.
-   * Exceptions propagate instead of returning the response. The callback must
-   * return `undefined`, so TypeScript rejects async callbacks.
+   * The source retains its existing trust level. Exceptions propagate instead
+   * of returning the response. The callback must return `undefined`, so
+   * TypeScript rejects async callbacks.
    */
   readonly onSerialize?: (
     source: VercelErrorLike | ErrorResponseInput,
@@ -62,7 +63,7 @@ export interface ErrorResponseOptions {
 export interface ErrorResponse {
   /** Concrete HTTP status to send. */
   readonly status: number;
-  /** JSON Vercel-envelope data or negotiated ANSI-formatted public text. */
+  /** Serialized Vercel JSON envelope or ANSI-formatted public error text. */
   readonly body: string;
   /**
    * Headers for the response constructor: `application/json` or
@@ -83,14 +84,16 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * (carrying `name` or `stack`) throw `TypeError`; other untagged objects are
  * treated as `ErrorResponseInput`.
  * Scope, code, status, and every flat prose field are client-visible. Request
- * headers select the body format; they do not authorize access.
+ * headers select the body format; they do not decide whether the requester may
+ * receive those fields.
  *
  * `statusCode` defaults to 500 and must be an integer from 400 through 599.
- * Status validation runs before projection and throws `RangeError` for invalid
- * values. Invalid tagged data or public fields throw `TypeError` during
- * projection. `onSerialize` runs synchronously only after the complete result
- * is built; its exceptions propagate. Source accessors and Proxy traps may run,
- * and their exceptions propagate without invoking `onSerialize`.
+ * Status is validated before response data is built; invalid values throw
+ * `RangeError`. Invalid tagged data or public fields throw `TypeError` while
+ * response data is built. `onSerialize` runs synchronously only after the
+ * complete result is built; its exceptions propagate. Source accessors and
+ * Proxy traps may run, and their exceptions propagate without invoking
+ * `onSerialize`.
  *
  * @example
  * ```ts

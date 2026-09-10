@@ -51,8 +51,34 @@ describe('getMessage', () => {
   it('handles circular references gracefully', () => {
     const obj: Record<string, unknown> = {};
     obj['self'] = obj;
-    const result = getMessage(obj);
-    expect(result).toContain('Unable to Stringify');
+    expect(getMessage(obj)).toBe('[Object - Unable to Stringify Error Object]');
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['number', 42],
+    ['symbol', Symbol('constructor')],
+    ['non-string name', { name: 42 }],
+    [
+      'throwing name',
+      new Proxy(
+        {},
+        {
+          get(_target, property) {
+            if (property === 'name') throw new Error('name unavailable');
+            return undefined;
+          },
+        },
+      ),
+    ],
+  ])('uses Object for %s constructor metadata', (_label, constructor) => {
+    const error: Record<string, unknown> = { constructor };
+    error['self'] = error;
+
+    expect(getMessage(error)).toBe(
+      '[Object - Unable to Stringify Error Object]',
+    );
   });
 
   it('uses Object when constructor lookup also throws', () => {
