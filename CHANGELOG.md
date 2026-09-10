@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.1.3
+
+### Patch Changes
+
+- Verify the packed package as a browser-platform ES2022 IIFE in isolated VM contexts with and without `Error.isError`.
+
 ## 0.1.2
 
 ### Patch Changes
