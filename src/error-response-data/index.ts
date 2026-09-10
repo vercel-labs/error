@@ -17,30 +17,34 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Normalized structured data for client-facing errors.
- *
- * The data feeds JSON serialization and ANSI rendering. It excludes status,
- * request ID, metadata, attributes, cause, stack, and developer name. Shape
- * validation does not authenticate the producer or authorize acting on its
- * prose, fixes, or links. `error.message` must be nonblank. Pass unknown input
- * through {@link parseErrorResponse} before reconstruction.
+ * Client-facing fields shared by JSON and ANSI responses. Excludes status,
+ * request ID, metadata, attributes, cause, stack, and error name. `message`
+ * must contain non-whitespace text. Use `parseErrorResponse` from
+ * `@vercel/error/client` before using unknown data.
  */
 export interface ErrorResponseData {
   readonly error: {
+    /** Client-visible namespace for the error. */
     readonly scope?: string;
+    /** Client-visible stable error code. */
     readonly code?: string;
+    /** Client-facing summary containing non-whitespace text. */
     readonly message: string;
+    /** Client-facing explanation of why the error occurred. */
     readonly reason?: string;
+    /** Client-facing investigation advice. */
     readonly hint?: string;
+    /** Client-facing recovery guidance. */
     readonly fix?: string;
+    /** Client-facing documentation URL. */
     readonly link?: string;
   };
 }
 
 /**
  * Public details and identity accepted while building response data.
- * Every prose field is approved for client disclosure; explicitly `undefined`
- * optional fields are omitted.
+ * Every text field is approved for clients. Optional fields set to `undefined`
+ * are omitted.
  */
 interface PublicErrorInput extends PublicErrorDetails {
   readonly scope?: string;
@@ -48,8 +52,8 @@ interface PublicErrorInput extends PublicErrorDetails {
 }
 
 /**
- * Caller-owned context accepted while reconstructing an upstream response.
- * Response identity and prose always win and cannot be overridden here.
+ * Values added during reconstruction. Set `statusCode` from the HTTP response;
+ * the remaining options stay local to the reconstructed error.
  */
 export type FromErrorResponseOptions = Pick<
   VercelErrorOptions,
@@ -57,16 +61,11 @@ export type FromErrorResponseOptions = Pick<
 >;
 
 /**
- * Build normalized client-facing response data from an error or public input.
+ * Build client-facing response data from an error or public input.
  *
- * Tagged values are classified before flat input. A tagged malformed value is
- * rejected instead of being reinterpreted as explicitly public data. Untagged
- * values carrying `name` or `stack` are treated as Error-like and rejected.
- * Errors without approved `public` details receive a fixed generic message;
- * developer prose is never used as a fallback. Every disclosed field is
- * serialized from a single validated read, so a getter cannot pass validation
- * with one value and serialize another; only validated strings reach the
- * result.
+ * Invalid tagged values and untagged values with `name` or `stack` throw.
+ * Errors without `public` use a generic message. Each response field is copied
+ * from the same property read that was checked.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
@@ -111,12 +110,12 @@ export function buildErrorResponseData(
 }
 
 /**
- * Parse unknown data as the canonical ErrorResponseData shape.
+ * Parse unknown data as `ErrorResponseData`.
  *
- * Unknown fields are ignored for additive compatibility. A missing or blank
- * message, or any present known field with the wrong type, rejects the entire
- * value and returns `undefined`. A parsed response remains untrusted data;
- * applications must authenticate its producer and authorize suggested actions.
+ * Returns `undefined` unless `data.error` has a nonblank string `message` and
+ * string values for every known optional field. Unknown fields are ignored.
+ * This checks field types, not who produced the data or whether its guidance is
+ * safe. Property-access exceptions propagate.
  */
 export function parseErrorResponse(
   data?: unknown,
@@ -141,14 +140,12 @@ export function parseErrorResponse(
 }
 
 /**
- * Reconstruct a VercelError from validated upstream ErrorResponseData.
+ * Reconstruct a `VercelError` from validated `ErrorResponseData`.
  *
- * Response identity populates `scope` and `code`. Response prose populates the
- * developer fields and is also stored under `public`, so a later
- * `errorResponse()` call sends that identity and prose again. Status, cause,
- * request ID, metadata, and attributes remain caller-owned. Validation does
- * not authenticate the producer, make the fields safe for another recipient,
- * or authorize following fixes and links.
+ * Copies response fields to the matching developer and `public` fields.
+ * `options` supplies status, cause, request ID, metadata, and attributes. Parse
+ * unknown input first. Review the data before sending it to another audience or
+ * following its guidance.
  */
 export function fromErrorResponse(
   data: ErrorResponseData,

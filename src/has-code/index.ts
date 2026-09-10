@@ -1,7 +1,8 @@
 import { isObject } from '../_internal';
 
 /**
- * Check if an error has a specific error code.
+ * Match a non-array object's string `code` exactly and case-sensitively, then
+ * narrow to `{ code: TCode }`. Property-access exceptions propagate.
  */
 export function hasCode<TCode extends string>(
   error: unknown,
@@ -9,16 +10,15 @@ export function hasCode<TCode extends string>(
 ): error is { code: TCode };
 
 /**
- * Check if an error has any of the specified error codes.
+ * Match a non-array object's string `code` against a list and narrow to the
+ * matching union. Matching is exact and case-sensitive; an empty list never
+ * matches. Property-access exceptions propagate.
  */
 export function hasCode<TCode extends string>(
   error: unknown,
   codes: readonly TCode[],
 ): error is { code: TCode };
 
-/**
- * Check if an error has a specific error code or any of the specified error codes.
- */
 export function hasCode<TCode extends string>(
   error: unknown,
   codeOrCodes: TCode | readonly TCode[],

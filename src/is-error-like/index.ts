@@ -2,7 +2,9 @@ import { isObject } from '../_internal';
 import type { ErrorLike } from '../types';
 
 /**
- * Check if a value is an error-like object (has a `message` string property).
+ * Match a non-array object with a string `message`, including an empty string.
+ * Does not check `name`, `stack`, or `Error` identity. Property-access
+ * exceptions propagate.
  */
 export function isErrorLike(error: unknown): error is ErrorLike {
   return (

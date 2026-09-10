@@ -1,10 +1,9 @@
 import { isObject } from '../_internal';
 
 /**
- * Traverse the error cause chain to find the root cause.
- *
- * Walks down the chain following `cause` properties until it finds a value
- * without a cause. Uses a `WeakSet` to detect cycles.
+ * Follow `cause` fields on non-array objects to the last value. Missing causes
+ * stop traversal; cycles return the first repeated object. Property-access
+ * exceptions propagate.
  */
 export function getRootCause(error: unknown): unknown {
   if (!isObject(error) || !('cause' in error)) {

@@ -1,9 +1,20 @@
 import type { VercelErrorLike } from '../types';
 
-/** Named rendering preset for error frames. */
+/**
+ * Terminal rendering preset.
+ *
+ * `auto` checks `NO_COLOR`, then `FORCE_COLOR`, then `process.stdout.isTTY`.
+ * An environment variable counts as present even when its value is empty.
+ * `plain` uses indentation, `tree` adds Unicode connectors, and `ansi` adds
+ * connectors and ANSI styling without reading the environment or TTY state.
+ */
 export type ErrorFormat = 'auto' | 'plain' | 'tree' | 'ansi';
 
-/** Structured content accepted by {@link frame}. */
+/**
+ * Content accepted by {@link frame}. Strings are unlabeled. Structured values
+ * select the `hint`, `fix`, or `link` label and style; string prefixes are not
+ * parsed. Use the matching helper to create a structured section.
+ */
 export type FrameSection =
   | string
   | { readonly kind: 'hint'; readonly text: string }
@@ -11,17 +22,18 @@ export type FrameSection =
   | { readonly kind: 'link'; readonly text: string };
 
 /**
- * Render an error with deterministic or environment-detected formatting.
+ * Render developer-facing error fields as a terminal frame.
  *
- * `auto` detects tree and color support. `plain` uses indentation only, `tree`
- * uses Unicode connectors without color, and `ansi` uses connectors and ANSI
- * styling without consulting ambient terminal state. Every caller-controlled
- * physical line is sanitized and placed under a library-owned prefix. Omitting
- * `format` selects `auto`, the only preset that reads ambient terminal state.
+ * Removes unsafe terminal controls and prefixes every continuation line. May
+ * include developer text; use `errorResponse()` for client output. `format`
+ * defaults to `auto`. Property-access exceptions propagate.
  */
 export function formatError(
   error: VercelErrorLike,
-  options: { readonly format?: ErrorFormat } = {},
+  options: {
+    /** Rendering preset; omission selects `auto`. */
+    readonly format?: ErrorFormat;
+  } = {},
 ): string {
   const capabilities = resolveFormat(options.format ?? 'auto');
   const qualifier = [error.scope, error.code].filter(Boolean).join(':');
@@ -48,16 +60,20 @@ export function formatError(
 }
 
 /**
- * Compose a sanitized frame from a header and raw or structured sections.
+ * Render a header and optional sections as a terminal frame.
  *
- * Structured sections control labels, connectors, and ANSI styling without a
- * string-prefix protocol. Falsy sections are omitted. `format` has the same
- * preset meanings as {@link formatError} and defaults to `auto`.
+ * Omits `null`, `undefined`, `false`, and empty strings. Strings are unlabeled;
+ * structured sections use their `kind` label and style. Invalid objects throw
+ * `TypeError`. `format` defaults to `auto`; property-access exceptions
+ * propagate.
  */
 export function frame(
   header: string,
   sections?: readonly (FrameSection | null | undefined | false)[],
-  options: { readonly format?: ErrorFormat } = {},
+  options: {
+    /** Rendering preset; omission selects `auto`. */
+    readonly format?: ErrorFormat;
+  } = {},
 ): string {
   return renderFrame({
     ...resolveFormat(options.format ?? 'auto'),

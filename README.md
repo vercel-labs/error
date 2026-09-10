@@ -362,10 +362,10 @@ All utilities below are exported from `@vercel/error`:
 | `VercelError`            |           1.69 kB |
 | `createErrors`           |           1.91 kB |
 | `isVercelError`          |           1.83 kB |
-| `isError`                |             108 B |
+| `isError`                |              92 B |
 | `isErrorLike`            |              85 B |
 | `hasCode`                |             111 B |
-| `getMessage`             |             170 B |
+| `getMessage`             |             187 B |
 | `getRootCause`           |             145 B |
 | **@vercel/error/client** |                   |
 | `fromErrorResponse`      |           1.76 kB |

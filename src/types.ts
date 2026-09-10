@@ -1,6 +1,5 @@
 /**
- * Recursive type for structured metadata values, allowing arbitrarily nested
- * domain context.
+ * Values allowed in nested error metadata.
  */
 export type SerializableValue =
   | string
@@ -11,24 +10,12 @@ export type SerializableValue =
   | SerializableValue[]
   | { [key: string]: SerializableValue };
 
-/**
- * Domain-specific structured context for debugging and logging.
- * Can contain arbitrarily nested values. Server-side only, so it is excluded
- * from HTTP error responses.
- *
- * Use in internal diagnostic serialization, logging, and debugging tools.
- *
- * @example { userId: '123', query: { table: 'users', limit: 50 } }
- */
+/** Nested debugging data included in `toJSON()` but excluded from responses. */
 export type ErrorMetadata = Record<string, SerializableValue>;
 
 /**
- * Flat key-value pairs for observability and telemetry.
- * Compatible with OpenTelemetry's AttributeValue type.
- *
- * Route to: tracing spans, Sentry tags, metrics dashboards.
- *
- * @example { 'http.method': 'POST', 'db.system': 'postgresql', 'retry.count': 3 }
+ * Flat OpenTelemetry-compatible values included in `toJSON()` but excluded
+ * from responses.
  */
 export type ErrorAttributes = Record<
   string,
@@ -36,7 +23,8 @@ export type ErrorAttributes = Record<
 >;
 
 /**
- * Minimal interface for error-like objects with a message property.
+ * Minimal object shape recognized by {@link isErrorLike}. Only `message` is
+ * checked, and empty strings pass.
  */
 export interface ErrorLike {
   message: string;
@@ -45,76 +33,62 @@ export interface ErrorLike {
 }
 
 /**
- * Error details explicitly approved for disclosure to clients.
- *
- * `message` is required and must be nonblank; optional fields must be
- * strings. The `VercelError` constructor validates these rules, and
- * `errorResponse()` re-validates flat and tagged cross-realm input at
- * serialization; invalid details throw `TypeError`. This prevents transport
- * serialization from falling back to developer-facing prose. Applications
- * remain responsible for ensuring every supplied field is safe for the
- * intended audience.
+ * Text approved for clients. `message` must contain non-whitespace text;
+ * optional fields must be strings. Invalid fields throw `TypeError`. Receiving
+ * a `fix` or `link` does not authorize using it.
  */
 export interface PublicErrorDetails {
+  /** Client-facing summary containing non-whitespace text. */
   readonly message: string;
+  /** Client-facing explanation of why the error occurred. */
   readonly reason?: string;
+  /** Client-facing investigation advice. */
   readonly hint?: string;
+  /** Client-facing recovery guidance. */
   readonly fix?: string;
+  /** Client-facing documentation URL. */
   readonly link?: string;
 }
 
 /**
- * Configuration options for creating a VercelError instance.
+ * Options for `VercelError`. Responses include `public`, `scope`, `code`, and
+ * the mapped `statusCode`; other fields stay server-side.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
-  /** Flat OTel-compatible tags for traces, metrics, and error trackers. */
+  /** Flat OpenTelemetry-compatible values stored by reference. */
   attributes?: ErrorAttributes;
 
   /** The underlying error or value that triggered this one, for chaining. */
   readonly cause?: unknown;
 
-  /**
-   * Stable, machine-readable identifier for this error. Keep it constant even
-   * when you reword the message, so users can search it and docs can link to
-   * it. Pick whatever style fits your registry: semantic names
-   * (`pool_exhausted`), numeric codes (`E1001`), or namespaced numbers
-   * (`B2011`). Numbering is optional, so use words when you prefer them.
-   */
+  /** Stable machine-readable code; keep it unchanged when rewording messages. */
   readonly code?: TCode;
 
-  /** Known developer remediation and any required precondition. It suggests an action but does not authorize it. */
+  /** Suggested recovery step and any condition required before trying it. */
   readonly fix?: string;
 
-  /** Advisory tip that helps the developer, shown before `fix`. */
+  /** Optional developer suggestion, shown before `fix`. */
   readonly hint?: string;
 
   /** URL to documentation for this error. A `createErrors` factory with `docsBaseUrl` derives it from `code`. */
   readonly link?: string;
 
-  /** Nested domain context for debugging and logging. Never sent to clients. */
+  /** Nested debugging data stored by reference. */
   metadata?: ErrorMetadata;
 
   /** Why the error happened, the root-cause explanation behind the message. */
   readonly reason?: string;
 
-  /** Correlation ID for tracing this error across services. */
+  /** Request ID used for tracing and excluded from error responses. */
   requestId?: string;
 
   /** Namespace that produced the error, such as a service or subsystem. */
   readonly scope?: string;
 
-  /**
-   * Authored HTTP status mapping. `errorResponse()` accepts integers from 400
-   * through 599, defaults omission to 500, and throws `RangeError` otherwise.
-   */
+  /** Status mapping; `errorResponse()` defaults to 500 or accepts 400-599. */
   readonly statusCode?: number;
 
-  /**
-   * Details explicitly approved for client disclosure. Construction validates
-   * the fields (nonblank string `message`, optional string details), throws
-   * `TypeError` for invalid values, drops unknown fields, and stores a frozen
-   * copy so later mutation of the input object cannot change them.
-   */
+  /** Client text; validated, copied without unknown fields, and frozen. */
   readonly public?: PublicErrorDetails;
 
   /** Reserved. Automatically captured from Error. */
@@ -126,25 +100,34 @@ export interface VercelErrorOptions<TCode extends string = string> {
 }
 
 /**
- * Data contract recognized by {@link isVercelError} across realms.
- *
- * The stable symbol tag used for recognition is forgeable. This interface is
- * suitable for reading data fields, not for authenticating the producer,
- * authorizing disclosure, or invoking local class methods.
+ * Fields read from tagged errors in another JavaScript realm. Any object can
+ * forge the tag; use `instanceof VercelError` before calling class methods.
  */
 export interface VercelErrorLike<
   TCode extends string = string,
 > extends ErrorLike {
+  /** Original value that caused the error; excluded from error responses. */
   readonly cause?: unknown;
+  /** Stable machine-readable code included by `errorResponse()` when defined. */
   readonly code?: TCode;
+  /** Error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
+  /** Status mapping; `errorResponse()` defaults to 500 or throws `RangeError`. */
   readonly statusCode?: number;
+  /** Developer-facing explanation; responses use only `public.reason`. */
   readonly reason?: string;
+  /** Developer-facing advice; responses use only `public.hint`. */
   readonly hint?: string;
+  /** Developer-facing recovery guidance; responses use only `public.fix`. */
   readonly fix?: string;
+  /** Developer-facing URL; responses use only `public.link`. */
   readonly link?: string;
+  /** Details explicitly approved for client responses. */
   readonly public?: PublicErrorDetails;
+  /** Mutable request ID, excluded from responses. */
   requestId?: string;
+  /** Mutable nested debugging data, excluded from responses. */
   metadata?: ErrorMetadata;
+  /** Mutable flat OpenTelemetry-compatible values, excluded from responses. */
   attributes?: ErrorAttributes;
 }

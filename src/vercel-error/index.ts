@@ -9,17 +9,10 @@ import type {
 import { VERCEL_ERROR_TAG } from './tag';
 
 /**
- * An Error subclass with stable identity, separate developer and public details,
- * diagnostic context, cause chaining, and terminal formatting.
- *
- * `message` is required. `reason`, `hint`, `fix`, and `link` are optional
- * developer details; omit them when the cause or remediation is not known.
- * When `public` is supplied, construction validates it (nonblank string
- * `message`, optional string details), drops unknown fields, and stores a
- * frozen copy; invalid `public` details throw `TypeError` here rather than
- * later at serialization. Cross-realm recognition is data-only because the
- * symbol tag is forgeable; use `instanceof VercelError` before invoking class
- * methods.
+ * An `Error` with stable identity and separate developer and client details.
+ * Developer text stays outside `public`; construction validates and freezes
+ * `public`. Use `instanceof VercelError` before calling methods on tagged data.
+ * Only `requestId`, `metadata`, and `attributes` are writable in TypeScript.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -36,21 +29,33 @@ import { VERCEL_ERROR_TAG } from './tag';
  * ```
  */
 export class VercelError<TCode extends string = string> extends Error {
+  /** Developer message; responses use `public.message` or a generic message. */
   declare readonly message: string;
 
+  /** Stable machine-readable code included by `errorResponse()` when defined. */
   readonly code?: TCode;
+  /** Error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
 
+  /** HTTP status mapping; `errorResponse()` accepts 400-599 and defaults to 500. */
   readonly statusCode?: number;
 
+  /** Developer-facing explanation of why the failure occurred. */
   readonly reason?: string;
+  /** Developer-facing advice rendered before `fix`. */
   readonly hint?: string;
+  /** Developer-facing recovery guidance; it does not authorize action. */
   readonly fix?: string;
+  /** Developer URL; set `public.link` separately for responses. */
   readonly link?: string;
+  /** Public error details, validated and copied at construction. */
   readonly public?: PublicErrorDetails;
 
+  /** Mutable request ID included in `toJSON()` and excluded from responses. */
   requestId?: string;
+  /** Mutable nested debugging data included in `toJSON()`, not responses. */
   metadata?: ErrorMetadata;
+  /** Mutable flat telemetry values included in `toJSON()`, not responses. */
   attributes?: ErrorAttributes;
 
   constructor(message: string, options: VercelErrorOptions<TCode> = {}) {
@@ -84,13 +89,9 @@ export class VercelError<TCode extends string = string> extends Error {
   private static readonly JSON_EXCLUDE = new Set(['name', 'cause']);
 
   /**
-   * Diagnostic object used by `JSON.stringify`.
-   *
-   * Surfaces non-enumerable Error properties (`name`, `message`, `stack`)
-   * alongside all VercelError fields. Omits `cause` (may be circular or
-   * contain sensitive internals) and any `undefined` values. This output may
-   * contain developer prose and server context; use `errorResponse()` for
-   * client-safe HTTP serialization.
+   * Object used by `JSON.stringify`. Includes `name`, `message`, `stack`, and
+   * defined `VercelError` fields, but not `cause`. May contain developer and
+   * server data; use `errorResponse()` for client output.
    */
   toJSON(): Record<string, unknown> {
     return {
@@ -106,10 +107,7 @@ export class VercelError<TCode extends string = string> extends Error {
     };
   }
 
-  /**
-   * Environment-aware string representation.
-   * Auto-detects ANSI support and renders accordingly.
-   */
+  /** Render developer fields; use `errorResponse()` for client-facing output. */
   override toString(): string {
     return formatError(this, { format: 'auto' });
   }

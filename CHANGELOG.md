@@ -1,5 +1,13 @@
 # @vercel/error
 
+## 0.1.4
+
+### Patch Changes
+
+- Read `message` once so `getMessage()` returns the string it checked.
+- Use `Object` in the `getMessage()` JSON fallback when `constructor.name` is unavailable or not a string.
+- Add generated API documentation for public fields, type guards, factories, response data, and formatting types.
+
 ## 0.1.3
 
 ### Patch Changes
