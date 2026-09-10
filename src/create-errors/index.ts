@@ -21,7 +21,9 @@ function resolveDocsUrl<TCode extends string>(
 
 /**
  * Per-error options passed to create/raise/report.
- * `scope` is omitted because it's the factory's identity.
+ * `scope` is omitted because the factory owns it. Per-error `metadata` and
+ * `attributes` shallow-merge over factory defaults, and an explicit `link`
+ * takes precedence over `docsBaseUrl`.
  */
 export type CreateErrorOptions<TCode extends string = string> = Omit<
   VercelErrorOptions<TCode>,
@@ -51,7 +53,10 @@ export interface ErrorFactory<
   create(message: string, options?: CreateErrorOptions<TCode>): TError;
   /** Create and throw an error without reporting it. */
   raise(message: string, options?: CreateErrorOptions<TCode>): never;
-  /** Create, synchronously report, and return the same error. */
+  /**
+   * Create, synchronously report, and return the same error. Without
+   * `onReport`, reporting uses `console.error`; reporter exceptions propagate.
+   */
   report(message: string, options?: CreateErrorOptions<TCode>): TError;
 }
 
@@ -84,13 +89,22 @@ export interface CreateErrorsOptions<
    *
    * Applied only when an error has a `code` and no explicit `link`. A
    * per-error `link` always wins. This derives developer documentation only;
-   * a client-visible `public.link` must be supplied explicitly.
+   * a client-visible `public.link` must be supplied explicitly. Resolver
+   * exceptions propagate from `create`, `raise`, or `report`.
    */
   docsBaseUrl?: string | ((code: TCode) => string | undefined);
 
   /** Custom subtype constructor. Required when requesting a custom TError. */
   ErrorClass?: VercelErrorConstructor<TCode, TError>;
+  /**
+   * Shared flat telemetry values. Per-error keys win during a shallow merge;
+   * the result remains diagnostic and is never sent in error responses.
+   */
   attributes?: ErrorAttributes;
+  /**
+   * Shared nested diagnostic context. Per-error keys win during a shallow
+   * top-level merge; the result is never sent in error responses.
+   */
   metadata?: ErrorMetadata;
 
   /**
@@ -143,6 +157,10 @@ export function createErrors<
     readonly ErrorClass: VercelErrorConstructor<TCode, TError>;
   },
 ): ErrorFactory<TCode, TError>;
+/**
+ * Create a factory that returns `VercelError<TCode>` instances. Options are
+ * optional; without `onReport`, `report()` uses `console.error`.
+ */
 export function createErrors<TCode extends string = string>(
   options?: CreateErrorsOptions<TCode, VercelError<TCode>>,
 ): ErrorFactory<TCode, VercelError<TCode>>;

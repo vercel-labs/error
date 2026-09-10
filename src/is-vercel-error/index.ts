@@ -13,7 +13,10 @@ import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
  *
  * The tag is forgeable. A successful check does not authenticate the producer,
  * authorize disclosure, or make class methods safe to invoke. Use
- * `instanceof VercelError` when local class behavior is required.
+ * `instanceof VercelError` when local class behavior is required. Recognition
+ * permits a blank `public.message` that response serialization rejects later;
+ * `metadata` and `attributes` are checked only as non-array objects. Property
+ * access may invoke accessors or Proxy traps, and their exceptions propagate.
  */
 export function isVercelError(error: unknown): error is VercelErrorLike {
   if (error instanceof VercelError) {

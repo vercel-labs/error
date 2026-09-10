@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.1.4
+
+### Patch Changes
+
+- Complete generated API documentation for public fields, guards, factories, response data, and formatting types.
+
 ## 0.1.3
 
 ### Patch Changes

@@ -25,6 +25,8 @@ export type ErrorMetadata = Record<string, SerializableValue>;
 /**
  * Flat key-value pairs for observability and telemetry.
  * Compatible with OpenTelemetry's AttributeValue type.
+ * When attached to `VercelError`, attributes appear in diagnostic `toJSON()`
+ * output but never in `ErrorResponseData` or HTTP response bodies.
  *
  * Route to: tracing spans, Sentry tags, metrics dashboards.
  *
@@ -39,8 +41,11 @@ export type ErrorAttributes = Record<
  * Minimal interface for error-like objects with a message property.
  */
 export interface ErrorLike {
+  /** Required string inspected by {@link isErrorLike}; blank strings pass. */
   message: string;
+  /** Optional descriptive error name; {@link isErrorLike} does not inspect it. */
   name?: string;
+  /** Optional diagnostic stack; {@link isErrorLike} does not inspect it. */
   stack?: string;
 }
 
@@ -56,18 +61,31 @@ export interface ErrorLike {
  * intended audience.
  */
 export interface PublicErrorDetails {
+  /** Required nonblank description explicitly approved for clients. */
   readonly message: string;
+  /** Optional client-approved explanation of why the error occurred. */
   readonly reason?: string;
+  /** Optional client-approved advisory guidance. */
   readonly hint?: string;
+  /** Optional client-approved remediation suggestion, not authorization. */
   readonly fix?: string;
+  /** Optional client-approved URL; it does not establish trust or authority. */
   readonly link?: string;
 }
 
 /**
  * Configuration options for creating a VercelError instance.
+ *
+ * `reason`, `hint`, `fix`, and `link` are developer-facing. Client prose must
+ * be supplied separately under `public`. `scope`, `code`, and the resulting
+ * HTTP status are also client-visible when an error becomes a response.
+ * `cause`, `requestId`, `metadata`, and `attributes` remain diagnostic only.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
-  /** Flat OTel-compatible tags for traces, metrics, and error trackers. */
+  /**
+   * Flat OTel-compatible telemetry values. Stored by reference and never sent
+   * in error responses.
+   */
   attributes?: ErrorAttributes;
 
   /** The underlying error or value that triggered this one, for chaining. */
@@ -91,13 +109,16 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** URL to documentation for this error. A `createErrors` factory with `docsBaseUrl` derives it from `code`. */
   readonly link?: string;
 
-  /** Nested domain context for debugging and logging. Never sent to clients. */
+  /**
+   * Nested domain context for debugging and logging. Stored by reference and
+   * never sent to clients.
+   */
   metadata?: ErrorMetadata;
 
   /** Why the error happened, the root-cause explanation behind the message. */
   readonly reason?: string;
 
-  /** Correlation ID for tracing this error across services. */
+  /** Diagnostic correlation ID for tracing. Never sent in error responses. */
   requestId?: string;
 
   /** Namespace that produced the error, such as a service or subsystem. */
@@ -135,16 +156,28 @@ export interface VercelErrorOptions<TCode extends string = string> {
 export interface VercelErrorLike<
   TCode extends string = string,
 > extends ErrorLike {
+  /** Underlying diagnostic value; not sent in error responses. */
   readonly cause?: unknown;
+  /** Stable identity code sent to clients when defined. */
   readonly code?: TCode;
+  /** Optional identity namespace sent to clients when defined. */
   readonly scope?: string;
+  /** Authored HTTP mapping, not a completed response status. */
   readonly statusCode?: number;
+  /** Developer-facing explanation unless repeated under `public`. */
   readonly reason?: string;
+  /** Developer-facing advice unless repeated under `public`. */
   readonly hint?: string;
+  /** Developer-facing remediation unless repeated under `public`. */
   readonly fix?: string;
+  /** Developer-facing URL unless repeated under `public`. */
   readonly link?: string;
+  /** Details explicitly approved for client responses. */
   readonly public?: PublicErrorDetails;
+  /** Mutable diagnostic correlation value, excluded from responses. */
   requestId?: string;
+  /** Mutable nested diagnostic context, excluded from responses. */
   metadata?: ErrorMetadata;
+  /** Mutable flat telemetry context, excluded from responses. */
   attributes?: ErrorAttributes;
 }

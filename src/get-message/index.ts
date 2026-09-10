@@ -2,10 +2,13 @@ import { isObject } from '../_internal';
 import { isErrorLike } from '../is-error-like';
 
 /**
- * Safely extract a message from any error value.
+ * Extract a string from an unknown error value.
  *
- * Handles Error instances, error-like objects, plain objects (JSON stringified),
- * strings, and unknown values with a configurable fallback.
+ * Returns an error-like object's string `message`, then a string input, then
+ * JSON for another non-array object. If object serialization throws, returns
+ * `[ConstructorName - Unable to Stringify Error Object]`. Other values return
+ * `fallback`, which defaults to `undefined`. Property access and Proxy traps
+ * can still throw outside the guarded serialization step.
  */
 export function getMessage(
   error: unknown,

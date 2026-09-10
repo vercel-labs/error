@@ -16,8 +16,14 @@ import { wantsAnsi, type HeadersLike } from '../wants-ansi';
  * data.
  */
 export interface ErrorResponseInput extends PublicErrorDetails {
+  /** Optional public identity namespace. */
   readonly scope?: string;
+  /** Optional public stable error code. */
   readonly code?: string;
+  /**
+   * Public HTTP status mapping. Omission defaults to 500; only integers from
+   * 400 through 599 are accepted.
+   */
   readonly statusCode?: number;
 }
 
@@ -58,9 +64,12 @@ export interface ErrorResponseOptions {
 export interface ErrorResponse {
   /** Concrete HTTP status to send. */
   readonly status: number;
-  /** Serialized JSON or structured ANSI text body. */
+  /** JSON Vercel-envelope data or negotiated ANSI-formatted public text. */
   readonly body: string;
-  /** Headers to pass to the response constructor. */
+  /**
+   * Headers for the response constructor: `application/json` or
+   * `text/plain; charset=utf-8`, matching `body`.
+   */
   readonly headers: Record<string, string>;
 }
 

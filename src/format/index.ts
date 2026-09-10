@@ -1,9 +1,18 @@
 import type { VercelErrorLike } from '../types';
 
-/** Named rendering preset for error frames. */
+/**
+ * Rendering preset for error frames. `auto` reads `NO_COLOR`, `FORCE_COLOR`,
+ * and TTY state. `plain` uses indentation only, `tree` adds Unicode connectors,
+ * and `ansi` adds connectors and ANSI styling without reading ambient state.
+ */
 export type ErrorFormat = 'auto' | 'plain' | 'tree' | 'ansi';
 
-/** Structured content accepted by {@link frame}. */
+/**
+ * Content accepted by {@link frame}. Strings are unlabeled details. Structured
+ * variants select library-owned labels, connectors, and styles; their text is
+ * sanitized during rendering. Raw string prefixes carry no special meaning.
+ * Use {@link hint}, {@link fix}, and {@link link} to create structured sections.
+ */
 export type FrameSection =
   | string
   | { readonly kind: 'hint'; readonly text: string }
@@ -21,7 +30,10 @@ export type FrameSection =
  */
 export function formatError(
   error: VercelErrorLike,
-  options: { readonly format?: ErrorFormat } = {},
+  options: {
+    /** Rendering preset; omission selects `auto`. */
+    readonly format?: ErrorFormat;
+  } = {},
 ): string {
   const capabilities = resolveFormat(options.format ?? 'auto');
   const qualifier = [error.scope, error.code].filter(Boolean).join(':');
@@ -52,12 +64,16 @@ export function formatError(
  *
  * Structured sections control labels, connectors, and ANSI styling without a
  * string-prefix protocol. Falsy sections are omitted. `format` has the same
- * preset meanings as {@link formatError} and defaults to `auto`.
+ * preset meanings as {@link formatError} and defaults to `auto`. A malformed
+ * structured section supplied at runtime throws `TypeError`.
  */
 export function frame(
   header: string,
   sections?: readonly (FrameSection | null | undefined | false)[],
-  options: { readonly format?: ErrorFormat } = {},
+  options: {
+    /** Rendering preset; omission selects `auto`. */
+    readonly format?: ErrorFormat;
+  } = {},
 ): string {
   return renderFrame({
     ...resolveFormat(options.format ?? 'auto'),

@@ -8,6 +8,7 @@
  * headers stored in other casings.
  */
 export interface HeadersLike {
+  /** Look up a header case-insensitively; return `null` when it is absent. */
   get(name: string): string | null;
 }
 

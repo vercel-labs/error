@@ -1,6 +1,6 @@
 {
   "name": "@vercel/error",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A lightweight toolkit for structured, actionable errors for humans and agents",
   "license": "MIT",
   "author": "Vercel",

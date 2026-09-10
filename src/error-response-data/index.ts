@@ -26,13 +26,21 @@ const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
  * through {@link parseErrorResponse} before reconstruction.
  */
 export interface ErrorResponseData {
+  /** Canonical Vercel error envelope shared by JSON and ANSI responses. */
   readonly error: {
+    /** Optional disclosed identity namespace. */
     readonly scope?: string;
+    /** Optional disclosed stable error code. */
     readonly code?: string;
+    /** Required nonblank client-facing description. */
     readonly message: string;
+    /** Optional client-facing explanation. */
     readonly reason?: string;
+    /** Optional client-facing advisory guidance. */
     readonly hint?: string;
+    /** Optional remediation suggestion; it does not authorize action. */
     readonly fix?: string;
+    /** Optional client link; it does not establish producer trust or authority. */
     readonly link?: string;
   };
 }
@@ -50,6 +58,9 @@ interface PublicErrorInput extends PublicErrorDetails {
 /**
  * Caller-owned context accepted while reconstructing an upstream response.
  * Response identity and prose always win and cannot be overridden here.
+ * `statusCode` should normally come from the observed HTTP response because
+ * status is not part of `ErrorResponseData`; all other fields add local
+ * diagnostic context.
  */
 export type FromErrorResponseOptions = Pick<
   VercelErrorOptions,
@@ -117,6 +128,8 @@ export function buildErrorResponseData(
  * message, or any present known field with the wrong type, rejects the entire
  * value and returns `undefined`. A parsed response remains untrusted data;
  * applications must authenticate its producer and authorize suggested actions.
+ * Accessors and Proxy traps in unknown input may execute, and their exceptions
+ * propagate instead of returning `undefined`.
  */
 export function parseErrorResponse(
   data?: unknown,
@@ -148,7 +161,8 @@ export function parseErrorResponse(
  * `errorResponse()` call sends that identity and prose again. Status, cause,
  * request ID, metadata, and attributes remain caller-owned. Validation does
  * not authenticate the producer, make the fields safe for another recipient,
- * or authorize following fixes and links.
+ * or authorize following fixes and links. Pass unknown input through
+ * {@link parseErrorResponse} before calling this function.
  */
 export function fromErrorResponse(
   data: ErrorResponseData,
