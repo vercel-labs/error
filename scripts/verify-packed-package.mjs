@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import {
+  copyFileSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -13,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const fixtureDirectory = join(packageRoot, 'scripts/fixtures/packed-consumer');
 const workspace = mkdtempSync(join(tmpdir(), 'vercel-error-packed-'));
 const packDirectory = join(workspace, 'package');
 const consumerDirectory = join(workspace, 'consumer');
@@ -62,13 +64,17 @@ async function main() {
         include: ['consumer.ts'],
       }),
     );
-    writeFileSync(join(consumerDirectory, 'consumer.ts'), consumerFixture);
-    writeFileSync(join(consumerDirectory, 'utility.ts'), utilityFixture);
-    writeFileSync(join(consumerDirectory, 'browser.ts'), browserFixture);
-    writeFileSync(
-      join(consumerDirectory, 'tsdown.browser.config.mjs'),
-      browserBuildConfig,
-    );
+    for (const fixture of [
+      'browser.ts',
+      'consumer.ts',
+      'tsdown.browser.config.mjs',
+      'utility.ts',
+    ]) {
+      copyFileSync(
+        join(fixtureDirectory, fixture),
+        join(consumerDirectory, fixture),
+      );
+    }
 
     const tsc = join(packageRoot, 'node_modules', 'typescript', 'bin', 'tsc');
     execFileSync(process.execPath, [tsc, '--project', 'tsconfig.json'], {
@@ -318,320 +324,5 @@ async function verifyBrowserBundle(directory) {
     }
   }
 }
-
-const consumerFixture = String.raw`
-import {
-  VercelError,
-  createErrors,
-  hasCode,
-  isErrorLike,
-  isVercelError,
-  type ErrorResponseData,
-  type VercelErrorOptions,
-} from '@vercel/error';
-import {
-  fromErrorResponse,
-  parseErrorResponse,
-  type ErrorResponseData as ClientErrorResponseData,
-} from '@vercel/error/client';
-import {
-  errorResponse,
-  wantsAnsi,
-  type ErrorResponse,
-  type ErrorResponseInput,
-} from '@vercel/error/server';
-import {
-  fix,
-  formatError,
-  frame,
-  hint,
-  link,
-} from '@vercel/error/format';
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
-
-type VisitorCode = 'bad_request' | 'unavailable';
-let reportedCode: VisitorCode | undefined;
-const visitorErrors = createErrors<VisitorCode>({
-  scope: 'visitor-signals',
-  onReport: (error) => {
-    reportedCode = error.code;
-  },
-});
-const reported = visitorErrors.report('Internal visitor failure', {
-  code: 'unavailable',
-  public: { message: 'Visitor signals are unavailable' },
-  statusCode: 503,
-});
-assert(reportedCode === 'unavailable', 'typed scoped report callback failed');
-
-const publicInput: ErrorResponseInput = {
-  message: 'Public input failed',
-  statusCode: 400,
-};
-const publicResponse: ErrorResponse = errorResponse(publicInput);
-assert(
-  publicResponse.status === 400,
-  'ErrorResponseInput status was not preserved in ErrorResponse',
-);
-
-type CliErrorOptions = VercelErrorOptions<'cli_failure'>;
-class CliError extends VercelError<'cli_failure'> {
-  readonly retryable = true;
-  constructor(message: string, options: CliErrorOptions = {}) {
-    super(message, options);
-    this.name = 'CliError';
-  }
-}
-const cliErrors = createErrors({ ErrorClass: CliError, scope: 'cli' });
-const cliError = cliErrors.create('CLI failed', { code: 'cli_failure' });
-assert(cliError.retryable, 'custom CliError instance was not retryable');
-assert(hasCode(cliError, 'cli_failure'), 'hasCode failed');
-assert(isErrorLike(cliError), 'isErrorLike failed');
-const unknownCliError: unknown = cliError;
-if (hasCode(unknownCliError, 'cli_failure')) {
-  const exactCode: 'cli_failure' = unknownCliError.code;
-  assert(exactCode === 'cli_failure', 'hasCode narrowing failed');
-}
-if (isErrorLike(unknownCliError)) {
-  const message: string = unknownCliError.message;
-  assert(message === 'CLI failed', 'isErrorLike narrowing failed');
-}
-if (isVercelError(unknownCliError)) {
-  const metadata = unknownCliError.metadata;
-  assert(metadata === undefined, 'isVercelError narrowing failed');
-}
-
-function verifyTypeContracts(
-  error: CliError,
-  data: ErrorResponseData,
-): void {
-  error.requestId = 'req_123';
-  error.metadata = { operation: 'deploy' };
-  error.attributes = { retryable: true };
-  // @ts-expect-error authored message is readonly
-  error.message = 'changed';
-  // @ts-expect-error authored code is readonly
-  error.code = 'cli_failure';
-  // @ts-expect-error authored status is readonly
-  error.statusCode = 500;
-  // @ts-expect-error authored public details are readonly
-  error.public = { message: 'changed' };
-  // @ts-expect-error ErrorResponseData scope cannot be overridden during reconstruction
-  fromErrorResponse(data, { scope: 'other' });
-  // @ts-expect-error ErrorResponseData code cannot be overridden during reconstruction
-  fromErrorResponse(data, { code: 'other' });
-  // @ts-expect-error ErrorResponseData public details cannot be overridden during reconstruction
-  fromErrorResponse(data, { public: { message: 'other' } });
-}
-void verifyTypeContracts;
-
-// @ts-expect-error custom subtypes require their matching ErrorClass
-createErrors<'cli_failure', CliError>({ scope: 'cli' });
-// @ts-expect-error reporting callbacks must be synchronous
-createErrors({ onReport: async () => {} });
-// @ts-expect-error serialization callbacks must be synchronous
-errorResponse({ message: 'Failed' }, { onSerialize: async () => {} });
-
-let serializedStatus: number | undefined;
-let serializedBodyFormat: 'json' | 'ansi' | undefined;
-const json: ErrorResponse = errorResponse(reported, {
-  onSerialize: (_source, context) => {
-    serializedBodyFormat = context.bodyFormat;
-    serializedStatus = context.status;
-  },
-});
-assert(json.status === 503, 'concrete status was not preserved');
-assert(serializedStatus === 503, 'onSerialize did not run');
-assert(serializedBodyFormat === 'json', 'JSON body format was not reported');
-const parsedJson = parseErrorResponse(JSON.parse(json.body));
-assert(parsedJson, 'valid JSON response did not parse');
-const clientResponseData: ClientErrorResponseData = parsedJson;
-void clientResponseData;
-assert(parsedJson.error.scope === 'visitor-signals', 'scope did not survive');
-assert(parsedJson.error.code === 'unavailable', 'code did not survive');
-assert(
-  !('requestId' in parsedJson.error),
-  'server-only requestId reached response data',
-);
-
-const reconstructed = fromErrorResponse(parsedJson, { statusCode: json.status });
-assert(
-  reconstructed.public?.message === 'Visitor signals are unavailable',
-  'public details were not reconstructed',
-);
-
-const fallback = errorResponse(new VercelError('Secret developer prose'));
-assert(
-  JSON.parse(fallback.body).error.message === 'An error occurred.',
-  'developer prose leaked through fallback',
-);
-for (const untaggedError of [
-  new Error('Secret untagged developer prose'),
-  new Proxy(new Error('Secret proxied developer prose'), {}),
-]) {
-  let untaggedErrorRejected = false;
-  try {
-    errorResponse(untaggedError);
-  } catch (error) {
-    untaggedErrorRejected = error instanceof TypeError;
-  }
-  assert(untaggedErrorRejected, 'untagged Error-like value was serialized');
-}
-const ansi = errorResponse(reported, {
-  request: new Headers({ 'X-Error-Format': 'ansi' }),
-});
-assert(ansi.body.includes('\x1b['), 'explicit ANSI consulted ambient NO_COLOR');
-assert(
-  ansi.body.includes('Visitor signals are unavailable'),
-  'ANSI output omitted public prose',
-);
-assert(
-  !ansi.body.includes('Internal visitor failure'),
-  'ANSI output disclosed developer prose',
-);
-assert(
-  wantsAnsi(new Headers({ 'X-Error-Format': 'ansi' })),
-  'server subpath negotiation failed',
-);
-
-assert(
-  parseErrorResponse({ error: { hint: false, message: 'Failed' } }) ===
-    undefined,
-  'strict parsing accepted malformed known fields',
-);
-let invalidStatusRejected = false;
-try {
-  errorResponse({ message: 'Failed', statusCode: 399 });
-} catch (error) {
-  invalidStatusRejected = error instanceof RangeError;
-}
-assert(invalidStatusRejected, 'invalid status was not rejected');
-
-assert(
-  formatError(reconstructed, { format: 'plain' }).includes(
-    'Visitor signals are unavailable',
-  ),
-  'format subpath could not render an error',
-);
-assert(
-  frame('Failed', [hint('Try again'), fix('Retry'), link('https://x.dev')], {
-    format: 'tree',
-  }).includes('╰─▸'),
-  'structured frame sections did not render',
-);
-`;
-
-const utilityFixture = String.raw`
-import { hasCode } from '@vercel/error';
-
-export function isUnavailable(error: unknown): boolean {
-  return hasCode(error, 'unavailable');
-}
-`;
-
-const browserBuildConfig = String.raw`
-export default {
-  clean: true,
-  deps: {
-    alwaysBundle: [/.*/],
-  },
-  entry: ['browser.ts'],
-  format: ['iife'],
-  logLevel: 'error',
-  outDir: 'browser-bundle',
-  platform: 'browser',
-  target: 'es2022',
-};
-`;
-
-const browserFixture = String.raw`
-import * as root from '@vercel/error';
-import * as client from '@vercel/error/client';
-import * as server from '@vercel/error/server';
-import * as format from '@vercel/error/format';
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
-
-for (const nodeGlobal of ['process', 'Buffer', 'require']) {
-  assert(
-    !(nodeGlobal in globalThis),
-    'Node VM sandbox unexpectedly exposes global ' + nodeGlobal,
-  );
-}
-
-const runtimeExports = {
-  '.': root,
-  './client': client,
-  './server': server,
-  './format': format,
-};
-(globalThis as typeof globalThis & {
-  __vercelErrorExercisedExports?: Record<string, string[]>;
-}).__vercelErrorExercisedExports = Object.fromEntries(
-  Object.entries(runtimeExports).map(([subpath, exports]) => [
-    subpath,
-    Object.keys(exports).sort(),
-  ]),
-);
-
-assert(
-  root.isError(new Error('browser failure')),
-  'isError did not recognize an Error created in the Node VM',
-);
-const acceptsTagForgery = (
-  globalThis as typeof globalThis & {
-    __vercelErrorAcceptsTagForgery: boolean;
-  }
-).__vercelErrorAcceptsTagForgery;
-assert(
-  root.isError({ [Symbol.toStringTag]: 'Error' }) === acceptsTagForgery,
-  'isError did not select the expected recognition branch',
-);
-
-const error = new root.VercelError('DEV_MESSAGE', {
-  code: 'unavailable',
-  public: { message: 'The service is unavailable' },
-  scope: 'browser',
-  statusCode: 503,
-});
-
-const json = server.errorResponse(error);
-assert(
-  json.status === 503,
-  'errorResponse did not map statusCode 503 to response status 503',
-);
-assert(
-  !json.body.includes('DEV_MESSAGE'),
-  'JSON response contains the developer message',
-);
-const parsed = client.parseErrorResponse(JSON.parse(json.body));
-assert(
-  parsed?.error.code === 'unavailable' &&
-    parsed.error.message === 'The service is unavailable',
-  'browser response did not preserve its public identity and message',
-);
-const reconstructed = client.fromErrorResponse(parsed, {
-  statusCode: json.status,
-});
-assert(
-  server.errorResponse(reconstructed).body === json.body,
-  'reconstructed error did not serialize to the same public body',
-);
-assert(
-  format.formatError(reconstructed, { format: 'plain' }).includes(
-    'The service is unavailable',
-  ),
-  'plain format omitted the reconstructed public message',
-);
-
-(globalThis as typeof globalThis & {
-  __vercelErrorBrowserCheckComplete?: boolean;
-}).__vercelErrorBrowserCheckComplete = true;
-`;
 
 await main();
