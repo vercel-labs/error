@@ -9,7 +9,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,7 +17,7 @@ const workspace = mkdtempSync(join(tmpdir(), 'vercel-error-packed-'));
 const packDirectory = join(workspace, 'package');
 const consumerDirectory = join(workspace, 'consumer');
 
-function main() {
+async function main() {
   try {
     execFileSync('mkdir', [packDirectory, consumerDirectory]);
     execFileSync('pnpm', ['pack', '--pack-destination', packDirectory], {
@@ -88,7 +88,7 @@ function main() {
       join(consumerDirectory, 'node_modules/@vercel/error/dist'),
     );
     verifyTreeShaking(consumerDirectory);
-    verifyBrowserBundle(consumerDirectory);
+    await verifyBrowserBundle(consumerDirectory);
 
     console.log('Packed package verification passed.');
   } finally {
@@ -215,7 +215,7 @@ function verifyTreeShaking(directory) {
   }
 }
 
-function verifyBrowserBundle(directory) {
+async function verifyBrowserBundle(directory) {
   const tsdown = join(packageRoot, 'node_modules', '.bin', 'tsdown');
   execFileSync(tsdown, ['--config', 'tsdown.browser.config.mjs'], {
     cwd: directory,
@@ -253,6 +253,26 @@ function verifyBrowserBundle(directory) {
     throw new Error('Packed verification runtime has no native Error.isError');
   }
 
+  const installedPackageRoot = join(directory, 'node_modules/@vercel/error');
+  const installedPackage = JSON.parse(
+    readFileSync(join(installedPackageRoot, 'package.json'), 'utf8'),
+  );
+  const expectedRuntimeExports = Object.fromEntries(
+    await Promise.all(
+      Object.entries(installedPackage.exports).map(
+        async ([subpath, target]) => [
+          subpath,
+          Object.keys(
+            await import(
+              pathToFileURL(resolve(installedPackageRoot, target.default))
+            ),
+          ).toSorted(),
+        ],
+      ),
+    ),
+  );
+  const expectedRuntimeExportsJson = JSON.stringify(expectedRuntimeExports);
+
   for (const scenario of [
     { acceptsTagForgery: false, name: 'native Error.isError', setup: '' },
     {
@@ -265,6 +285,7 @@ function verifyBrowserBundle(directory) {
     const sandbox = Object.assign(Object.create(null), {
       __vercelErrorAcceptsTagForgery: scenario.acceptsTagForgery,
       document: Object.freeze({}),
+      location: Object.freeze({ href: 'https://example.com/' }),
       navigator: Object.freeze({ userAgent: 'packed-browser-check' }),
     });
     sandbox.self = sandbox;
@@ -285,6 +306,14 @@ function verifyBrowserBundle(directory) {
     if (sandbox.__vercelErrorBrowserCheckComplete !== true) {
       throw new Error(
         `Browser fixture did not complete in Node VM scenario "${scenario.name}"`,
+      );
+    }
+    if (
+      JSON.stringify(sandbox.__vercelErrorExercisedExports) !==
+      expectedRuntimeExportsJson
+    ) {
+      throw new Error(
+        `Browser fixture does not exercise every packed runtime export in Node VM scenario "${scenario.name}"`,
       );
     }
   }
@@ -550,27 +579,36 @@ for (const nodeGlobal of ['process', 'Buffer', 'require']) {
 }
 
 const runtimeExports = {
-  VercelError,
-  createErrors,
-  errorResponse,
-  fix,
-  formatError,
-  frame,
-  fromErrorResponse,
-  getMessage,
-  getRootCause,
-  hasCode,
-  hint,
-  isError,
-  isErrorLike,
-  isVercelError,
-  link,
-  parseErrorResponse,
-  wantsAnsi,
+  '.': {
+    VercelError,
+    createErrors,
+    getMessage,
+    getRootCause,
+    hasCode,
+    isError,
+    isErrorLike,
+    isVercelError,
+  },
+  './client': { fromErrorResponse, parseErrorResponse },
+  './server': { errorResponse, wantsAnsi },
+  './format': { fix, formatError, frame, hint, link },
 };
-for (const [name, value] of Object.entries(runtimeExports)) {
-  assert(typeof value === 'function', 'browser bundle omitted export ' + name);
+for (const [subpath, exports] of Object.entries(runtimeExports)) {
+  for (const [name, value] of Object.entries(exports)) {
+    assert(
+      typeof value === 'function',
+      'browser bundle omitted export ' + subpath + ':' + name,
+    );
+  }
 }
+(globalThis as typeof globalThis & {
+  __vercelErrorExercisedExports?: Record<string, string[]>;
+}).__vercelErrorExercisedExports = Object.fromEntries(
+  Object.entries(runtimeExports).map(([subpath, exports]) => [
+    subpath,
+    Object.keys(exports).sort(),
+  ]),
+);
 
 assert(
   isError(new Error('browser failure')),
@@ -655,7 +693,7 @@ assert(
   'JSON response contains unexpected top-level fields',
 );
 assert(
-  Object.keys(jsonData.error).join(',') === 'scope,code,message',
+  Object.keys(jsonData.error).sort().join(',') === 'code,message,scope',
   'JSON response contains unexpected error fields',
 );
 assert(
@@ -731,4 +769,4 @@ assert(
 }).__vercelErrorBrowserCheckComplete = true;
 `;
 
-main();
+await main();
