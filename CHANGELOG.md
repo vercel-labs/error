@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.1.5
+
+### Patch Changes
+
+- Verify public package metadata and reject unexpected files in the installed tarball.
+
 ## 0.1.4
 
 ### Patch Changes
