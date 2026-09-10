@@ -1,6 +1,5 @@
 /**
- * Recursive type for structured metadata values, allowing arbitrarily nested
- * domain context.
+ * Values allowed in nested error metadata.
  */
 export type SerializableValue =
   | string
@@ -12,23 +11,21 @@ export type SerializableValue =
   | { [key: string]: SerializableValue };
 
 /**
- * Domain-specific structured context for debugging and logging.
- * Can contain arbitrarily nested values. Server-side only, so it is excluded
- * from HTTP error responses.
+ * Nested application data for debugging and logging. It stays server-side and
+ * is excluded from HTTP error responses.
  *
- * Use in internal diagnostic serialization, logging, and debugging tools.
+ * Use in `toJSON()`, logs, and debugging tools.
  *
  * @example { userId: '123', query: { table: 'users', limit: 50 } }
  */
 export type ErrorMetadata = Record<string, SerializableValue>;
 
 /**
- * Flat key-value pairs for observability and telemetry.
- * Compatible with OpenTelemetry's AttributeValue type.
- * When attached to `VercelError`, attributes appear in diagnostic `toJSON()`
- * output but never in `ErrorResponseData` or HTTP response bodies.
+ * Flat values compatible with OpenTelemetry's `AttributeValue` type, suitable
+ * for spans, error-tracker tags, and metrics.
  *
- * Route to: tracing spans, Sentry tags, metrics dashboards.
+ * When attached to `VercelError`, attributes appear in `toJSON()` output but
+ * not in `ErrorResponseData` or HTTP response bodies.
  *
  * @example { 'http.method': 'POST', 'db.system': 'postgresql', 'retry.count': 3 }
  */
@@ -48,41 +45,44 @@ export interface ErrorLike {
 }
 
 /**
- * Error details explicitly approved for disclosure to clients.
+ * Error details explicitly approved for a specific client audience.
  *
- * `message` is required and must be nonblank; optional fields must be
- * strings. The `VercelError` constructor validates these rules, and
- * `errorResponse()` re-validates flat and tagged cross-realm input at
- * serialization; invalid details throw `TypeError`. This prevents transport
- * serialization from falling back to developer-facing prose. Applications
- * remain responsible for ensuring every supplied field is safe for the
- * intended audience.
+ * `message` must contain non-whitespace text; optional fields must be strings.
+ * The `VercelError` constructor validates these rules, drops unknown fields,
+ * and stores a frozen copy. `errorResponse()` applies the same field validation
+ * to flat input and `VercelErrorLike` data. Invalid known fields throw
+ * `TypeError`.
+ *
+ * Receiving recovery guidance does not by itself authorize following a fix or
+ * link.
  */
 export interface PublicErrorDetails {
-  /** Client-facing description containing non-whitespace text. */
+  /** Client-facing summary containing non-whitespace text. */
   readonly message: string;
-  /** Optional client-facing explanation of why the error occurred. */
+  /** Client-facing explanation of why the error occurred. */
   readonly reason?: string;
-  /** Optional client-facing investigation advice. */
+  /** Client-facing investigation advice. */
   readonly hint?: string;
-  /** Optional client-facing recovery guidance; it does not authorize action. */
+  /** Client-facing recovery guidance. */
   readonly fix?: string;
-  /** Optional client-facing URL; verify its producer before following it. */
+  /** Client-facing documentation URL. */
   readonly link?: string;
 }
 
 /**
- * Configuration options for creating a VercelError instance.
+ * Options for constructing a `VercelError`.
  *
- * `reason`, `hint`, `fix`, and `link` are developer-facing. Client prose must
- * be supplied separately under `public`. `scope`, `code`, and the resulting
- * HTTP status are also client-visible when an error becomes a response.
- * `cause`, `requestId`, `metadata`, and `attributes` remain diagnostic only.
+ * `reason`, `hint`, `fix`, and `link` are developer-facing. Client-facing text
+ * must be supplied separately under `public`. `errorResponse()` also includes
+ * `scope` and `code`, and maps `statusCode` to the concrete HTTP status.
+ *
+ * `cause`, `requestId`, `metadata`, and `attributes` are excluded from
+ * `ErrorResponseData` and HTTP response bodies.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
   /**
-   * Flat OTel-compatible telemetry values. Stored by reference and never sent
-   * in error responses.
+   * Flat OpenTelemetry-compatible values. Stored by reference and excluded
+   * from error responses.
    */
   attributes?: ErrorAttributes;
 
@@ -98,10 +98,10 @@ export interface VercelErrorOptions<TCode extends string = string> {
    */
   readonly code?: TCode;
 
-  /** Known developer remediation and any required precondition. It suggests an action but does not authorize it. */
+  /** Suggested recovery step and any condition required before trying it. */
   readonly fix?: string;
 
-  /** Advisory tip that helps the developer, shown before `fix`. */
+  /** Optional developer suggestion, shown before `fix`. */
   readonly hint?: string;
 
   /** URL to documentation for this error. A `createErrors` factory with `docsBaseUrl` derives it from `code`. */
@@ -116,20 +116,20 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** Why the error happened, the root-cause explanation behind the message. */
   readonly reason?: string;
 
-  /** Diagnostic correlation ID for tracing. Never sent in error responses. */
+  /** Request ID used for tracing and excluded from error responses. */
   requestId?: string;
 
   /** Namespace that produced the error, such as a service or subsystem. */
   readonly scope?: string;
 
   /**
-   * Authored HTTP status mapping. `errorResponse()` accepts integers from 400
+   * HTTP status mapping. `errorResponse()` accepts integers from 400
    * through 599, defaults omission to 500, and throws `RangeError` otherwise.
    */
   readonly statusCode?: number;
 
   /**
-   * Details explicitly approved for client disclosure. Construction validates
+   * Details explicitly approved for a client response. Construction validates
    * the fields (nonblank string `message`, optional string details), throws
    * `TypeError` for invalid values, drops unknown fields, and stores a frozen
    * copy so later mutation of the input object cannot change them.
@@ -145,16 +145,18 @@ export interface VercelErrorOptions<TCode extends string = string> {
 }
 
 /**
- * Data contract recognized by {@link isVercelError} across realms.
+ * Data fields recognized by {@link isVercelError} across JavaScript realms.
  *
- * The stable symbol tag used for recognition is forgeable. This interface is
- * suitable for reading data fields, not for authenticating the producer,
- * authorizing disclosure, or invoking local class methods.
+ * Any object can forge the package symbol tag. For tagged non-local objects, a
+ * successful check means only that these fields have the expected runtime
+ * shapes. It does not establish where the object came from or make
+ * developer-facing fields safe to send to clients. Use
+ * `instanceof VercelError` before calling class methods.
  */
 export interface VercelErrorLike<
   TCode extends string = string,
 > extends ErrorLike {
-  /** Underlying diagnostic value; not sent in error responses. */
+  /** Original value that caused the error; excluded from error responses. */
   readonly cause?: unknown;
   /** Stable machine-readable code included by `errorResponse()` when defined. */
   readonly code?: TCode;
@@ -175,10 +177,10 @@ export interface VercelErrorLike<
   readonly link?: string;
   /** Details explicitly approved for client responses. */
   readonly public?: PublicErrorDetails;
-  /** Mutable diagnostic correlation value, excluded from responses. */
+  /** Mutable request ID, excluded from responses. */
   requestId?: string;
-  /** Mutable nested diagnostic context, excluded from responses. */
+  /** Mutable nested debugging data, excluded from responses. */
   metadata?: ErrorMetadata;
-  /** Mutable flat telemetry context, excluded from responses. */
+  /** Mutable flat OpenTelemetry-compatible values, excluded from responses. */
   attributes?: ErrorAttributes;
 }

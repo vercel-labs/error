@@ -1,14 +1,17 @@
 import { isObject } from '../_internal';
 
 /**
- * Get a message string or fallback from an unknown value.
+ * Get a message string from an unknown value.
  *
- * Returns, in order, an object's string `message`, a string input, or the result
- * of `JSON.stringify` for another non-array object. Object serialization may
- * return `undefined`. If serialization throws, returns
- * `[ConstructorName - Unable to Stringify Error Object]`; failed constructor
- * lookup uses `Object`. Other values return `fallback`, which defaults to
- * `undefined`. Message accessors and Proxy traps may run and throw.
+ * Returns a string input unchanged. For a non-array object, returns its string
+ * `message` when present; otherwise returns `JSON.stringify(error)`, which may
+ * be `undefined`. If serialization throws, returns
+ * `[ConstructorName - JSON serialization failed]`. A failed constructor lookup
+ * uses `Object`.
+ *
+ * Other values return `fallback`, which defaults to `undefined`. Checking or
+ * reading `message` may invoke accessors or Proxy traps; their exceptions
+ * propagate.
  */
 export function getMessage(
   error: unknown,
@@ -30,7 +33,7 @@ export function getMessage(
       return JSON.stringify(error);
     } catch {
       const constructorName = getConstructorName(error);
-      return `[${constructorName} - Unable to Stringify Error Object]`;
+      return `[${constructorName} - JSON serialization failed]`;
     }
   }
 

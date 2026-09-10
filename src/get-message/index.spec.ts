@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { getMessage } from '.';
 
 describe('getMessage', () => {
-  it('extracts message from Error', () => {
+  it('returns the message from an Error', () => {
     expect(getMessage(new Error('test error'))).toBe('test error');
   });
 
-  it('extracts message from error-like objects', () => {
+  it('returns the message from an object', () => {
     expect(getMessage({ message: 'custom error' })).toBe('custom error');
   });
 
-  it('returns the same message value it validated', () => {
+  it('reads a string message accessor once', () => {
     let reads = 0;
     const error = {
       get message(): unknown {
@@ -24,11 +24,11 @@ describe('getMessage', () => {
     expect(reads).toBe(1);
   });
 
-  it('returns string values as-is', () => {
+  it('returns a string unchanged', () => {
     expect(getMessage('raw string')).toBe('raw string');
   });
 
-  it('JSON stringifies plain objects', () => {
+  it('returns JSON for a plain object', () => {
     expect(getMessage({ key: 'value' })).toBe('{"key":"value"}');
   });
 
@@ -48,20 +48,20 @@ describe('getMessage', () => {
     expect(getMessage(42, 'fallback')).toBe('fallback');
   });
 
-  it('handles circular references gracefully', () => {
+  it('returns the serialization fallback for a circular object', () => {
     const obj: Record<string, unknown> = {};
     obj['self'] = obj;
-    expect(getMessage(obj)).toBe('[Object - Unable to Stringify Error Object]');
+    expect(getMessage(obj)).toBe('[Object - JSON serialization failed]');
   });
 
   it.each([
-    ['missing', undefined],
-    ['null', null],
-    ['number', 42],
-    ['symbol', Symbol('constructor')],
-    ['non-string name', { name: 42 }],
+    ['a missing constructor', undefined],
+    ['a null constructor', null],
+    ['a numeric constructor', 42],
+    ['a symbol constructor', Symbol('constructor')],
+    ['a non-string constructor name', { name: 42 }],
     [
-      'throwing name',
+      'a constructor name getter that throws',
       new Proxy(
         {},
         {
@@ -72,16 +72,14 @@ describe('getMessage', () => {
         },
       ),
     ],
-  ])('uses Object for %s constructor metadata', (_label, constructor) => {
+  ])('uses Object for %s', (_label, constructor) => {
     const error: Record<string, unknown> = { constructor };
     error['self'] = error;
 
-    expect(getMessage(error)).toBe(
-      '[Object - Unable to Stringify Error Object]',
-    );
+    expect(getMessage(error)).toBe('[Object - JSON serialization failed]');
   });
 
-  it('uses Object when constructor lookup also throws', () => {
+  it('uses Object when reading constructor throws', () => {
     const error: Record<string, unknown> = {};
     error['self'] = error;
     Object.defineProperty(error, 'constructor', {
@@ -90,12 +88,10 @@ describe('getMessage', () => {
       },
     });
 
-    expect(getMessage(error)).toBe(
-      '[Object - Unable to Stringify Error Object]',
-    );
+    expect(getMessage(error)).toBe('[Object - JSON serialization failed]');
   });
 
-  it('uses the same constructor name value it validated', () => {
+  it('reads constructor.name once for the serialization fallback', () => {
     let reads = 0;
     const error: Record<string, unknown> = {};
     error['self'] = error;
@@ -106,9 +102,7 @@ describe('getMessage', () => {
       },
     };
 
-    expect(getMessage(error)).toBe(
-      '[StableError - Unable to Stringify Error Object]',
-    );
+    expect(getMessage(error)).toBe('[StableError - JSON serialization failed]');
     expect(reads).toBe(1);
   });
 

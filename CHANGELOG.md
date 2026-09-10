@@ -4,7 +4,9 @@
 
 ### Patch Changes
 
-- Keep `getMessage()` within its declared string return contract for stateful inputs, and complete generated API documentation for public fields, guards, factories, response data, and formatting types.
+- Read `message` once so `getMessage()` returns the string it checked.
+- Use `Object` in the `getMessage()` JSON fallback when `constructor.name` is unavailable or not a string.
+- Add generated API documentation for public fields, type guards, factories, response data, and formatting types.
 
 ## 0.1.3
 

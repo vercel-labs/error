@@ -17,38 +17,40 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Normalized structured data for client-facing errors.
+ * Client-facing error identity and public details shared by JSON and ANSI
+ * response bodies.
  *
- * The data feeds JSON serialization and ANSI rendering. It excludes status,
- * request ID, metadata, attributes, cause, stack, and error name.
- * `parseErrorResponse` validates this shape only; it does not verify who
- * produced the data or whether its recovery guidance is safe to follow.
- * `error.message` must be nonblank. Pass unknown input to
- * `parseErrorResponse` from `@vercel/error/client` before reconstruction.
+ * This data excludes the concrete HTTP status, request ID, metadata,
+ * attributes, cause, stack, and error name. `error.message` must contain
+ * non-whitespace text. Pass unknown input to `parseErrorResponse` from
+ * `@vercel/error/client` before reconstruction.
+ *
+ * Successful parsing confirms field shapes only. It does not establish where
+ * the data came from or whether its recovery guidance should be followed.
  */
 export interface ErrorResponseData {
   readonly error: {
-    /** Optional error scope included in the response. */
+    /** Client-visible namespace for the error. */
     readonly scope?: string;
-    /** Optional stable error code included in the response. */
+    /** Client-visible stable error code. */
     readonly code?: string;
-    /** Client-facing description containing non-whitespace text. */
+    /** Client-facing summary containing non-whitespace text. */
     readonly message: string;
-    /** Optional client-facing explanation of why the error occurred. */
+    /** Client-facing explanation of why the error occurred. */
     readonly reason?: string;
-    /** Optional client-facing investigation advice. */
+    /** Client-facing investigation advice. */
     readonly hint?: string;
-    /** Optional client-facing recovery guidance; it does not authorize action. */
+    /** Client-facing recovery guidance. */
     readonly fix?: string;
-    /** Optional client-facing URL; verify its producer before following it. */
+    /** Client-facing documentation URL. */
     readonly link?: string;
   };
 }
 
 /**
  * Public details and identity accepted while building response data.
- * Every prose field is approved for client disclosure; explicitly `undefined`
- * optional fields are omitted.
+ * Every text field is approved for clients. Optional fields set to `undefined`
+ * are omitted.
  */
 interface PublicErrorInput extends PublicErrorDetails {
   readonly scope?: string;
@@ -56,11 +58,11 @@ interface PublicErrorInput extends PublicErrorDetails {
 }
 
 /**
- * Local context added when reconstructing an upstream response.
+ * Local values added when reconstructing an upstream response.
  *
  * `statusCode` should normally come from the observed HTTP response because
  * `ErrorResponseData` does not contain it. `cause`, `requestId`, `metadata`,
- * and `attributes` remain local diagnostic context.
+ * and `attributes` add debugging data owned by the receiving application.
  */
 export type FromErrorResponseOptions = Pick<
   VercelErrorOptions,
@@ -68,16 +70,14 @@ export type FromErrorResponseOptions = Pick<
 >;
 
 /**
- * Build normalized client-facing response data from an error or public input.
+ * Build client-facing response data from an error or public input.
  *
- * Tagged values are classified before flat input. A tagged malformed value is
- * rejected instead of being reinterpreted as explicitly public data. Untagged
- * values carrying `name` or `stack` are treated as Error-like and rejected.
- * Errors without approved `public` details receive a fixed generic message;
- * developer prose is never used as a fallback. Every disclosed field is
- * serialized from a single validated read, so a getter cannot pass validation
- * with one value and serialize another; only validated strings reach the
- * result.
+ * Tagged values are checked before flat input. An invalid tagged value throws
+ * instead of being treated as public data. Untagged values with `name` or
+ * `stack` also throw. Errors without `public` details receive a fixed generic
+ * message instead of the developer-facing message. Each response field is
+ * copied from the same property read that was checked, so a getter cannot pass
+ * validation with one value and return another.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
@@ -122,13 +122,15 @@ export function buildErrorResponseData(
 }
 
 /**
- * Parse unknown data as the canonical ErrorResponseData shape.
+ * Parse unknown data as `ErrorResponseData`.
  *
- * Unknown fields are ignored for additive compatibility. A missing or blank
- * message, or any present known field with the wrong type, rejects the entire
- * value and returns `undefined`. Successful parsing validates field shape only;
- * it does not verify who produced the data or whether suggested actions are
- * safe to perform. Accessors and Proxy traps may run, and their exceptions
+ * Returns `undefined` unless `data.error` is a non-array object with a nonblank
+ * string `message` and every present known optional field is a string. Unknown
+ * fields are ignored.
+ *
+ * Successful parsing confirms field shapes only. It does not establish where
+ * the data came from or whether suggested actions should be performed.
+ * Property reads may invoke accessors or Proxy traps; their exceptions
  * propagate instead of returning `undefined`.
  */
 export function parseErrorResponse(
@@ -154,15 +156,16 @@ export function parseErrorResponse(
 }
 
 /**
- * Reconstruct a VercelError from validated upstream ErrorResponseData.
+ * Reconstruct a `VercelError` from validated `ErrorResponseData`.
  *
- * Response identity populates `scope` and `code`. Response prose populates the
- * developer fields and `public`, so a later `errorResponse()` call includes the
- * same identity and prose. Status, cause, request ID, metadata, and attributes
- * come from `options`. This function does not verify who produced `data`.
- * Review its fields before forwarding them to another recipient, and decide
- * independently whether to follow fixes or links. Pass unknown input through
- * {@link parseErrorResponse} first.
+ * Copies `scope` and `code` to the error identity. Copies `message`, `reason`,
+ * `hint`, `fix`, and `link` to both the developer-facing fields and `public`, so
+ * a later `errorResponse()` call includes the same client-facing data. `options`
+ * supplies the status mapping, cause, request ID, metadata, and attributes.
+ *
+ * Pass unknown input through {@link parseErrorResponse} first. This function
+ * does not establish where `data` came from. Review it before sending it to a
+ * different audience or following its recovery guidance.
  */
 export function fromErrorResponse(
   data: ErrorResponseData,

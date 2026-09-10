@@ -20,10 +20,11 @@ function resolveDocsUrl<TCode extends string>(
 }
 
 /**
- * Per-error options passed to create/raise/report.
- * `scope` is omitted because the factory owns it. Per-error `metadata` and
- * `attributes` shallow-merge over factory defaults, and an explicit `link`
- * takes precedence over `docsBaseUrl`.
+ * Options accepted by `create`, `raise`, and `report`.
+ *
+ * `createErrors` supplies `scope`, so callers cannot set it per error.
+ * Per-error `metadata` and `attributes` shallow-merge over factory defaults.
+ * An explicit per-error `link` overrides a link derived from `docsBaseUrl`.
  */
 export type CreateErrorOptions<TCode extends string = string> = Omit<
   VercelErrorOptions<TCode>,
@@ -31,8 +32,8 @@ export type CreateErrorOptions<TCode extends string = string> = Omit<
 >;
 
 /**
- * Constructor constraint for custom error classes.
- * Any class that extends VercelError and accepts `(message, options?)` is valid.
+ * Type accepted for a custom error class. The class must extend `VercelError`
+ * and accept `(message, options?)`.
  */
 export type VercelErrorConstructor<
   TCode extends string = string,
@@ -62,7 +63,7 @@ export interface ErrorFactory<
 }
 
 /**
- * Shared defaults and diagnostics for {@link createErrors}.
+ * Values and behavior shared by every error from {@link createErrors}.
  *
  * A supplied `ErrorClass` determines the returned subtype. `onReport` runs only
  * for `report`; omission defaults that method to `console.error`.
@@ -89,22 +90,23 @@ export interface CreateErrorsOptions<
    * to skip.
    *
    * Applied only when an error has a `code` and no explicit `link`. A
-   * per-error `link` always wins. This derives developer documentation only;
-   * a client-visible `public.link` must be supplied explicitly. Resolver
+   * per-error `link` always wins. This sets only the developer-facing `link`;
+   * set `public.link` separately for client responses. Resolver
    * exceptions propagate from `create`, `raise`, or `report`.
    */
   docsBaseUrl?: string | ((code: TCode) => string | undefined);
 
-  /** Custom subtype constructor. Required when requesting a custom TError. */
+  /** Custom error class. Required when requesting a custom `TError`. */
   ErrorClass?: VercelErrorConstructor<TCode, TError>;
   /**
-   * Shared flat telemetry values. Per-error keys win during a shallow merge;
-   * the result remains diagnostic and is never sent in error responses.
+   * Factory-wide OpenTelemetry-compatible values. Per-error values replace
+   * factory values with the same keys. The merged attributes are excluded from
+   * error responses.
    */
   attributes?: ErrorAttributes;
   /**
-   * Shared nested diagnostic context. Per-error keys win during a shallow
-   * top-level merge; the result is never sent in error responses.
+   * Factory-wide nested debugging data. Per-error keys replace factory values
+   * with the same top-level keys. The merged data is excluded from responses.
    */
   metadata?: ErrorMetadata;
 

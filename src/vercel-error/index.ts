@@ -10,18 +10,22 @@ import { VERCEL_ERROR_TAG } from './tag';
 
 /**
  * An `Error` subclass with stable identity, separate developer and public
- * details, cause chaining, diagnostic context, and terminal formatting.
+ * details, an original cause, debugging data, and terminal formatting.
  *
- * `message`, `reason`, `hint`, `fix`, and `link` are developer-facing. Put
- * client-facing text under `public`. Construction validates that object, drops
- * unknown fields, and stores a frozen copy; invalid fields throw `TypeError`.
+ * `message`, `reason`, `hint`, `fix`, and `link` are developer-facing.
+ * `errorResponse()` uses text from `public`, or a fixed generic message when
+ * `public` is absent. When `public` is provided, its `message` must contain
+ * non-whitespace text and its optional fields must be strings. Invalid fields
+ * throw `TypeError`; unknown fields are dropped and the copied object is frozen.
  *
- * The cross-realm symbol tag identifies data only and can be forged. Use
- * `instanceof VercelError` before calling class methods. `requestId`,
- * `metadata`, and `attributes` remain mutable. `message`, `scope`, `code`,
- * `statusCode`, the developer detail fields, and `public` are readonly.
- * Construction sets `name` to `"VercelError"`; subclasses that need another
- * stable name must assign it explicitly.
+ * Objects from another JavaScript realm can carry the package symbol tag, but
+ * any object can forge it. Use `instanceof VercelError` before calling class
+ * methods.
+ *
+ * TypeScript exposes `requestId`, `metadata`, and `attributes` as writable and
+ * the other fields declared below as readonly. This does not freeze the error
+ * instance. Construction sets `name` to `"VercelError"`; subclasses that need
+ * another stable name must assign it explicitly.
  *
  * @template TCode - Strongly typed error code union
  *
@@ -50,8 +54,8 @@ export class VercelError<TCode extends string = string> extends Error {
   readonly scope?: string;
 
   /**
-   * Authored HTTP mapping. `errorResponse()` defaults omission to 500 and
-   * accepts only integers from 400 through 599.
+   * Status mapping used by `errorResponse()`. Omission defaults to 500; defined
+   * values must be integers from 400 through 599.
    */
   readonly statusCode?: number;
 
@@ -66,17 +70,14 @@ export class VercelError<TCode extends string = string> extends Error {
    * include a URL in an error response.
    */
   readonly link?: string;
-  /**
-   * Client-approved details, validated and copied at construction. Unknown
-   * fields are dropped and the stored copy is frozen.
-   */
+  /** Public error details, validated and copied at construction. */
   readonly public?: PublicErrorDetails;
 
-  /** Mutable correlation value included in diagnostics but never responses. */
+  /** Mutable request ID included in `toJSON()` and excluded from responses. */
   requestId?: string;
-  /** Mutable nested diagnostic context included in `toJSON()`, never responses. */
+  /** Mutable nested debugging data included in `toJSON()`, not responses. */
   metadata?: ErrorMetadata;
-  /** Mutable flat telemetry context included in `toJSON()`, never responses. */
+  /** Mutable flat telemetry values included in `toJSON()`, not responses. */
   attributes?: ErrorAttributes;
 
   constructor(message: string, options: VercelErrorOptions<TCode> = {}) {
@@ -115,8 +116,8 @@ export class VercelError<TCode extends string = string> extends Error {
    * Surfaces non-enumerable Error properties (`name`, `message`, `stack`)
    * alongside all VercelError fields. Omits `cause` (may be circular or
    * contain sensitive internals) and any `undefined` values. This output may
-   * contain developer prose and server context; use `errorResponse()` for
-   * client-safe HTTP serialization.
+   * contain developer-facing text and server data; use `errorResponse()` for
+   * client-facing HTTP output.
    */
   toJSON(): Record<string, unknown> {
     return {

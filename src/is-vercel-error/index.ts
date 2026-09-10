@@ -4,14 +4,18 @@ import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 /**
- * Return `true` for a local `VercelError` instance or an object with the package
- * symbol tag and valid `VercelErrorLike` fields.
+ * Return `true` for a local `VercelError` instance without revalidating its
+ * fields. For other objects, require the package symbol tag and validate the
+ * `VercelErrorLike` fields.
  *
- * The tag can be forged, so tagged-object recognition validates field shape but
- * does not verify who created the value or approve its fields for disclosure.
- * Use `instanceof VercelError` before calling class methods. Tagged objects may
- * have a blank `public.message`; `metadata` and `attributes` need only be
- * non-array objects. Property accessors and Proxy traps may run and throw.
+ * Any object can forge the tag. For a non-local tagged object, `true` means only
+ * that its fields have the expected runtime shapes; it does not establish where
+ * the object came from or make developer-facing fields safe to send to clients.
+ * Use `instanceof VercelError` before calling class methods.
+ *
+ * Tagged objects may have a blank `public.message`; `metadata` and `attributes`
+ * may be any non-array objects. Property accessors and Proxy traps may run and
+ * throw.
  */
 export function isVercelError(error: unknown): error is VercelErrorLike {
   if (error instanceof VercelError) {

@@ -8,23 +8,23 @@
  * headers stored in other casings.
  */
 export interface HeadersLike {
-  /** Look up a header case-insensitively; return `null` when it is absent. */
   get(name: string): string | null;
 }
 
 /**
- * Detect whether an HTTP request wants ANSI-formatted error responses.
+ * Return whether a request selects an ANSI-formatted error response.
  *
- * Accepts a `Request` or `HeadersLike` object: any object with a `get(name)` method
- * (e.g. Next.js `ReadonlyHeaders`, `Headers`, etc).
+ * Accepts a `Request` or a `HeadersLike` lookup. Checks these case-sensitive
+ * values in order:
  *
- * Checks (in order):
- * 1. A present `X-Error-Format` header is authoritative; only `ansi` enables ANSI
- * 2. `Accept: text/plain+ansi` header
- * 3. `User-Agent` containing `curl/` (curl users get ANSI by default)
+ * 1. If `X-Error-Format` is present, return `true` only for the exact value
+ *    `ansi`; do not check lower-priority headers.
+ * 2. Return `true` if `Accept` contains `text/plain+ansi`.
+ * 3. Return `true` if `User-Agent` contains `curl/`.
  *
- * Returns `false` if no input is provided or none of the checks match. Header
- * access and `get()` exceptions propagate.
+ * Returns `false` when no input is provided or no check matches. Reading
+ * headers or calling `get()` may invoke accessors or Proxy traps, and their
+ * exceptions propagate.
  */
 export function wantsAnsi(
   requestOrHeaders?: Request | HeadersLike | null,
