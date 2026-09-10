@@ -49,6 +49,12 @@ async function main() {
       ],
       { cwd: consumerDirectory, stdio: 'inherit' },
     );
+    const installedPackageRoot = join(
+      consumerDirectory,
+      'node_modules/@vercel/error',
+    );
+    verifyPackedMetadata(installedPackageRoot);
+    verifyPackedManifest(installedPackageRoot);
 
     writeFileSync(
       join(consumerDirectory, 'tsconfig.json'),
@@ -110,6 +116,112 @@ async function main() {
   } finally {
     rmSync(workspace, { force: true, recursive: true });
   }
+}
+
+function verifyPackedMetadata(installedPackageRoot) {
+  const installedPackage = JSON.parse(
+    readFileSync(join(installedPackageRoot, 'package.json'), 'utf8'),
+  );
+  const expectations = [
+    ['name', installedPackage.name, '@vercel/error'],
+    ['license', installedPackage.license, 'MIT'],
+    [
+      'repository.url',
+      installedPackage.repository?.url,
+      'git+https://github.com/vercel-labs/error.git',
+    ],
+    ['publishConfig.access', installedPackage.publishConfig?.access, 'public'],
+    ['type', installedPackage.type, 'module'],
+    ['sideEffects', installedPackage.sideEffects, false],
+    ['engines.node', installedPackage.engines?.node, '>=24'],
+  ];
+
+  for (const [field, actual, expected] of expectations) {
+    if (actual !== expected) {
+      throw new Error(
+        `Packed package ${field} must be ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
+      );
+    }
+  }
+
+  if (
+    typeof installedPackage.exports !== 'object' ||
+    installedPackage.exports === null
+  ) {
+    throw new Error('Packed package exports must be an object');
+  }
+  for (const [subpath, target] of Object.entries(installedPackage.exports)) {
+    if (typeof target !== 'object' || target === null) {
+      throw new Error(`Packed export ${subpath} must use conditional exports`);
+    }
+    const conditions = Object.keys(target);
+    const typesIndex = conditions.indexOf('types');
+    const defaultIndex = conditions.indexOf('default');
+    if (typesIndex === -1 || defaultIndex === -1 || typesIndex > defaultIndex) {
+      throw new Error(
+        `Packed export ${subpath} must declare types before default`,
+      );
+    }
+  }
+}
+
+function verifyPackedManifest(installedPackageRoot) {
+  const files = listPackedFiles(installedPackageRoot);
+  const requiredRootFiles = ['LICENSE', 'README.md', 'package.json'];
+  for (const required of requiredRootFiles) {
+    if (!files.includes(required)) {
+      throw new Error(`Packed package is missing ${required}`);
+    }
+  }
+
+  let artifactCount = 0;
+  for (const file of files) {
+    if (file.split('/').some((segment) => segment.startsWith('.'))) {
+      throw new Error(`Packed package contains hidden path ${file}`);
+    }
+    if (requiredRootFiles.includes(file)) continue;
+    if (!file.startsWith('dist/')) {
+      throw new Error(`Packed package contains unexpected file ${file}`);
+    }
+    if (/\.spec\.[^/]+$/.test(file)) {
+      throw new Error(`Packed package contains test file ${file}`);
+    }
+    if (
+      !['.d.ts', '.d.ts.map', '.js', '.js.map'].some((suffix) =>
+        file.endsWith(suffix),
+      )
+    ) {
+      throw new Error(`Packed package contains unexpected artifact ${file}`);
+    }
+    artifactCount += 1;
+  }
+
+  if (artifactCount === 0) {
+    throw new Error('Packed package contains no dist artifacts');
+  }
+}
+
+function listPackedFiles(directory, relativeDirectory = '') {
+  const files = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const relativePath = relativeDirectory
+      ? `${relativeDirectory}/${entry.name}`
+      : entry.name;
+    if (entry.isSymbolicLink()) {
+      throw new Error(`Packed package contains symbolic link ${relativePath}`);
+    }
+    if (entry.isDirectory()) {
+      files.push(...listPackedFiles(join(directory, entry.name), relativePath));
+      continue;
+    }
+    if (!entry.isFile()) {
+      throw new Error(
+        `Packed package contains unsupported entry ${relativePath}`,
+      );
+    }
+    files.push(relativePath);
+  }
+  return files.toSorted();
 }
 
 function verifyBuiltImports(distDirectory) {

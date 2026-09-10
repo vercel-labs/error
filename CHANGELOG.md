@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.1.5
+
+### Patch Changes
+
+- Verify public package metadata and reject files outside the allowed package roots or build formats.
+
 ## 0.1.4
 
 ### Patch Changes
