@@ -10,24 +10,12 @@ export type SerializableValue =
   | SerializableValue[]
   | { [key: string]: SerializableValue };
 
-/**
- * Nested application data for debugging and logging. It stays server-side and
- * is excluded from HTTP error responses.
- *
- * Use in `toJSON()`, logs, and debugging tools.
- *
- * @example { userId: '123', query: { table: 'users', limit: 50 } }
- */
+/** Nested debugging data included in `toJSON()` but excluded from responses. */
 export type ErrorMetadata = Record<string, SerializableValue>;
 
 /**
- * Flat values compatible with OpenTelemetry's `AttributeValue` type, suitable
- * for spans, error-tracker tags, and metrics.
- *
- * When attached to `VercelError`, attributes appear in `toJSON()` output but
- * not in `ErrorResponseData` or HTTP response bodies.
- *
- * @example { 'http.method': 'POST', 'db.system': 'postgresql', 'retry.count': 3 }
+ * Flat OpenTelemetry-compatible values included in `toJSON()` but excluded
+ * from responses.
  */
 export type ErrorAttributes = Record<
   string,
@@ -45,16 +33,9 @@ export interface ErrorLike {
 }
 
 /**
- * Error details explicitly approved for a specific client audience.
- *
- * `message` must contain non-whitespace text; optional fields must be strings.
- * The `VercelError` constructor validates these rules, drops unknown fields,
- * and stores a frozen copy. `errorResponse()` applies the same field validation
- * to flat input and `VercelErrorLike` data. Invalid known fields throw
- * `TypeError`.
- *
- * Receiving recovery guidance does not by itself authorize following a fix or
- * link.
+ * Text approved for clients. `message` must contain non-whitespace text;
+ * optional fields must be strings. Invalid fields throw `TypeError`. Receiving
+ * a `fix` or `link` does not authorize using it.
  */
 export interface PublicErrorDetails {
   /** Client-facing summary containing non-whitespace text. */
@@ -70,32 +51,17 @@ export interface PublicErrorDetails {
 }
 
 /**
- * Options for constructing a `VercelError`.
- *
- * `reason`, `hint`, `fix`, and `link` are developer-facing. Client-facing text
- * must be supplied separately under `public`. `errorResponse()` also includes
- * `scope` and `code`, and maps `statusCode` to the concrete HTTP status.
- *
- * `cause`, `requestId`, `metadata`, and `attributes` are excluded from
- * `ErrorResponseData` and HTTP response bodies.
+ * Options for `VercelError`. Responses include `public`, `scope`, `code`, and
+ * the mapped `statusCode`; other fields stay server-side.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
-  /**
-   * Flat OpenTelemetry-compatible values. Stored by reference and excluded
-   * from error responses.
-   */
+  /** Flat OpenTelemetry-compatible values stored by reference. */
   attributes?: ErrorAttributes;
 
   /** The underlying error or value that triggered this one, for chaining. */
   readonly cause?: unknown;
 
-  /**
-   * Stable, machine-readable identifier for this error. Keep it constant even
-   * when you reword the message, so users can search it and docs can link to
-   * it. Pick whatever style fits your registry: semantic names
-   * (`pool_exhausted`), numeric codes (`E1001`), or namespaced numbers
-   * (`B2011`). Numbering is optional, so use words when you prefer them.
-   */
+  /** Stable machine-readable code; keep it unchanged when rewording messages. */
   readonly code?: TCode;
 
   /** Suggested recovery step and any condition required before trying it. */
@@ -107,10 +73,7 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** URL to documentation for this error. A `createErrors` factory with `docsBaseUrl` derives it from `code`. */
   readonly link?: string;
 
-  /**
-   * Nested domain context for debugging and logging. Stored by reference and
-   * never sent to clients.
-   */
+  /** Nested debugging data stored by reference. */
   metadata?: ErrorMetadata;
 
   /** Why the error happened, the root-cause explanation behind the message. */
@@ -122,18 +85,10 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** Namespace that produced the error, such as a service or subsystem. */
   readonly scope?: string;
 
-  /**
-   * HTTP status mapping. `errorResponse()` accepts integers from 400
-   * through 599, defaults omission to 500, and throws `RangeError` otherwise.
-   */
+  /** Status mapping; `errorResponse()` defaults to 500 or accepts 400-599. */
   readonly statusCode?: number;
 
-  /**
-   * Details explicitly approved for a client response. Construction validates
-   * the fields (nonblank string `message`, optional string details), throws
-   * `TypeError` for invalid values, drops unknown fields, and stores a frozen
-   * copy so later mutation of the input object cannot change them.
-   */
+  /** Client text; validated, copied without unknown fields, and frozen. */
   readonly public?: PublicErrorDetails;
 
   /** Reserved. Automatically captured from Error. */
@@ -145,13 +100,8 @@ export interface VercelErrorOptions<TCode extends string = string> {
 }
 
 /**
- * Data fields recognized by {@link isVercelError} across JavaScript realms.
- *
- * Any object can forge the package symbol tag. For tagged non-local objects, a
- * successful check means only that these fields have the expected runtime
- * shapes. It does not establish where the object came from or make
- * developer-facing fields safe to send to clients. Use
- * `instanceof VercelError` before calling class methods.
+ * Fields read from tagged errors in another JavaScript realm. Any object can
+ * forge the tag; use `instanceof VercelError` before calling class methods.
  */
 export interface VercelErrorLike<
   TCode extends string = string,
@@ -162,10 +112,7 @@ export interface VercelErrorLike<
   readonly code?: TCode;
   /** Error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
-  /**
-   * Authored status mapping used by `errorResponse()`. Omission defaults to
-   * 500; invalid values cause `errorResponse()` to throw `RangeError`.
-   */
+  /** Status mapping; `errorResponse()` defaults to 500 or throws `RangeError`. */
   readonly statusCode?: number;
   /** Developer-facing explanation; responses use only `public.reason`. */
   readonly reason?: string;

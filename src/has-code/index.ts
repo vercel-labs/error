@@ -1,10 +1,8 @@
 import { isObject } from '../_internal';
 
 /**
- * Return `true` when a non-array object's own or inherited string `code`
- * matches `code` exactly and case-sensitively. A match narrows the object to
- * `{ code: TCode }`. Reading `code` may invoke accessors or Proxy traps, and
- * their exceptions propagate.
+ * Match a non-array object's string `code` exactly and case-sensitively, then
+ * narrow to `{ code: TCode }`. Property-access exceptions propagate.
  */
 export function hasCode<TCode extends string>(
   error: unknown,
@@ -12,11 +10,9 @@ export function hasCode<TCode extends string>(
 ): error is { code: TCode };
 
 /**
- * Return `true` when a non-array object's own or inherited string `code`
- * exactly matches one of `codes`, using case-sensitive comparisons. A match
- * narrows `code` to the union of the list elements; an empty list never
- * matches. Reading `code` may invoke accessors or Proxy traps, and their
- * exceptions propagate.
+ * Match a non-array object's string `code` against a list and narrow to the
+ * matching union. Matching is exact and case-sensitive; an empty list never
+ * matches. Property-access exceptions propagate.
  */
 export function hasCode<TCode extends string>(
   error: unknown,

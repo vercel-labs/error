@@ -1,11 +1,6 @@
 /**
- * Minimal header lookup interface accepted by ANSI content negotiation.
- * Compatible with `Headers`, Next.js `ReadonlyHeaders`, and plain adapters.
- *
- * Negotiation looks up lowercase header names (`x-error-format`, `accept`,
- * `user-agent`), so `get` must match names case-insensitively, as WHATWG
- * `Headers` does. An adapter that only matches verbatim keys will miss
- * headers stored in other casings.
+ * Header lookup used by {@link wantsAnsi}. `get` must ignore name casing and
+ * return `null` when a header is absent.
  */
 export interface HeadersLike {
   get(name: string): string | null;
@@ -14,17 +9,10 @@ export interface HeadersLike {
 /**
  * Return whether a request selects an ANSI-formatted error response.
  *
- * Accepts a `Request` or a `HeadersLike` lookup. Checks these case-sensitive
- * values in order:
- *
- * 1. If `X-Error-Format` is present, return `true` only for the exact value
- *    `ansi`; do not check lower-priority headers.
- * 2. Return `true` if `Accept` contains `text/plain+ansi`.
- * 3. Return `true` if `User-Agent` contains `curl/`.
- *
- * Returns `false` when no input is provided or no check matches. Reading
- * headers or calling `get()` may invoke accessors or Proxy traps, and their
- * exceptions propagate.
+ * Checks exact, case-sensitive values in this order: `X-Error-Format` equal to
+ * `ansi`, `Accept` containing `text/plain+ansi`, then `User-Agent` containing
+ * `curl/`. A present `X-Error-Format` stops the later checks. Missing input or
+ * no match returns `false`; header-access exceptions propagate.
  */
 export function wantsAnsi(
   requestOrHeaders?: Request | HeadersLike | null,

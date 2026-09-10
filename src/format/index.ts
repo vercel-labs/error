@@ -11,13 +11,9 @@ import type { VercelErrorLike } from '../types';
 export type ErrorFormat = 'auto' | 'plain' | 'tree' | 'ansi';
 
 /**
- * Content accepted by {@link frame}.
- *
- * A string renders as an unlabeled detail. A structured section selects the
- * `hint`, `fix`, or `link` label, its ANSI style, and an arrow connector when
- * connectors are enabled. The renderer does not infer a section kind from a
- * string prefix. Use {@link hint}, {@link fix}, and {@link link} to create
- * structured sections.
+ * Content accepted by {@link frame}. Strings are unlabeled. Structured values
+ * select the `hint`, `fix`, or `link` label and style; string prefixes are not
+ * parsed. Use the matching helper to create a structured section.
  */
 export type FrameSection =
   | string
@@ -28,13 +24,9 @@ export type FrameSection =
 /**
  * Render developer-facing error fields as a terminal frame.
  *
- * ANSI escapes, terminal controls other than tabs and line feeds, Unicode line
- * separators, and bare carriage returns are removed. CRLF is normalized, and
- * continuation lines are prefixed by the renderer. The output may include
- * developer-facing text. To create an HTTP response from public error details,
- * use `errorResponse()` from `@vercel/error/server`. `format` defaults to
- * `auto`; see {@link ErrorFormat}. Reading the input may invoke accessors or
- * Proxy traps, and their exceptions propagate.
+ * Removes unsafe terminal controls and prefixes every continuation line. May
+ * include developer text; use `errorResponse()` for client output. `format`
+ * defaults to `auto`. Property-access exceptions propagate.
  */
 export function formatError(
   error: VercelErrorLike,
@@ -70,13 +62,10 @@ export function formatError(
 /**
  * Render a header and optional sections as a terminal frame.
  *
- * Omits `null`, `undefined`, `false`, and empty string sections. String sections
- * remain unlabeled. Structured sections use the label and style for their
- * `kind`. An object section with an invalid `kind` or non-string `text` throws
- * `TypeError`.
- *
- * Reading a structured section may invoke accessors or Proxy traps, and their
- * exceptions propagate. `format` defaults to `auto`; see {@link ErrorFormat}.
+ * Omits `null`, `undefined`, `false`, and empty strings. Strings are unlabeled;
+ * structured sections use their `kind` label and style. Invalid objects throw
+ * `TypeError`. `format` defaults to `auto`; property-access exceptions
+ * propagate.
  */
 export function frame(
   header: string,

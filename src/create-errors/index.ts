@@ -20,11 +20,8 @@ function resolveDocsUrl<TCode extends string>(
 }
 
 /**
- * Options accepted by `create`, `raise`, and `report`.
- *
- * `createErrors` supplies `scope`, so callers cannot set it per error.
- * Per-error `metadata` and `attributes` shallow-merge over factory defaults.
- * An explicit per-error `link` overrides a link derived from `docsBaseUrl`.
+ * Per-error options. The factory supplies `scope`; `metadata` and `attributes`
+ * merge over factory values, and an explicit `link` overrides `docsBaseUrl`.
  */
 export type CreateErrorOptions<TCode extends string = string> = Omit<
   VercelErrorOptions<TCode>,
@@ -41,10 +38,7 @@ export type VercelErrorConstructor<
 > = new (message: string, options?: VercelErrorOptions<TCode>) => TError;
 
 /**
- * Typed methods returned by {@link createErrors}.
- *
- * `create` returns an error without reporting, `raise` throws without
- * reporting, and `report` creates one error, calls `onReport`, then returns it.
+ * Methods returned by {@link createErrors}: create, throw, or report an error.
  */
 export interface ErrorFactory<
   TCode extends string = string,
@@ -54,80 +48,47 @@ export interface ErrorFactory<
   create(message: string, options?: CreateErrorOptions<TCode>): TError;
   /** Create and throw an error without reporting it. */
   raise(message: string, options?: CreateErrorOptions<TCode>): never;
-  /**
-   * Create an error, report it synchronously through `onReport` or
-   * `console.error`, then return the same error. If reporting throws, this
-   * method does not return.
-   */
+  /** Create, report, and return one error. Reporting errors propagate. */
   report(message: string, options?: CreateErrorOptions<TCode>): TError;
 }
 
 /**
- * Values and behavior shared by every error from {@link createErrors}.
- *
- * A supplied `ErrorClass` determines the returned subtype. `onReport` runs only
- * for `report`; omission defaults that method to `console.error`.
+ * Values shared by every error from {@link createErrors}. `ErrorClass` changes
+ * the returned class. `onReport` runs only for `report` and defaults to
+ * `console.error`.
  */
 export interface CreateErrorsOptions<
   TCode extends string = string,
   TError extends VercelError<TCode> = VercelError<TCode>,
 > {
-  /**
-   * Namespace injected into every error this factory produces.
-   * Optional. Provide it only when a scope is useful, such as grouping errors
-   * by service or subsystem. When omitted, errors have no `scope`.
-   */
+  /** Scope assigned to every error; omission leaves it undefined. */
   scope?: string;
 
   /**
-   * Base URL or resolver for documentation links. When a string, the error's
-   * `code` is appended verbatim as a path segment
-   * (e.g. `"https://vercel.com/docs/errors"` plus code `"pool_exhausted"` gives
-   * `"https://vercel.com/docs/errors/pool_exhausted"`). Trailing slashes on a
-   * string base are trimmed before joining. The code is not transformed, so
-   * use a function base if you need to change its case or shape.
-   * When a function, it receives the `code` and returns a URL, or `undefined`
-   * to skip.
-   *
-   * Applied only when an error has a `code` and no explicit `link`. A
-   * per-error `link` always wins. This sets only the developer-facing `link`;
-   * set `public.link` separately for client responses. Resolver
-   * exceptions propagate from `create`, `raise`, or `report`.
+   * Base URL or function used to create a developer-facing `link` from `code`.
+   * String bases lose trailing slashes before the unchanged code is appended.
+   * An explicit per-error `link` wins. Set `public.link` separately for client
+   * responses. Function errors propagate.
    */
   docsBaseUrl?: string | ((code: TCode) => string | undefined);
 
   /** Custom error class. Required when requesting a custom `TError`. */
   ErrorClass?: VercelErrorConstructor<TCode, TError>;
-  /**
-   * Factory-wide OpenTelemetry-compatible values. Per-error values replace
-   * factory values with the same keys. The merged attributes are excluded from
-   * error responses.
-   */
+  /** Shared attributes; per-error keys win and responses exclude the result. */
   attributes?: ErrorAttributes;
-  /**
-   * Factory-wide nested debugging data. Per-error keys replace factory values
-   * with the same top-level keys. The merged data is excluded from responses.
-   */
+  /** Shared metadata; per-error top-level keys win and responses exclude it. */
   metadata?: ErrorMetadata;
 
   /**
-   * Called synchronously after `report` creates an error. It is not called by
-   * `create` or `raise`. Exceptions propagate. The callback must return
-   * `undefined`, so TypeScript rejects async callbacks.
+   * Called by `report` after creating the error. Exceptions propagate. Must
+   * return `undefined`, so TypeScript rejects async callbacks.
    */
   onReport?: (error: TError) => undefined;
 }
 
 /**
- * Create an error factory with type-safe error codes.
- *
- * Always returns `{ create, raise, report }`.
- * `scope` is optional. Provide it only when you want to group errors by a
- * namespace. When `docsBaseUrl` is set, each error's `link` is derived from
- * its `code`, unless you pass an explicit `link`.
- * When no `onReport` callback is provided, `report` defaults to `console.error`.
- * When `ErrorClass` is provided, all errors are instances of that class.
- * `create` and `raise` never report automatically.
+ * Create a typed factory. `create` and `raise` do not report; `report` uses
+ * `onReport` or `console.error`.
  *
  * @example
  * ```ts
@@ -160,10 +121,7 @@ export function createErrors<
     readonly ErrorClass: VercelErrorConstructor<TCode, TError>;
   },
 ): ErrorFactory<TCode, TError>;
-/**
- * Create a factory that returns `VercelError<TCode>` instances. Options are
- * optional; without `onReport`, `report()` uses `console.error`.
- */
+/** Create a factory returning `VercelError<TCode>` instances. */
 export function createErrors<TCode extends string = string>(
   options?: CreateErrorsOptions<TCode, VercelError<TCode>>,
 ): ErrorFactory<TCode, VercelError<TCode>>;
