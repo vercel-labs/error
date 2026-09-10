@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspace = mkdtempSync(join(tmpdir(), 'vercel-error-packed-'));
@@ -63,6 +64,11 @@ function main() {
     );
     writeFileSync(join(consumerDirectory, 'consumer.ts'), consumerFixture);
     writeFileSync(join(consumerDirectory, 'utility.ts'), utilityFixture);
+    writeFileSync(join(consumerDirectory, 'browser.ts'), browserFixture);
+    writeFileSync(
+      join(consumerDirectory, 'tsdown.browser.config.mjs'),
+      browserBuildConfig,
+    );
 
     const tsc = join(packageRoot, 'node_modules', 'typescript', 'bin', 'tsc');
     execFileSync(process.execPath, [tsc, '--project', 'tsconfig.json'], {
@@ -82,6 +88,7 @@ function main() {
       join(consumerDirectory, 'node_modules/@vercel/error/dist'),
     );
     verifyTreeShaking(consumerDirectory);
+    verifyBrowserBundle(consumerDirectory);
 
     console.log('Packed package verification passed.');
   } finally {
@@ -204,6 +211,81 @@ function verifyTreeShaking(directory) {
     }
     if (bundle.includes(forbidden)) {
       throw new Error(`Tree-shaken utility bundle contains ${forbidden}`);
+    }
+  }
+}
+
+function verifyBrowserBundle(directory) {
+  const tsdown = join(packageRoot, 'node_modules', '.bin', 'tsdown');
+  execFileSync(tsdown, ['--config', 'tsdown.browser.config.mjs'], {
+    cwd: directory,
+    stdio: 'inherit',
+    timeout: 60_000,
+  });
+
+  const bundleDirectory = join(directory, 'browser-bundle');
+  const bundleNames = readdirSync(bundleDirectory).filter((name) =>
+    /\.[cm]?js$/.test(name),
+  );
+  if (bundleNames.length !== 1) {
+    throw new Error(
+      `Expected one top-level browser JavaScript file, found ${bundleNames.length}`,
+    );
+  }
+  const [bundleName] = bundleNames;
+  const bundle = readFileSync(join(bundleDirectory, bundleName), 'utf8');
+
+  if (/\bnode:/.test(bundle)) {
+    throw new Error('Browser bundle text matches /\\bnode:/');
+  }
+  if (/\brequire\s*\(/.test(bundle)) {
+    throw new Error('Browser bundle text matches /\\brequire\\s*\\(/');
+  }
+  if (/\bimport\s*\(/.test(bundle)) {
+    throw new Error('Browser bundle text contains a dynamic import');
+  }
+
+  const nativeBrandCheckAvailable = runInNewContext(
+    "typeof Error.isError === 'function'",
+    Object.create(null),
+  );
+  if (!nativeBrandCheckAvailable) {
+    throw new Error('Packed verification runtime has no native Error.isError');
+  }
+
+  for (const scenario of [
+    { acceptsTagForgery: false, name: 'native Error.isError', setup: '' },
+    {
+      acceptsTagForgery: true,
+      name: 'Error.isError fallback',
+      setup:
+        "Object.defineProperty(Error, 'isError', { configurable: true, value: undefined, writable: true });",
+    },
+  ]) {
+    const sandbox = Object.assign(Object.create(null), {
+      __vercelErrorAcceptsTagForgery: scenario.acceptsTagForgery,
+      document: Object.freeze({}),
+      navigator: Object.freeze({ userAgent: 'packed-browser-check' }),
+    });
+    sandbox.self = sandbox;
+    sandbox.window = sandbox;
+
+    try {
+      runInNewContext(`${scenario.setup}\n${bundle}`, sandbox, {
+        filename: `vercel-error-browser-${scenario.name}.js`,
+        timeout: 5_000,
+      });
+    } catch (error) {
+      throw new Error(
+        `Browser fixture failed in Node VM scenario "${scenario.name}"`,
+        { cause: error },
+      );
+    }
+
+    if (sandbox.__vercelErrorBrowserCheckComplete !== true) {
+      throw new Error(
+        `Browser fixture did not complete in Node VM scenario "${scenario.name}"`,
+      );
     }
   }
 }
@@ -419,6 +501,234 @@ import { hasCode } from '@vercel/error';
 export function isUnavailable(error: unknown): boolean {
   return hasCode(error, 'unavailable');
 }
+`;
+
+const browserBuildConfig = String.raw`
+export default {
+  clean: true,
+  deps: {
+    alwaysBundle: [/.*/],
+  },
+  entry: ['browser.ts'],
+  format: ['iife'],
+  logLevel: 'error',
+  outDir: 'browser-bundle',
+  platform: 'browser',
+  target: 'es2022',
+};
+`;
+
+const browserFixture = String.raw`
+import * as root from '@vercel/error';
+import * as client from '@vercel/error/client';
+import * as server from '@vercel/error/server';
+import * as format from '@vercel/error/format';
+
+const {
+  VercelError,
+  createErrors,
+  getMessage,
+  getRootCause,
+  hasCode,
+  isError,
+  isErrorLike,
+  isVercelError,
+} = root;
+const { fromErrorResponse, parseErrorResponse } = client;
+const { errorResponse, wantsAnsi } = server;
+const { fix, formatError, frame, hint, link } = format;
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
+
+for (const nodeGlobal of ['process', 'Buffer', 'require']) {
+  assert(
+    !(nodeGlobal in globalThis),
+    'Node VM sandbox unexpectedly exposes global ' + nodeGlobal,
+  );
+}
+
+const runtimeExports = {
+  VercelError,
+  createErrors,
+  errorResponse,
+  fix,
+  formatError,
+  frame,
+  fromErrorResponse,
+  getMessage,
+  getRootCause,
+  hasCode,
+  hint,
+  isError,
+  isErrorLike,
+  isVercelError,
+  link,
+  parseErrorResponse,
+  wantsAnsi,
+};
+for (const [name, value] of Object.entries(runtimeExports)) {
+  assert(typeof value === 'function', 'browser bundle omitted export ' + name);
+}
+
+assert(
+  isError(new Error('browser failure')),
+  'isError did not recognize an Error created in the Node VM',
+);
+const acceptsTagForgery = (
+  globalThis as typeof globalThis & {
+    __vercelErrorAcceptsTagForgery: boolean;
+  }
+).__vercelErrorAcceptsTagForgery;
+assert(
+  isError({ [Symbol.toStringTag]: 'Error' }) === acceptsTagForgery,
+  'isError did not select the expected recognition branch',
+);
+
+let plainErrorRejected = false;
+try {
+  errorResponse(new Error('Secret browser failure'));
+} catch (caught) {
+  plainErrorRejected = caught instanceof TypeError;
+}
+assert(
+  plainErrorRejected,
+  'errorResponse did not reject a plain Error with TypeError',
+);
+
+const developerCanaries = [
+  'DEV_MESSAGE',
+  'DEV_NAME',
+  'DEV_REASON',
+  'DEV_HINT',
+  'DEV_FIX',
+  'DEV_LINK',
+  'DEV_REQUEST_ID',
+  'DEV_METADATA',
+  'DEV_ATTRIBUTE',
+  'DEV_CAUSE',
+];
+function assertNoDeveloperCanaries(body: string, formatName: string): void {
+  for (const canary of developerCanaries) {
+    assert(!body.includes(canary), formatName + ' body contains ' + canary);
+  }
+}
+
+const cause = new Error('DEV_CAUSE');
+const errors = createErrors({ scope: 'browser' });
+const error = errors.create('DEV_MESSAGE', {
+  attributes: { diagnostic: 'DEV_ATTRIBUTE' },
+  cause,
+  code: 'unavailable',
+  fix: 'DEV_FIX',
+  hint: 'DEV_HINT',
+  link: 'https://example.com/DEV_LINK',
+  metadata: { diagnostic: 'DEV_METADATA' },
+  public: { message: 'The service is unavailable' },
+  reason: 'DEV_REASON',
+  requestId: 'DEV_REQUEST_ID',
+  statusCode: 503,
+});
+error.name = 'DEV_NAME';
+
+assert(error instanceof VercelError, 'createErrors did not use VercelError');
+assert(hasCode(error, 'unavailable'), 'hasCode did not match the error code');
+assert(isErrorLike(error), 'isErrorLike did not recognize VercelError');
+assert(isVercelError(error), 'isVercelError did not recognize VercelError');
+assert(getMessage(error) === 'DEV_MESSAGE', 'getMessage changed the message');
+assert(getRootCause(error) === cause, 'getRootCause did not return the cause');
+
+const json = errorResponse(error);
+assert(
+  json.status === 503,
+  'errorResponse did not map statusCode 503 to response status 503',
+);
+assert(
+  json.headers['Content-Type'] === 'application/json',
+  'JSON response content type was not application/json',
+);
+assertNoDeveloperCanaries(json.body, 'JSON');
+const jsonData = JSON.parse(json.body);
+assert(
+  Object.keys(jsonData).join(',') === 'error',
+  'JSON response contains unexpected top-level fields',
+);
+assert(
+  Object.keys(jsonData.error).join(',') === 'scope,code,message',
+  'JSON response contains unexpected error fields',
+);
+assert(
+  jsonData.error.scope === 'browser' &&
+    jsonData.error.code === 'unavailable' &&
+    jsonData.error.message === 'The service is unavailable',
+  'JSON response fields do not match the public error',
+);
+
+const parsed = parseErrorResponse(jsonData);
+assert(
+  parsed?.error.message === 'The service is unavailable',
+  'parseErrorResponse did not return the public message',
+);
+const reconstructed = fromErrorResponse(parsed, { statusCode: json.status });
+assert(
+  reconstructed.message === 'The service is unavailable' &&
+    reconstructed.scope === 'browser' &&
+    reconstructed.code === 'unavailable' &&
+    reconstructed.statusCode === 503 &&
+    reconstructed.public?.message === 'The service is unavailable',
+  'fromErrorResponse did not reconstruct the public response fields',
+);
+assert(
+  errorResponse(reconstructed).body === json.body,
+  'reconstructed error did not serialize to the same public body',
+);
+
+const ansiHeaders = {
+  get(name: string): string | null {
+    return name === 'x-error-format' ? 'ansi' : null;
+  },
+};
+assert(
+  wantsAnsi(ansiHeaders),
+  'wantsAnsi did not accept x-error-format: ansi',
+);
+const ansi = errorResponse(error, { request: ansiHeaders });
+assert(
+  ansi.headers['Content-Type'] === 'text/plain; charset=utf-8',
+  'ANSI response content type was not text/plain; charset=utf-8',
+);
+assert(
+  ansi.body.includes('\x1b['),
+  'errorResponse did not emit ANSI control sequences',
+);
+assert(
+  ansi.body.includes('The service is unavailable'),
+  'ANSI response body omitted the public message',
+);
+assertNoDeveloperCanaries(ansi.body, 'ANSI');
+
+assert(
+  formatError(reconstructed, { format: 'plain' }).includes(
+    'The service is unavailable',
+  ),
+  'plain format omitted the reconstructed public message',
+);
+const renderedFrame = frame(
+  'Browser failure',
+  [hint('Try again'), fix('Retry'), link('https://example.com/help')],
+  { format: 'tree' },
+);
+assert(
+  renderedFrame.includes('hint: Try again') &&
+    renderedFrame.includes('fix: Retry') &&
+    renderedFrame.includes('read more: https://example.com/help'),
+  'tree frame omitted a structured section',
+);
+
+(globalThis as typeof globalThis & {
+  __vercelErrorBrowserCheckComplete?: boolean;
+}).__vercelErrorBrowserCheckComplete = true;
 `;
 
 main();
