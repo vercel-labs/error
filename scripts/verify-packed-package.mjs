@@ -67,6 +67,7 @@ async function main() {
     for (const fixture of [
       'browser.ts',
       'consumer.ts',
+      'tsconfig.browser.json',
       'tsdown.browser.config.mjs',
       'utility.ts',
     ]) {
@@ -81,6 +82,15 @@ async function main() {
       cwd: consumerDirectory,
       stdio: 'inherit',
     });
+    execFileSync(
+      process.execPath,
+      [tsc, '--project', 'tsconfig.browser.json'],
+      {
+        cwd: consumerDirectory,
+        stdio: 'inherit',
+        timeout: 60_000,
+      },
+    );
 
     const runtimeEnvironment = { ...process.env, NO_COLOR: '1' };
     delete runtimeEnvironment.FORCE_COLOR;
@@ -265,16 +275,16 @@ async function verifyBrowserBundle(directory) {
   );
   const expectedRuntimeExports = Object.fromEntries(
     await Promise.all(
-      Object.entries(installedPackage.exports).map(
-        async ([subpath, target]) => [
+      Object.entries(installedPackage.exports)
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(async ([subpath, target]) => [
           subpath,
           Object.keys(
             await import(
               pathToFileURL(resolve(installedPackageRoot, target.default))
             ),
-          ).toSorted(),
-        ],
-      ),
+          ),
+        ]),
     ),
   );
   const expectedRuntimeExportsJson = JSON.stringify(expectedRuntimeExports);
@@ -315,11 +325,11 @@ async function verifyBrowserBundle(directory) {
       );
     }
     if (
-      JSON.stringify(sandbox.__vercelErrorExercisedExports) !==
+      JSON.stringify(sandbox.__vercelErrorRuntimeExportKeys) !==
       expectedRuntimeExportsJson
     ) {
       throw new Error(
-        `Browser fixture does not exercise every packed runtime export in Node VM scenario "${scenario.name}"`,
+        `Browser-platform bundle runtime export keys do not match the installed package in Node VM scenario "${scenario.name}"`,
       );
     }
   }

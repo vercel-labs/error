@@ -17,17 +17,17 @@ for (const nodeGlobal of ['process', 'Buffer', 'require']) {
 const runtimeExports = {
   '.': root,
   './client': client,
-  './server': server,
   './format': format,
+  './server': server,
 };
 (
   globalThis as typeof globalThis & {
-    __vercelErrorExercisedExports?: Record<string, string[]>;
+    __vercelErrorRuntimeExportKeys?: Record<string, string[]>;
   }
-).__vercelErrorExercisedExports = Object.fromEntries(
+).__vercelErrorRuntimeExportKeys = Object.fromEntries(
   Object.entries(runtimeExports).map(([subpath, exports]) => [
     subpath,
-    Object.keys(exports).toSorted(),
+    Object.keys(exports),
   ]),
 );
 
@@ -64,14 +64,17 @@ assert(
 const parsed = client.parseErrorResponse(JSON.parse(json.body));
 assert(
   parsed?.error.code === 'unavailable' &&
+    parsed.error.scope === 'browser' &&
     parsed.error.message === 'The service is unavailable',
-  'browser response did not preserve its public identity and message',
+  'browser-platform bundle response did not preserve its public identity and message',
 );
 const reconstructed = client.fromErrorResponse(parsed, {
   statusCode: json.status,
 });
+const reconstructedResponse = server.errorResponse(reconstructed);
 assert(
-  server.errorResponse(reconstructed).body === json.body,
+  reconstructedResponse.status === json.status &&
+    reconstructedResponse.body === json.body,
   'reconstructed error did not serialize to the same public body',
 );
 assert(
