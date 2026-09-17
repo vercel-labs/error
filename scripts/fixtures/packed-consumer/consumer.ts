@@ -9,9 +9,11 @@ import {
   type VercelErrorOptions,
 } from '@vercel/error';
 import {
-  fromErrorResponse,
-  parseErrorResponse,
+  fromErrorResponseData,
+  fromHttpResponse,
+  parseErrorResponseData,
   type ErrorResponseData as ClientErrorResponseData,
+  type FromHttpResponseOptions,
 } from '@vercel/error/client';
 import { fix, formatError, frame, hint, link } from '@vercel/error/format';
 import {
@@ -100,11 +102,11 @@ function verifyTypeContracts(error: CliError, data: ErrorResponseData): void {
   // @ts-expect-error authored public details are readonly
   error.public = { message: 'changed' };
   // @ts-expect-error ErrorResponseData scope cannot be overridden during reconstruction
-  fromErrorResponse(data, { scope: 'other' });
+  fromErrorResponseData(data, { scope: 'other' });
   // @ts-expect-error ErrorResponseData code cannot be overridden during reconstruction
-  fromErrorResponse(data, { code: 'other' });
+  fromErrorResponseData(data, { code: 'other' });
   // @ts-expect-error ErrorResponseData public details cannot be overridden during reconstruction
-  fromErrorResponse(data, { public: { message: 'other' } });
+  fromErrorResponseData(data, { public: { message: 'other' } });
 }
 assert(
   typeof verifyTypeContracts === 'function',
@@ -134,7 +136,7 @@ const json: ErrorResponse = errorResponse(reported, {
 assert(json.status === 503, 'concrete status was not preserved');
 assert(serializedStatus === 503, 'onSerialize did not run');
 assert(serializedBodyFormat === 'json', 'JSON body format was not reported');
-const parsedJson = parseErrorResponse(JSON.parse(json.body));
+const parsedJson = parseErrorResponseData(JSON.parse(json.body));
 assert(parsedJson, 'valid JSON response did not parse');
 const clientResponseData: ClientErrorResponseData = parsedJson;
 assert(
@@ -148,7 +150,7 @@ assert(
   'server-only requestId reached response data',
 );
 
-const reconstructed = fromErrorResponse(parsedJson, {
+const reconstructed = fromErrorResponseData(parsedJson, {
   statusCode: json.status,
 });
 assert(
@@ -191,7 +193,7 @@ assert(
 );
 
 assert(
-  parseErrorResponse({ error: { hint: false, message: 'Failed' } }) ===
+  parseErrorResponseData({ error: { hint: false, message: 'Failed' } }) ===
     undefined,
   'strict parsing accepted malformed known fields',
 );
@@ -214,4 +216,19 @@ assert(
     format: 'tree',
   }).includes('╰─▸'),
   'structured frame sections did not render',
+);
+
+async function verifyHttpResponseReader(
+  response: Response,
+  options?: FromHttpResponseOptions,
+): Promise<void> {
+  const error = await fromHttpResponse(response, options);
+  if (error) {
+    const statusCode: number | undefined = error.statusCode;
+    assert(statusCode === response.status, 'response status was not preserved');
+  }
+}
+assert(
+  typeof verifyHttpResponseReader === 'function',
+  'HTTP response reader type contract was not defined',
 );

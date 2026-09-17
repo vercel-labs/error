@@ -19,7 +19,7 @@ const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 /**
  * Client-facing fields shared by JSON and ANSI responses. Excludes status,
  * request ID, metadata, attributes, cause, stack, and error name. `message`
- * must contain non-whitespace text. Use `parseErrorResponse` from
+ * must contain non-whitespace text. Use `parseErrorResponseData` from
  * `@vercel/error/client` before using unknown data.
  */
 export interface ErrorResponseData {
@@ -54,7 +54,7 @@ interface PublicErrorInput {
  * Values added during reconstruction. Set `statusCode` from the HTTP response;
  * the remaining options stay local to the reconstructed error.
  */
-export type FromErrorResponseOptions = Pick<
+export type FromErrorResponseDataOptions = Pick<
   VercelErrorOptions,
   'statusCode' | 'cause' | 'requestId' | 'metadata' | 'attributes'
 >;
@@ -122,7 +122,7 @@ export function buildErrorResponseData(
  * This checks field types, not who produced the data or whether its guidance is
  * safe. Property-access exceptions propagate.
  */
-export function parseErrorResponse(
+export function parseErrorResponseData(
   data?: unknown,
 ): ErrorResponseData | undefined {
   if (!isObject(data) || !isObject(data['error'])) {
@@ -152,9 +152,9 @@ export function parseErrorResponse(
  * unknown input first. Review the data before sending it to another audience or
  * following its guidance.
  */
-export function fromErrorResponse(
+export function fromErrorResponseData(
   data: ErrorResponseData,
-  options: FromErrorResponseOptions = {},
+  options: FromErrorResponseDataOptions = {},
 ): VercelError {
   const { error } = data;
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Partially superseded by [Require explicit public response input](0007-require-explicit-public-response-input.md).
+Partially superseded by [Require explicit public response input](0007-require-explicit-public-response-input.md) and [Read HTTP responses through the client entry point](0009-read-http-responses-through-the-client-entry-point.md).
 
 ## Context
 

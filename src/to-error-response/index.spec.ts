@@ -4,7 +4,10 @@ import { MessageChannel } from 'node:worker_threads';
 import { describe, expect, it, vi } from 'vitest';
 
 import { errorResponse } from '.';
-import { parseErrorResponse, fromErrorResponse } from '../error-response-data';
+import {
+  fromErrorResponseData,
+  parseErrorResponseData,
+} from '../error-response-data';
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
@@ -385,9 +388,9 @@ describe('errorResponse', () => {
         statusCode: 503,
       }),
     );
-    const parsed = parseErrorResponse(JSON.parse(first.body));
+    const parsed = parseErrorResponseData(JSON.parse(first.body));
     assert(parsed);
-    const reconstructed = fromErrorResponse(parsed, {
+    const reconstructed = fromErrorResponseData(parsed, {
       statusCode: first.status,
     });
 

@@ -48,15 +48,21 @@
     "limit": "160 B"
   },
   {
-    "name": "fromErrorResponse",
+    "name": "fromErrorResponseData",
     "path": "dist/client.js",
-    "import": "{ fromErrorResponse }",
+    "import": "{ fromErrorResponseData }",
     "limit": "1.85 kB"
   },
   {
-    "name": "parseErrorResponse",
+    "name": "fromHttpResponse",
     "path": "dist/client.js",
-    "import": "{ parseErrorResponse }",
+    "import": "{ fromHttpResponse }",
+    "limit": "2.2 kB"
+  },
+  {
+    "name": "parseErrorResponseData",
+    "path": "dist/client.js",
+    "import": "{ parseErrorResponseData }",
     "limit": "260 B"
   },
   {

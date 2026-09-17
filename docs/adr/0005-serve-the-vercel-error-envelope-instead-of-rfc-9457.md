@@ -12,7 +12,7 @@ RFC 9457 defines `application/problem+json`, with a URI `type`, a stable `title`
 
 RFC 9457 says problem details are "not to replace existing domain-specific formats." Vercel already has such a format, so replacing it here would make this package inconsistent with Vercel's published APIs.
 
-The two contracts also prevent a direct field-for-field mapping. RFC 9457 uses a stable URI as the primary identifier, while this package uses `scope` and `code`. It expects a stable `title` for each type, which this package does not store. The fields `reason`, `hint`, `fix`, and `link` would be extensions that generic problem-details clients ignore. The RFC tells clients to ignore a member with the wrong type, while `parseErrorResponse` rejects the response. It also warns that a `status` in the body can disagree with the HTTP status, so this package keeps status out of the body.
+The two contracts also prevent a direct field-for-field mapping. RFC 9457 uses a stable URI as the primary identifier, while this package uses `scope` and `code`. It expects a stable `title` for each type, which this package does not store. The fields `reason`, `hint`, `fix`, and `link` would be extensions that generic problem-details clients ignore. The RFC tells clients to ignore a member with the wrong type, while `parseErrorResponseData` rejects the response. It also warns that a `status` in the body can disagree with the HTTP status, so this package keeps status out of the body.
 
 ## Consequences
 
