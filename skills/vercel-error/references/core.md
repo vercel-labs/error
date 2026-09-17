@@ -47,11 +47,11 @@ class PaymentError extends VercelError {
 
 ## Recognition and extraction
 
-- `isVercelError(value)` uses `instanceof` first, then a package-namespaced Symbol tag plus data-shape checks. It narrows cross-realm values to data-only `VercelErrorLike`; use `instanceof VercelError` before calling local class or subclass methods.
+- `isVercelError(value)` uses `instanceof` first, then a package-namespaced Symbol tag plus data-shape checks. Recognition works only while the tag remains observable; JSON, structured clone, `Worker`, and `MessagePort` transfer do not preserve it.
 - `hasCode(error, codeOrCodes)` narrows errors by one code or a set of codes.
-- `isError`, `isErrorLike`, and `getMessage` handle unknown caught values without unsafe casts.
+- `isError`, `isErrorLike`, and `getMessage` handle unknown caught values without unsafe casts. `isErrorLike` guarantees only a string `message`.
 - `getRootCause` follows `cause` and stops on object cycles.
 
-The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure.
+The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure. Tagged metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics.
 
 `VercelError#toJSON()` includes the name, developer message, optional stack, public projection, and defined enumerable fields such as metadata and attributes; it excludes `cause`. Because that output may contain private diagnostics, do not send it to clients. Use `errorResponse()` for public HTTP responses.

@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.2.0
+
+### Minor Changes
+
+- Require nested public response input, narrow guards to validated fields, sanitize default reports, and snapshot unknown accessor values.
+
 ## 0.1.5
 
 ### Patch Changes

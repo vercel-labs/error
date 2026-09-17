@@ -42,34 +42,36 @@ Passing `request` through the options enables ANSI negotiation. JSON and ANSI te
 
 Scope, code, and status are public disclosures even when the generic message is used. Protected-resource handlers own neutral mappings that do not reveal whether a resource exists.
 
-### Plain public input
+### Explicit public input
 
-`ErrorResponseInput` is flat and has no developer/public split. Treat every supplied prose field as approved for the response:
+`ErrorResponseInput` requires nested `public` details. Treat every field under `public` as approved for the response:
 
 ```ts
 const result = errorResponse({
   scope: 'api',
   code: 'rate_limited',
   statusCode: 429,
-  message: 'Too many requests.',
-  hint: 'Wait before retrying.',
+  public: {
+    message: 'Too many requests.',
+    hint: 'Wait before retrying.',
+  },
 });
 ```
 
-Plain input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`.
+Explicit input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`. An untagged top-level `message` is rejected.
 
-Pass native, cross-realm, or Proxy-wrapped `Error` values through `cause` on a `VercelError`. `errorResponse()` rejects untagged Error-shaped objects instead of treating their developer message as public flat input.
+Pass native, cross-realm, or Proxy-wrapped `Error` values through `cause` on a `VercelError`. `errorResponse()` rejects untagged Error-shaped objects and inputs without nested `public` details.
 
 ### Serialization diagnostics
 
 `onSerialize` runs synchronously after the complete response is built:
 
 ```ts
-import { isVercelError } from '@vercel/error';
+import { VercelError } from '@vercel/error';
 
 const result = errorResponse(error, {
   onSerialize: (source, context) => {
-    if (isVercelError(source)) {
+    if (source instanceof VercelError) {
       recordErrorResponse(source.attributes, context);
     }
   },
@@ -77,11 +79,11 @@ const result = errorResponse(error, {
 });
 ```
 
-The callback receives the original source plus `{ status, bodyFormat }`. `bodyFormat` is `json` or `ansi` and describes the serialized body. Server-side instrumentation can inspect metadata and attributes, but those values retain the source's trust level. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
+The callback receives the original source plus `{ status, bodyFormat }`. `bodyFormat` is `json` or `ansi` and describes the serialized body. Tagged cross-realm metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
 
 ## Response data contract
 
-`message` is required and nonblank. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data.
+`message` is required and nonblank. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data. The shape can cross JSON or message channels after source validation; it is not a full diagnostic transport.
 
 The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 
@@ -118,4 +120,4 @@ Parsing validates shape only. It does not authenticate the producer, make the fi
 
 ## Boundary checks
 
-Test body, concrete status, and headers together. Cover explicit public prose, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.
+Test body, concrete status, and headers together. Cover nested public input, rejection of legacy flat input, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.

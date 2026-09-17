@@ -1,5 +1,9 @@
 # Recognize cross-realm errors as data, not trust
 
+## Status
+
+Partially superseded by [Require explicit public response input](0007-require-explicit-public-response-input.md).
+
 ## Context
 
 `VercelError` values can cross package boundaries and JavaScript realms, where `instanceof` alone does not recognize them. A stable symbol works across those boundaries, but any producer can forge it.

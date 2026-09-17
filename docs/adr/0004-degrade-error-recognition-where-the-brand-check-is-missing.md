@@ -1,5 +1,9 @@
 # Fall back when `Error.isError` is unavailable
 
+## Status
+
+Partially superseded by [Require explicit public response input](0007-require-explicit-public-response-input.md).
+
 ## Context
 
 The same package modules run in browsers, workers, edge runtimes, and Node. `Error.isError` accurately recognizes errors across realms and rejects forged errors, but older runtimes do not provide it. Requiring the builtin would make `isError` throw in those runtimes.

@@ -1,5 +1,9 @@
 # Separate response data from the HTTP response
 
+## Status
+
+Partially superseded by [Require explicit public response input](0007-require-explicit-public-response-input.md).
+
 ## Context
 
 JSON and ANSI bodies must use the same error identity and public details. HTTP status, headers, body format, and serialization diagnostics exist only while producing a response. Parsing and reconstruction operate on the structured error data alone.

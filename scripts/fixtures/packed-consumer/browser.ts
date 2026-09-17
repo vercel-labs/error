@@ -61,6 +61,15 @@ assert(
   !json.body.includes('DEV_MESSAGE'),
   'JSON response contains the developer message',
 );
+const explicitPublic = server.errorResponse({
+  public: { message: 'Explicit public input' },
+  statusCode: 400,
+});
+assert(
+  explicitPublic.status === 400 &&
+    JSON.parse(explicitPublic.body).error.message === 'Explicit public input',
+  'nested public input failed in the browser bundle',
+);
 const parsed = client.parseErrorResponse(JSON.parse(json.body));
 assert(
   parsed?.error.code === 'unavailable' &&

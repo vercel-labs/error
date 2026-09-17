@@ -42,13 +42,12 @@ export interface ErrorResponseData {
 }
 
 /**
- * Public details and identity accepted while building response data.
- * Every text field is approved for clients. Optional fields set to `undefined`
- * are omitted.
+ * Identity and nested public details accepted while building response data.
  */
-interface PublicErrorInput extends PublicErrorDetails {
+interface PublicErrorInput {
   readonly scope?: string;
   readonly code?: string;
+  readonly public: PublicErrorDetails;
 }
 
 /**
@@ -63,16 +62,16 @@ export type FromErrorResponseOptions = Pick<
 /**
  * Build client-facing response data from an error or public input.
  *
- * Invalid tagged values and untagged values with `name` or `stack` throw.
- * Errors without `public` use a generic message. Each response field is copied
- * from the same property read that was checked.
+ * Invalid tagged values and untagged values without nested `public` details
+ * throw. Tagged errors without `public` use a generic message. Each response
+ * field is copied from the same property read that was checked.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
 ): ErrorResponseData {
   if (!isObject(source)) {
     throw new TypeError(
-      'Error response source must be public error input or VercelError-like data',
+      'Error response source must be tagged VercelError-like data or input with public details',
     );
   }
 
@@ -100,7 +99,13 @@ export function buildErrorResponseData(
     );
   }
 
-  const publicDetails = pickPublicErrorDetails(source);
+  const publicValue = source.public;
+  if (publicValue === undefined) {
+    throw new TypeError(
+      'Untagged error response input must provide public details',
+    );
+  }
+  const publicDetails = pickPublicErrorDetails(publicValue);
   return {
     error: {
       ...pickResponseIdentity(source),

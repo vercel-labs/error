@@ -99,15 +99,17 @@ describe('error response data', () => {
       },
     );
 
-    it('builds explicitly public response data from flat input', () => {
+    it('builds response data from explicit nested public input', () => {
       expect(
         buildErrorResponseData({
           code: 'invalid',
-          fix: 'Correct the value',
-          hint: 'Use an integer',
-          link: 'https://docs.example.com/invalid',
-          message: 'The value is invalid',
-          reason: 'The value is not an integer',
+          public: {
+            fix: 'Correct the value',
+            hint: 'Use an integer',
+            link: 'https://docs.example.com/invalid',
+            message: 'The value is invalid',
+            reason: 'The value is not an integer',
+          },
           scope: 'input',
         }),
       ).toEqual({
@@ -123,8 +125,16 @@ describe('error response data', () => {
       });
     });
 
-    it.each(['', '   '])('rejects a blank flat message: %o', (message) => {
-      expect(() => buildErrorResponseData({ message })).toThrow(TypeError);
+    it.each(['', '   '])('rejects a blank public message: %o', (message) => {
+      expect(() => buildErrorResponseData({ public: { message } })).toThrow(
+        TypeError,
+      );
+    });
+
+    it('rejects legacy flat public input', () => {
+      expect(() =>
+        buildErrorResponseData({ message: 'Must not become public' } as never),
+      ).toThrow(TypeError);
     });
 
     it('omits explicitly undefined optional producer fields', () => {
@@ -137,20 +147,22 @@ describe('error response data', () => {
           reason: undefined,
         },
       });
-      const flatError = {
+      const publicInput = {
         code: undefined,
-        fix: undefined,
-        hint: undefined,
-        link: undefined,
-        message: 'Public message',
-        reason: undefined,
+        public: {
+          fix: undefined,
+          hint: undefined,
+          link: undefined,
+          message: 'Public message',
+          reason: undefined,
+        },
         scope: undefined,
       };
 
       expect(buildErrorResponseData(publicError)).toEqual({
         error: { message: 'Public message' },
       });
-      expect(buildErrorResponseData(flatError)).toEqual({
+      expect(buildErrorResponseData(publicInput)).toEqual({
         error: { message: 'Public message' },
       });
     });
@@ -186,7 +198,7 @@ describe('error response data', () => {
       });
     });
 
-    it('rejects tagged-invalid data before the flat public-input branch', () => {
+    it('rejects tagged-invalid data before the nested public-input branch', () => {
       const invalid = {
         code: 'timeout',
         message: 'This must not become public',
@@ -264,7 +276,7 @@ describe('error response data', () => {
       },
     );
 
-    it('never invokes methods on field values of a tagged or flat source', () => {
+    it('never invokes methods on field values of a tagged or public source', () => {
       const hostile = {
         toString: () => {
           throw new Error('toString must not be invoked');
@@ -285,19 +297,21 @@ describe('error response data', () => {
         ),
       );
 
-      const flat = { message: 'Public message', hint: hostile };
-      expect(() => buildErrorResponseData(flat as never)).toThrowError(
+      const input = {
+        public: { message: 'Public message', hint: hostile },
+      };
+      expect(() => buildErrorResponseData(input as never)).toThrowError(
         new TypeError('hint must be a string'),
       );
     });
 
-    it('ignores unknown symbol tags and treats the value as flat public input', () => {
+    it('ignores unknown symbol tags and uses nested public input', () => {
       // Only the current package tag carries meaning. Anything else,
       // including the retired 0.0 tag, is invisible to classification, so
-      // every field of such a value is treated as explicitly public.
+      // the value still requires explicit nested public details.
       const tagged = {
         code: 'invalid',
-        message: 'The value is invalid',
+        public: { message: 'The value is invalid' },
         [Symbol.for('__vercel_error')]: true,
       };
 

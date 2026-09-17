@@ -12,7 +12,9 @@ import { VERCEL_ERROR_TAG } from './tag';
  * An `Error` with stable identity and separate developer and client details.
  * Developer text stays outside `public`; construction validates and freezes
  * `public`. Use `instanceof VercelError` before calling methods on tagged data.
- * Only `requestId`, `metadata`, and `attributes` are writable in TypeScript.
+ * Authored fields declared here are readonly; inherited `name`, `stack`, and
+ * `cause` retain the standard `Error` types. `requestId`, `metadata`, and
+ * `attributes` are intentionally writable for diagnostic enrichment.
  *
  * @template TCode - Strongly typed error code union
  *

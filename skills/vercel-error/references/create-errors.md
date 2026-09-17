@@ -24,7 +24,9 @@ The returned factory always has three methods:
 - `raise()` throws the new error without reporting it.
 - `report()` creates one error, calls `onReport` synchronously, then returns that error.
 
-Without `onReport`, `report()` uses `console.error`. Synchronous callback errors propagate and replace the value `report()` would have returned. The callback type returns `undefined`, so TypeScript rejects async callbacks. Record thrown errors at the operation boundary rather than adding reporting to `raise()` and risking duplicate telemetry.
+Without `onReport`, `report()` writes a sanitized developer frame to `console.error`. The default output omits raw stack inspection and enumerable diagnostics. A supplied `onReport` receives the original error; synchronous callback errors propagate and replace the value `report()` would have returned. The callback type returns `undefined`, so TypeScript rejects async callbacks. Record thrown errors at the operation boundary rather than adding reporting to `raise()` and risking duplicate telemetry.
+
+Terminal sanitization removes control sequences, not PII or confidential prose. An `onReport` integration must allowlist or scrub data before transmission.
 
 ## Shared values
 

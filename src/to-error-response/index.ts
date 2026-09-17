@@ -8,16 +8,19 @@ import type { PublicErrorDetails, VercelErrorLike } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
 /**
- * Client-facing input used without a `VercelError`. All defined fields are
- * included in the response. `statusCode` defaults to 500 and accepts 400-599.
+ * Client-facing input used without a `VercelError`. `public` is required and
+ * validated before its prose is included in the response. `statusCode`
+ * defaults to 500 and accepts 400-599.
  */
-export interface ErrorResponseInput extends PublicErrorDetails {
+export interface ErrorResponseInput {
   /** Optional error scope included in the response. */
   readonly scope?: string;
   /** Optional stable error code included in the response. */
   readonly code?: string;
   /** Status mapping; defaults to 500 or throws `RangeError` unless 400-599. */
   readonly statusCode?: number;
+  /** Details explicitly approved for the response; `message` must be nonblank. */
+  readonly public: PublicErrorDetails;
 }
 
 /** Options for body format and the `onSerialize` callback. */
@@ -60,9 +63,8 @@ const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
  * Build HTTP response data from an error or explicit public data.
  *
  * `VercelError` and tagged values expose only `public`, `scope`, and `code`; a
- * missing `public` uses a generic message. Untagged errors and objects with
- * `name` or `stack` throw `TypeError`. Other objects are treated as fully public
- * `ErrorResponseInput`.
+ * missing `public` uses a generic message. Untagged errors and inputs without
+ * valid nested `public` details throw `TypeError`.
  *
  * `statusCode` defaults to 500 and accepts integers from 400 through 599.
  * Invalid status throws `RangeError`; invalid public data throws `TypeError`.

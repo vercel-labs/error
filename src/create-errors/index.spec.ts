@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createErrors } from '.';
 import { VercelError } from '../vercel-error';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('createErrors', () => {
   it('always returns create, raise, and report', () => {
@@ -106,7 +111,7 @@ describe('createErrors', () => {
       expect(onReport).toHaveBeenCalledWith(error);
     });
 
-    it('defaults to console.error when no reporter provided', () => {
+    it('defaults to a formatted string when no reporter is provided', () => {
       const spy = vi.spyOn(console, 'error').mockImplementation(() => {
         // no-op
       });
@@ -115,7 +120,38 @@ describe('createErrors', () => {
 
       expect(error).toBeInstanceOf(VercelError);
       expect(spy).toHaveBeenCalledOnce();
-      expect(spy).toHaveBeenCalledWith(error);
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('something broke'),
+      );
+      spy.mockRestore();
+    });
+
+    it('sanitizes default output without calling a subclass toString override', () => {
+      const ESC = '\x1b';
+      vi.stubGlobal('process', {
+        env: { NO_COLOR: '1' },
+        stdout: { isTTY: false },
+      });
+      class HostileError extends VercelError {
+        override toString(): string {
+          throw new Error(`${this.name}.toString must not run`);
+        }
+      }
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // no-op
+      });
+      const errors = createErrors({ ErrorClass: HostileError });
+
+      errors.report(
+        `failed${ESC}[31mred${ESC}[0m${ESC}]52;c;payload${ESC}\\end\nforged`,
+      );
+
+      expect(spy).toHaveBeenCalledOnce();
+      const output = spy.mock.calls[0]?.[0];
+      expect(output).toBeTypeOf('string');
+      expect(output).not.toContain(ESC);
+      expect(output).not.toContain('payload');
+      expect(output).not.toMatch(/\nforged$/);
       spy.mockRestore();
     });
 

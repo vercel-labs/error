@@ -4,9 +4,10 @@ import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 /**
- * Match a local `VercelError` or tagged data with valid `VercelErrorLike`
- * fields. Any object can forge the tag, so use `instanceof VercelError` before
- * calling methods. Tagged `public.message` may be blank; serialization checks
+ * Match a local `VercelError` or tagged data with valid authored fields.
+ * Diagnostic object contents are not validated. Any object can forge the tag,
+ * so use `instanceof VercelError` before calling methods or relying on typed
+ * local diagnostics. Tagged `public.message` may be blank; serialization checks
  * it later. Property-access exceptions propagate.
  */
 export function isVercelError(error: unknown): error is VercelErrorLike {

@@ -1,6 +1,6 @@
 # Structured Error Contract
 
-This package defines how a structured error keeps stable machine identity, separates developer context from client-approved details, crosses package boundaries and JavaScript realms (iframes, workers, VM contexts) as plain data, and moves through HTTP, diagnostic, and terminal presentation paths.
+This package defines how a structured error keeps stable machine identity, separates developer context from client-approved details, and moves through HTTP, diagnostic, and terminal presentation paths. Tagged error data crosses package or realm seams only while its tag remains observable; serialization channels use client-facing response data.
 
 ## Language
 
@@ -30,7 +30,7 @@ _Avoid_: Diagnostic enrichment
 A group of related structured error conditions treated as one vocabulary by producers and handlers. Its members may share scope, diagnostic context, documentation, and reporting policy.
 
 **VercelError-like data**:
-Structured error fields that can be exchanged across package or realm seams. Those fields do not establish producer trust, approve disclosure, or authorize acting on recovery guidance.
+Structured error fields recognized across package or realm seams that preserve the tagged value. They are not a serialization format; diagnostic contents remain unknown, and recognition does not establish producer trust, disclosure approval, or action authority.
 _Avoid_: Cross-realm error
 
 ### Response Roles
@@ -40,7 +40,7 @@ A prospective HTTP error status associated with an authored error or explicit re
 _Avoid_: calling the authored mapping "status"
 
 **Error response input**:
-Flat caller-authored error identity, public error details, and an authored status mapping supplied when no structured error value is available. Every text field is already approved for disclosure.
+Caller-authored error identity, nested public error details, and an authored status mapping supplied when no structured error value is available. Every field under `public` is approved for disclosure.
 _Avoid_: Error response params
 
 **Error response data**:
