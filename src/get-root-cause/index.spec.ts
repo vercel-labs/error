@@ -50,4 +50,18 @@ describe('getRootCause', () => {
     const obj = { message: 'test' };
     expect(getRootCause(obj)).toBe(obj);
   });
+
+  it('reads cause once per visited object', () => {
+    const root = new Error('root');
+    let reads = 0;
+    const error = {
+      get cause(): unknown {
+        reads += 1;
+        return reads === 1 ? root : undefined;
+      },
+    };
+
+    expect(getRootCause(error)).toBe(root);
+    expect(reads).toBe(1);
+  });
 });

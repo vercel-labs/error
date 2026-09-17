@@ -23,17 +23,17 @@ export function hasCode<TCode extends string>(
   error: unknown,
   codeOrCodes: TCode | readonly TCode[],
 ): error is { code: TCode } {
-  if (
-    !isObject(error) ||
-    !('code' in error) ||
-    typeof error.code !== 'string'
-  ) {
+  if (!isObject(error) || !('code' in error)) {
+    return false;
+  }
+  const code = error.code;
+  if (typeof code !== 'string') {
     return false;
   }
 
   if (Array.isArray(codeOrCodes)) {
-    return codeOrCodes.includes(error.code as TCode);
+    return codeOrCodes.includes(code as TCode);
   }
 
-  return error.code === codeOrCodes;
+  return code === codeOrCodes;
 }

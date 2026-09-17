@@ -28,8 +28,6 @@ export type ErrorAttributes = Record<
  */
 export interface ErrorLike {
   message: string;
-  name?: string;
-  stack?: string;
 }
 
 /**
@@ -100,12 +98,19 @@ export interface VercelErrorOptions<TCode extends string = string> {
 }
 
 /**
- * Fields read from tagged errors in another JavaScript realm. Any object can
- * forge the tag; use `instanceof VercelError` before calling class methods.
+ * Fields read from tagged errors while their symbol-keyed tag remains
+ * observable. Recognition validates authored fields but leaves diagnostic
+ * contents unknown. Any object can forge the tag; use
+ * `instanceof VercelError` before calling class methods or relying on local
+ * diagnostic types.
  */
 export interface VercelErrorLike<
   TCode extends string = string,
 > extends ErrorLike {
+  /** Optional developer-facing error name. */
+  readonly name?: string;
+  /** Optional captured stack. */
+  readonly stack?: string;
   /** Original value that caused the error; excluded from error responses. */
   readonly cause?: unknown;
   /** Stable machine-readable code included by `errorResponse()` when defined. */
@@ -126,8 +131,8 @@ export interface VercelErrorLike<
   readonly public?: PublicErrorDetails;
   /** Mutable request ID, excluded from responses. */
   requestId?: string;
-  /** Mutable nested debugging data, excluded from responses. */
-  metadata?: ErrorMetadata;
-  /** Mutable flat OpenTelemetry-compatible values, excluded from responses. */
-  attributes?: ErrorAttributes;
+  /** Mutable nested debugging data whose contents are not validated. */
+  metadata?: unknown;
+  /** Mutable telemetry data whose contents are not validated. */
+  attributes?: unknown;
 }

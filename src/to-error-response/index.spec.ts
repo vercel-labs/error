@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { MessageChannel } from 'node:worker_threads';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +17,19 @@ function stripAnsi(value: string): string {
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request('https://example.com', { headers });
+}
+
+async function cloneThroughMessageChannel(value: unknown): Promise<unknown> {
+  const { port1, port2 } = new MessageChannel();
+  try {
+    return await new Promise((resolve) => {
+      port2.once('message', resolve);
+      port1.postMessage(value);
+    });
+  } finally {
+    port1.close();
+    port2.close();
+  }
 }
 
 describe('errorResponse', () => {
@@ -104,10 +118,10 @@ describe('errorResponse', () => {
     );
   });
 
-  it('treats flat params as explicitly public and uses statusCode input', () => {
+  it('uses nested public details and statusCode from explicit input', () => {
     const result = errorResponse({
       code: 'invalid',
-      message: 'Invalid request',
+      public: { message: 'Invalid request' },
       scope: 'input',
       statusCode: 400,
     });
@@ -122,22 +136,62 @@ describe('errorResponse', () => {
     });
   });
 
+  it('rejects legacy flat public input', () => {
+    expect(() =>
+      errorResponse({ message: 'Must not become public' } as never),
+    ).toThrowError(
+      new TypeError(
+        'Untagged error response input must provide public details',
+      ),
+    );
+  });
+
+  it('rejects minimal tagged data after MessageChannel removes its tag', async () => {
+    const received = await cloneThroughMessageChannel({
+      message: 'Secret developer detail',
+      [VERCEL_ERROR_TAG]: true,
+    });
+
+    expect(Object.getOwnPropertySymbols(received as object)).toEqual([]);
+    expect(() => errorResponse(received as never)).toThrow(TypeError);
+  });
+
+  it('uses only nested public details after MessageChannel removes the tag', async () => {
+    const received = await cloneThroughMessageChannel({
+      code: 'unavailable',
+      message: 'Secret developer detail',
+      public: { message: 'Service unavailable' },
+      scope: 'api',
+      [VERCEL_ERROR_TAG]: true,
+    });
+
+    const result = errorResponse(received as never);
+    expect(JSON.parse(result.body)).toEqual({
+      error: {
+        code: 'unavailable',
+        message: 'Service unavailable',
+        scope: 'api',
+      },
+    });
+    expect(result.body).not.toContain('Secret developer detail');
+  });
+
   it('defaults an omitted statusCode to 500', () => {
-    expect(errorResponse({ message: 'Failed' }).status).toBe(500);
+    expect(errorResponse({ public: { message: 'Failed' } }).status).toBe(500);
     expect(errorResponse(new VercelError('Failed')).status).toBe(500);
   });
 
   it.each([400, 599])('accepts boundary statusCode %s', (statusCode) => {
-    expect(errorResponse({ message: 'Failed', statusCode }).status).toBe(
-      statusCode,
-    );
+    expect(
+      errorResponse({ public: { message: 'Failed' }, statusCode }).status,
+    ).toBe(statusCode);
   });
 
   it.each([null, '500', Number.NaN, Infinity, -Infinity, 499.5, 399, 600])(
     'rejects invalid statusCode %s',
     (statusCode) => {
       expect(() =>
-        errorResponse({ message: 'Failed', statusCode } as never),
+        errorResponse({ public: { message: 'Failed' }, statusCode } as never),
       ).toThrowError(
         new RangeError('statusCode must be an integer between 400 and 599'),
       );
@@ -161,7 +215,7 @@ describe('errorResponse', () => {
     expect(onSerialize).not.toHaveBeenCalled();
   });
 
-  it('rejects tagged-invalid input instead of treating it as flat public data', () => {
+  it('rejects tagged-invalid input before nested public projection', () => {
     const malformed = {
       message: 'Must not become public',
       public: {},
@@ -253,7 +307,7 @@ describe('errorResponse', () => {
 
   it('uses JSON for a browser request', () => {
     const result = errorResponse(
-      { message: 'Failed' },
+      { public: { message: 'Failed' } },
       { request: makeRequest({ 'User-Agent': 'Mozilla/5.0' }) },
     );
     expect(result.headers['Content-Type']).toBe('application/json');
@@ -261,7 +315,7 @@ describe('errorResponse', () => {
 
   it('accepts Headers directly through options', () => {
     const result = errorResponse(
-      { message: 'Failed' },
+      { public: { message: 'Failed' } },
       { request: new Headers({ 'X-Error-Format': 'ansi' }) },
     );
     expect(result.headers['Content-Type']).toBe('text/plain; charset=utf-8');
@@ -291,7 +345,7 @@ describe('errorResponse', () => {
   it('reports ANSI body format context', () => {
     const onSerialize = vi.fn();
     errorResponse(
-      { message: 'Failed', statusCode: 400 },
+      { public: { message: 'Failed' }, statusCode: 400 },
       {
         onSerialize,
         request: makeRequest({ 'X-Error-Format': 'ansi' }),
@@ -308,7 +362,7 @@ describe('errorResponse', () => {
     const failure = new Error('diagnostics failed');
     expect(() =>
       errorResponse(
-        { message: 'Failed' },
+        { public: { message: 'Failed' } },
         {
           onSerialize: () => {
             throw failure;
@@ -351,7 +405,10 @@ describe('errorResponse', () => {
   });
 
   it('can construct a native Response from the result', () => {
-    const result = errorResponse({ message: 'Not found', statusCode: 404 });
+    const result = errorResponse({
+      public: { message: 'Not found' },
+      statusCode: 404,
+    });
     const response = new Response(result.body, result);
 
     expect(response.status).toBe(404);

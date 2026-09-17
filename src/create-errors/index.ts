@@ -1,3 +1,4 @@
+import { formatError } from '../format/index';
 import type {
   ErrorAttributes,
   ErrorMetadata,
@@ -54,8 +55,8 @@ export interface ErrorFactory<
 
 /**
  * Values shared by every error from {@link createErrors}. `ErrorClass` changes
- * the returned class. `onReport` runs only for `report` and defaults to
- * `console.error`.
+ * the returned class. `onReport` runs only for `report`; without it, `report`
+ * writes a sanitized terminal frame to `console.error`.
  */
 export interface CreateErrorsOptions<
   TCode extends string = string,
@@ -88,7 +89,7 @@ export interface CreateErrorsOptions<
 
 /**
  * Create a typed factory. `create` and `raise` do not report; `report` uses
- * `onReport` or `console.error`.
+ * `onReport` or writes a sanitized terminal frame to `console.error`.
  *
  * @example
  * ```ts
@@ -136,7 +137,7 @@ export function createErrors<
   const onReport =
     options.onReport ??
     ((error: TError): undefined => {
-      console.error(error);
+      console.error(formatError(error, { format: 'auto' }));
     });
 
   function create(

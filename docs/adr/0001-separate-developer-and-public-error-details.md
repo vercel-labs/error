@@ -1,5 +1,9 @@
 # Separate developer and public error details
 
+## Status
+
+Partially superseded by [Require explicit public response input](0007-require-explicit-public-response-input.md).
+
 ## Context
 
 Developers need technical details to diagnose errors, but clients must not receive those details by accident. A `VercelError` keeps developer and client details separate. Flat `ErrorResponseInput` is different: its caller supplies fields that are already safe to send.

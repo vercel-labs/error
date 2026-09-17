@@ -1,6 +1,6 @@
 # @vercel/error
 
-Errors with two audiences: developers get the full story (cause, reason, hint, fix, metadata), and clients get only the `public` message you explicitly approved. `errorResponse()` turns any error into an HTTP response that never leaks internal details, and `formatError()` renders errors as readable terminal frames. Framework-neutral, with zero runtime dependencies.
+`@vercel/error` keeps developer diagnostics separate from client responses. Errors can carry cause, reason, hint, fix, and metadata; response prose comes only from `public`. Scope, code, and status remain separate disclosures. `errorResponse()` returns framework-neutral response data, and `formatError()` renders readable terminal frames. The package has zero runtime dependencies.
 
 ## Install
 
@@ -44,7 +44,7 @@ try {
 }
 ```
 
-Everything outside `public` is developer-facing and stays out of HTTP responses. Serialize with `errorResponse()`; `JSON.stringify(error)` includes developer text and stack.
+Developer prose outside `public` stays out of HTTP responses. `scope`, `code`, and status are separate disclosures and still reach clients. Serialize with `errorResponse()`; `JSON.stringify(error)` includes developer text and stack.
 
 ## Entry points
 
@@ -99,7 +99,7 @@ interface PublicErrorDetails {
 }
 ```
 
-When `public` is absent, `errorResponse()` uses the fixed message `An error occurred.`. It never falls back to developer prose. `docsBaseUrl` derives only the developer `link`; a public link must be set explicitly under `public.link`.
+When `public` is absent from a `VercelError` or tagged value, `errorResponse()` uses the fixed message `An error occurred.`. It never falls back to developer prose. Untagged input must provide `public`. `docsBaseUrl` derives only the developer `link`; a public link must be set explicitly under `public.link`.
 
 The fallback keeps developer text out of responses. `scope`, `code`, and the HTTP status still reach the client.
 
@@ -142,9 +142,9 @@ The factory always returns three methods:
 | `raise(message, options?)`  | Create and throw                                       |
 | `report(message, options?)` | Create, call `onReport`, then return the same instance |
 
-Without `onReport`, `report()` calls `console.error`. `create()` and `raise()` never invoke the callback, which leaves the operation boundary responsible for recording thrown errors once.
+Without `onReport`, `report()` formats a sanitized terminal frame and passes that string to `console.error`. The default output omits raw stack inspection and enumerable diagnostics. `create()` and `raise()` never report, which leaves the operation boundary responsible for recording thrown errors once.
 
-`onReport` is synchronous and returns `undefined`. A synchronous callback exception propagates and replaces the error that `report()` would have returned. Async callbacks are rejected by TypeScript.
+`onReport` receives the original error, is synchronous, and returns `undefined`. A synchronous callback exception propagates and replaces the error that `report()` would have returned. Async callbacks are rejected by TypeScript. The callback may expose PII or confidential developer prose; reporter integrations must allowlist or scrub data before transmission.
 
 Factory and per-error `metadata` and `attributes` merge one level deep, with per-error keys winning. A per-error `link` also takes precedence over `docsBaseUrl`.
 
@@ -259,23 +259,25 @@ const result = errorResponse(error, {
 
 JSON and negotiated ANSI text render the same `public` details. ANSI negotiation never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
 
-`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Server-side instrumentation can inspect metadata and attributes, but they're only as trustworthy as wherever the error came from; recognition doesn't verify the producer. Callback exceptions propagate and replace the response the caller would have received.
+`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Cross-realm metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` before relying on the typed local fields. Callback exceptions propagate and replace the response the caller would have received.
 
-### Plain public input
+### Explicit public input
 
-Use flat params when every supplied field is already public:
+Untagged input must place approved prose under `public`:
 
 ```ts
 const result = errorResponse({
   scope: 'api',
   code: 'rate_limited',
   statusCode: 429,
-  message: 'Too many requests.',
-  hint: 'Wait before retrying.',
+  public: {
+    message: 'Too many requests.',
+    hint: 'Wait before retrying.',
+  },
 });
 ```
 
-The input uses `statusCode`; the result uses `status`.
+The input uses `statusCode`; the result uses `status`. A top-level `message` on an untagged object is rejected because it is not an explicit disclosure decision.
 
 ### Response data
 
@@ -293,7 +295,7 @@ interface ErrorResponseData {
 }
 ```
 
-`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. Use the actual HTTP response status as the source of truth.
+`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. Use the actual HTTP response status as the source of truth. `ErrorResponseData` is the client-safe shape for JSON and message channels, not a full diagnostic transport. Parsing validates its fields, not its producer.
 
 The completed server result is:
 
@@ -337,7 +339,7 @@ All utilities below are exported from `@vercel/error`:
 
 | Function                       | Behavior                                                                |
 | ------------------------------ | ----------------------------------------------------------------------- |
-| `isVercelError(value)`         | Recognize local instances or tagged cross-realm data                    |
+| `isVercelError(value)`         | Recognize local instances or tagged data while the tag remains visible  |
 | `isError(value)`               | Recognize standard errors across realms (iframes, workers, VM contexts) |
 | `isErrorLike(value)`           | Recognize an object with a string `message`                             |
 | `hasCode(error, codeOrCodes)`  | Narrow an error by one code or a readonly list                          |
@@ -346,7 +348,9 @@ All utilities below are exported from `@vercel/error`:
 
 `isError` recognizes standard errors across realms. It uses `Error.isError` when available and falls back on older runtimes. `errorResponse()` applies separate disclosure checks, so fallback differences cannot expose developer details.
 
-`isVercelError` recognizes local instances and tagged cross-realm data. Cross-realm matches are data-only and do not prove the producer is trusted. Use `instanceof VercelError` before calling class or subclass methods.
+`isVercelError` recognizes local instances and tagged data while its symbol-keyed tag remains observable. The tag does not survive JSON, structured clone, `Worker`, or `MessagePort` transfer. Use `ErrorResponseData` for client-safe serialized data and an application-owned protocol for full diagnostics.
+
+Tagged matches do not prove the producer is trusted. Their metadata and attributes remain `unknown`. Use `instanceof VercelError` before calling class methods or relying on typed local diagnostics.
 
 ## Bundle size
 
@@ -362,16 +366,16 @@ All utilities below are exported from `@vercel/error`:
 | `VercelError`            |           1.69 kB |
 | `createErrors`           |           1.91 kB |
 | `isVercelError`          |           1.83 kB |
-| `isError`                |              92 B |
+| `isError`                |             108 B |
 | `isErrorLike`            |              85 B |
-| `hasCode`                |             111 B |
+| `hasCode`                |             120 B |
 | `getMessage`             |             187 B |
-| `getRootCause`           |             145 B |
+| `getRootCause`           |             139 B |
 | **@vercel/error/client** |                   |
-| `fromErrorResponse`      |           1.76 kB |
+| `fromErrorResponse`      |           1.75 kB |
 | `parseErrorResponse`     |             245 B |
 | **@vercel/error/server** |                   |
-| `errorResponse`          |           2.44 kB |
+| `errorResponse`          |           2.47 kB |
 | `wantsAnsi`              |             153 B |
 | **@vercel/error/format** |                   |
 | `formatError`            |            1.2 kB |

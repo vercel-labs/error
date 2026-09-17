@@ -37,4 +37,17 @@ describe('hasCode', () => {
     expect(hasCode(undefined, 'test')).toBe(false);
     expect(hasCode('string', 'test')).toBe(false);
   });
+
+  it('reads code once before matching', () => {
+    let reads = 0;
+    const error = {
+      get code(): unknown {
+        reads += 1;
+        return reads === 1 ? 'target' : 'changed';
+      },
+    };
+
+    expect(hasCode(error, 'target')).toBe(true);
+    expect(reads).toBe(1);
+  });
 });

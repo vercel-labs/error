@@ -4,6 +4,7 @@ import {
   hasCode,
   isErrorLike,
   isVercelError,
+  type ErrorMetadata,
   type ErrorResponseData,
   type VercelErrorOptions,
 } from '@vercel/error';
@@ -40,7 +41,7 @@ const reported = visitorErrors.report('Internal visitor failure', {
 assert(reportedCode === 'unavailable', 'typed scoped report callback failed');
 
 const publicInput: ErrorResponseInput = {
-  message: 'Public input failed',
+  public: { message: 'Public input failed' },
   statusCode: 400,
 };
 const publicResponse: ErrorResponse = errorResponse(publicInput);
@@ -70,10 +71,20 @@ if (hasCode(unknownCliError, 'cli_failure')) {
 if (isErrorLike(unknownCliError)) {
   const message: string = unknownCliError.message;
   assert(message === 'CLI failed', 'isErrorLike narrowing failed');
+  // @ts-expect-error isErrorLike only guarantees message
+  const inaccessibleName: unknown = unknownCliError.name;
+  assert(inaccessibleName === 'CliError', 'runtime error name changed');
 }
 if (isVercelError(unknownCliError)) {
-  const metadata = unknownCliError.metadata;
+  const metadata: unknown = unknownCliError.metadata;
   assert(metadata === undefined, 'isVercelError narrowing failed');
+  // @ts-expect-error cross-realm diagnostic contents are not validated
+  const typedMetadata: ErrorMetadata | undefined = unknownCliError.metadata;
+  assert(typedMetadata === undefined, 'cross-realm metadata type changed');
+}
+if (unknownCliError instanceof VercelError) {
+  const metadata: ErrorMetadata | undefined = unknownCliError.metadata;
+  assert(metadata === undefined, 'local VercelError metadata type changed');
 }
 
 function verifyTypeContracts(error: CliError, data: ErrorResponseData): void {
@@ -104,8 +115,13 @@ assert(
 createErrors<'cli_failure', CliError>({ scope: 'cli' });
 // @ts-expect-error reporting callbacks must be synchronous
 createErrors({ onReport: async () => undefined });
-// @ts-expect-error serialization callbacks must be synchronous
-errorResponse({ message: 'Failed' }, { onSerialize: async () => undefined });
+errorResponse(
+  { public: { message: 'Failed' } },
+  {
+    // @ts-expect-error serialization callbacks must be synchronous
+    onSerialize: async () => undefined,
+  },
+);
 
 let serializedStatus: number | undefined;
 let serializedBodyFormat: 'json' | 'ansi' | undefined;
@@ -181,7 +197,7 @@ assert(
 );
 let invalidStatusRejected = false;
 try {
-  errorResponse({ message: 'Failed', statusCode: 399 });
+  errorResponse({ public: { message: 'Failed' }, statusCode: 399 });
 } catch (error) {
   invalidStatusRejected = error instanceof RangeError;
 }

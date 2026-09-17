@@ -49,8 +49,10 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Treat `toJSON()` as diagnostic serialization. It may contain developer prose, stack, metadata, attributes, and public data.
 - Parse known response data fields strictly and ignore unknown fields. Parsing validates shape, not producer trust or action authority.
 - Keep cross-realm recognition as `instanceof` plus the namespaced symbol and data-shape validation. The tag is forgeable. Use `instanceof VercelError` when local methods are required.
-- Classify the package-namespaced tag before flat public input; any other symbol carries no meaning. Tagged-invalid values throw instead of falling through.
-- Keep `create`, `raise`, and `report`. Only `report` invokes `onReport`; `create` and `raise` stay free of reporting side effects.
+- Classify the package-namespaced tag before untagged public input; any other symbol carries no meaning. Tagged-invalid values throw instead of falling through.
+- Require untagged `ErrorResponseInput` to put approved prose under `public`. Reject a top-level untagged `message`.
+- Treat `VercelErrorLike` metadata and attributes as unknown until validated. Symbol-based recognition applies only while the tag remains observable; serialization channels use `ErrorResponseData`.
+- Keep `create`, `raise`, and `report`. Only `report` invokes `onReport`; `create` and `raise` stay free of reporting side effects. Without `onReport`, `report` writes a sanitized terminal frame to `console.error`.
 - Keep `onReport` and `onSerialize` synchronous with `undefined` return types. Synchronous callback exceptions propagate.
 
 ## Rendering Contract

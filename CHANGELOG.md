@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.2.0
+
+### Minor Changes
+
+- Require nested public response input, limit guards to validated fields, sanitize default reports, and read `cause` and `code` once.
+
 ## 0.1.5
 
 ### Patch Changes
