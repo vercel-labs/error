@@ -70,14 +70,14 @@ assert(
     JSON.parse(explicitPublic.body).error.message === 'Explicit public input',
   'nested public input failed in the browser bundle',
 );
-const parsed = client.parseErrorResponse(JSON.parse(json.body));
+const parsed = client.parseErrorResponseData(JSON.parse(json.body));
 assert(
   parsed?.error.code === 'unavailable' &&
     parsed.error.scope === 'browser' &&
     parsed.error.message === 'The service is unavailable',
   'browser-platform bundle response did not preserve its public identity and message',
 );
-const reconstructed = client.fromErrorResponse(parsed, {
+const reconstructed = client.fromErrorResponseData(parsed, {
   statusCode: json.status,
 });
 const reconstructedResponse = server.errorResponse(reconstructed);

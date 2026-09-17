@@ -5,6 +5,7 @@
 ### Minor Changes
 
 - Require nested public response input, limit guards to validated fields, sanitize default reports, and read `cause` and `code` once.
+- Add `fromHttpResponse()` and rename `parseErrorResponse()` and `fromErrorResponse()` for their `ErrorResponseData` input.
 
 ## 0.1.5
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  fromErrorResponse,
-  parseErrorResponse,
   buildErrorResponseData,
   type ErrorResponseData,
+  fromErrorResponseData,
+  parseErrorResponseData,
 } from '.';
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
@@ -321,10 +321,10 @@ describe('error response data', () => {
     });
   });
 
-  describe('parseErrorResponse', () => {
+  describe('parseErrorResponseData', () => {
     it('parses known fields and ignores unknown fields', () => {
       expect(
-        parseErrorResponse({
+        parseErrorResponseData({
           error: {
             code: 'rate_limited',
             fix: 'Wait and retry',
@@ -364,11 +364,11 @@ describe('error response data', () => {
       { error: { code: 123, message: 'Error' } },
       { error: { hint: false, message: 'Error' } },
     ])('rejects a malformed response: %o', (input) => {
-      expect(parseErrorResponse(input)).toBeUndefined();
+      expect(parseErrorResponseData(input)).toBeUndefined();
     });
   });
 
-  describe('fromErrorResponse', () => {
+  describe('fromErrorResponseData', () => {
     it('reconstructs developer and public fields while preserving caller context', () => {
       const cause = new Error('upstream failed');
       const data: ErrorResponseData = {
@@ -381,7 +381,7 @@ describe('error response data', () => {
         },
       };
 
-      const error = fromErrorResponse(data, {
+      const error = fromErrorResponseData(data, {
         attributes: { 'http.status_code': 503 },
         cause,
         metadata: { upstream: 'payments' },

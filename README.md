@@ -1,6 +1,6 @@
 # @vercel/error
 
-`@vercel/error` keeps developer diagnostics separate from client responses. Errors can carry cause, reason, hint, fix, and metadata; response prose comes only from `public`. Scope, code, and status remain separate disclosures. `errorResponse()` returns framework-neutral response data, and `formatError()` renders readable terminal frames. The package has zero runtime dependencies.
+`@vercel/error` keeps developer diagnostics separate from client responses. Errors can carry cause, reason, hint, fix, and metadata; response prose comes only from `public`. Scope, code, and status remain separate disclosures. `errorResponse()` produces framework-neutral response data, `fromHttpResponse()` consumes matching Web responses, and `formatError()` renders readable terminal frames. The package has zero runtime dependencies.
 
 ## Install
 
@@ -48,12 +48,12 @@ Developer prose outside `public` stays out of HTTP responses. `scope`, `code`, a
 
 ## Entry points
 
-| Import                 | Exports                                                                                                    |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                            |
-| `@vercel/error/client` | `parseErrorResponse`, `fromErrorResponse`, `ErrorResponseData`, `FromErrorResponseOptions`                 |
-| `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike` |
-| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                    |
+| Import                 | Exports                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                              |
+| `@vercel/error/client` | `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData`, `ErrorResponseData`, and option types |
+| `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike`   |
+| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                      |
 
 ## Error contract
 
@@ -309,29 +309,38 @@ interface ErrorResponse {
 
 ## Consuming responses
 
-`parseErrorResponse()` validates unknown JSON. It requires a nonblank string message. A present known field with the wrong type rejects the entire response; unknown fields are ignored so producers can add fields later.
+`fromHttpResponse()` consumes a Web `Response` when it has an error status, an `application/json` content type, and valid `ErrorResponseData`. It derives `statusCode` from the response and reads `x-vercel-id` into `requestId` by default.
 
 ```ts
-import { fromErrorResponse, parseErrorResponse } from '@vercel/error/client';
+import { fromHttpResponse } from '@vercel/error/client';
 
 const response = await fetch(url);
 if (!response.ok) {
   const failedFetch = new Error(`${response.url} returned ${response.status}`);
-  const parsed = parseErrorResponse(
-    await response.json().catch(() => undefined),
-  );
+  const error = await fromHttpResponse(response, { cause: failedFetch });
 
-  if (!parsed) throw failedFetch;
-
-  throw fromErrorResponse(parsed, {
-    cause: failedFetch,
-    requestId: response.headers.get('x-request-id') ?? undefined,
-    statusCode: response.status,
-  });
+  sentry.captureException(error ?? failedFetch);
+  throw error ?? failedFetch;
 }
 ```
 
-`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies status, cause, request ID, metadata, and attributes. Parsing validates shape only. It does not tell you who sent the response. Verify the producer, review each field before showing it to a different recipient, and check permissions before acting on a `fix` or `link`.
+An explicit `requestId` overrides the response header. Set `requestIdHeader` to another header name for an application-owned correlation ID, or to `false` to skip header lookup. [`x-vercel-id`](https://vercel.com/docs/headers/response-headers#x-vercel-id) is Vercel routing context, not a promise that the value matches an application trace ID. For a cross-origin browser request, the server must include `x-vercel-id` in [`Access-Control-Expose-Headers`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers) before client code can read it.
+
+The function returns `undefined` for a non-error status, a different content type, malformed JSON, or invalid response data. It does not report the error or create a fallback. It consumes the body after status and content type match; clone the response first if another caller also needs the body.
+
+Use `parseErrorResponseData()` and `fromErrorResponseData()` when the input is already decoded or came through another serialization channel:
+
+```ts
+import {
+  fromErrorResponseData,
+  parseErrorResponseData,
+} from '@vercel/error/client';
+
+const data = parseErrorResponseData(value);
+if (data) throw fromErrorResponseData(data, { statusCode: 502 });
+```
+
+Parsing requires a nonblank string message. A present known field with the wrong type rejects the entire value; unknown fields are ignored for additive evolution. Reconstruction copies response identity to `scope` and `code`, and response prose into both the developer fields and `public`. Parsing validates shape only. It does not tell you who sent the response. Verify the producer, review each field before showing it to a different recipient, and check permissions before acting on a `fix` or `link`.
 
 ## Recognition and utilities
 
@@ -372,8 +381,9 @@ Tagged matches do not prove the producer is trusted. Their metadata and attribut
 | `getMessage`             |             187 B |
 | `getRootCause`           |             139 B |
 | **@vercel/error/client** |                   |
-| `fromErrorResponse`      |           1.75 kB |
-| `parseErrorResponse`     |             245 B |
+| `fromErrorResponseData`  |           1.76 kB |
+| `fromHttpResponse`       |           2.02 kB |
+| `parseErrorResponseData` |             245 B |
 | **@vercel/error/server** |                   |
 | `errorResponse`          |           2.47 kB |
 | `wantsAnsi`              |             153 B |
