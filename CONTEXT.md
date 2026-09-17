@@ -1,6 +1,6 @@
 # Structured Error Contract
 
-This package defines how a structured error keeps stable machine identity, separates developer context from client-approved details, and moves through HTTP, diagnostic, and terminal presentation paths. Tagged error data crosses package or realm seams only while its tag remains observable; serialization channels use client-facing response data.
+`@vercel/error` defines a structured error contract with stable machine identity and separate developer and public details. It covers package and realm recognition, HTTP response data, diagnostics, and terminal presentation.
 
 ## Language
 
@@ -30,7 +30,7 @@ _Avoid_: Diagnostic enrichment
 A group of related structured error conditions treated as one vocabulary by producers and handlers. Its members may share scope, diagnostic context, documentation, and reporting policy.
 
 **VercelError-like data**:
-Structured error fields recognized across package or realm seams that preserve the tagged value. They are not a serialization format; diagnostic contents remain unknown, and recognition does not establish producer trust, disclosure approval, or action authority.
+Structured error fields recognized across package or realm seams while the original tagged value remains intact. Recognition leaves diagnostic contents unknown and does not establish producer trust, disclosure approval, or action authority.
 _Avoid_: Cross-realm error
 
 ### Response Roles

@@ -60,7 +60,7 @@ export type FromErrorResponseOptions = Pick<
 >;
 
 /**
- * Build client-facing response data from an error or public input.
+ * Build client-facing response data from a tagged error or explicit public input.
  *
  * Invalid tagged values and untagged values without nested `public` details
  * throw. Tagged errors without `public` use a generic message. Each response

@@ -2,7 +2,7 @@
 
 ## Context
 
-Passing a `VercelError` directly to `console.error` lets the host inspect its raw stack and fields without using the package's terminal sanitizer.
+Passing a `VercelError` directly to `console.error` invokes host error inspection and bypasses the package's terminal sanitizer.
 
 ## Decision
 
@@ -10,7 +10,7 @@ When no `onReport` callback is configured, render the error with `formatError` b
 
 ## Reason
 
-The default output should use the same terminal-safety rules as the package formatter. Raw reporting remains available through an explicit application-owned callback.
+Formatting the default output applies the package's terminal-safety rules. Applications that need the raw error can provide `onReport`.
 
 ## Consequences
 

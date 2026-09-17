@@ -99,8 +99,8 @@ export interface VercelErrorOptions<TCode extends string = string> {
 
 /**
  * Fields read from tagged errors while their symbol-keyed tag remains
- * observable. Diagnostic contents are unknown because recognition validates
- * only their top-level object shape. Any object can forge the tag; use
+ * observable. Recognition validates authored fields but leaves diagnostic
+ * contents unknown. Any object can forge the tag; use
  * `instanceof VercelError` before calling class methods or relying on local
  * diagnostic types.
  */

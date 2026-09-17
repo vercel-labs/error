@@ -80,7 +80,7 @@ if (isVercelError(unknownCliError)) {
   assert(metadata === undefined, 'isVercelError narrowing failed');
   // @ts-expect-error cross-realm diagnostic contents are not validated
   const typedMetadata: ErrorMetadata | undefined = unknownCliError.metadata;
-  assert(typedMetadata === undefined, 'typed metadata fixture changed');
+  assert(typedMetadata === undefined, 'cross-realm metadata type changed');
 }
 if (unknownCliError instanceof VercelError) {
   const metadata: ErrorMetadata | undefined = unknownCliError.metadata;

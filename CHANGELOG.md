@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Require nested public response input, narrow guards to validated fields, sanitize default reports, and snapshot unknown accessor values.
+- Require nested public response input, limit guards to validated fields, sanitize default reports, and read `cause` and `code` once.
 
 ## 0.1.5
 

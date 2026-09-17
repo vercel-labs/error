@@ -134,7 +134,9 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 
 ## Diagnostics
 
-Attach diagnostics at the one boundary that owns reporting. `createErrors.report()` invokes `onReport`; without that callback it writes a sanitized developer frame to `console.error`. `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions. Record a thrown error at the final operation boundary instead of adding duplicate reporting to wrappers. Terminal sanitization does not remove PII; reporting integrations must apply their own privacy policy.
+Attach diagnostics at the boundary that owns reporting. `createErrors.report()` invokes `onReport`; without that callback it writes a sanitized developer frame to `console.error`. `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions.
+
+Record a thrown error at the final operation boundary instead of reporting it from each wrapper. Terminal sanitization does not remove PII; reporting integrations must apply their own privacy policy.
 
 ### `metadata`
 

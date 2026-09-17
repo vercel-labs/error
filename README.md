@@ -1,6 +1,6 @@
 # @vercel/error
 
-Errors with two audiences: developers get the full story (cause, reason, hint, fix, metadata), while response prose comes only from the `public` details you explicitly approved. Scope, code, and status remain separate disclosures. `errorResponse()` converts a `VercelError` or explicit nested public input into framework-neutral response data. `formatError()` renders errors as readable terminal frames. The package has zero runtime dependencies.
+`@vercel/error` keeps developer diagnostics separate from client responses. Errors can carry cause, reason, hint, fix, and metadata; response prose comes only from `public`. Scope, code, and status remain separate disclosures. `errorResponse()` returns framework-neutral response data, and `formatError()` renders readable terminal frames. The package has zero runtime dependencies.
 
 ## Install
 
@@ -295,7 +295,7 @@ interface ErrorResponseData {
 }
 ```
 
-`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. Use the actual HTTP response status as the source of truth. `ErrorResponseData` is safe to copy through a message channel after validating its source; it is not a full diagnostic transport.
+`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. Use the actual HTTP response status as the source of truth. `ErrorResponseData` is the client-safe shape for JSON and message channels, not a full diagnostic transport. Parsing validates its fields, not its producer.
 
 The completed server result is:
 
