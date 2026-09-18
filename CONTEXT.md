@@ -51,6 +51,10 @@ _Avoid_: Error response payload
 The complete concrete HTTP status, serialized body, and headers for an error. It is framework-neutral response information rather than a native or framework response object.
 _Avoid_: Error response result
 
+**Client response reading**:
+Consuming a native Web response as an error response by checking its status and media type, validating its response data, and reconstructing an error with locally observed context. Reading does not report the error or establish trust in its producer.
+_Avoid_: Client error handling
+
 ### Presentation
 
 **Terminal frame**:

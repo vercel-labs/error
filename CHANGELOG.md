@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.3.0
+
+### Minor Changes
+
+- Add `fromHttpResponse()` and rename `parseErrorResponse()` and `fromErrorResponse()` for their `ErrorResponseData` input.
+
 ## 0.2.0
 
 ### Minor Changes

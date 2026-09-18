@@ -13,7 +13,8 @@ Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concept
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
 - `src/error-response-data/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
-- `src/to-error-response/` owns HTTP status validation, headers, and `onSerialize` ordering. `src/wants-ansi/` implements the content negotiation it consumes.
+- `src/to-error-response/` owns server response status validation, headers, and `onSerialize` ordering. `src/wants-ansi/` implements the content negotiation it consumes.
+- `src/from-http-response/` owns Web `Response` status and media-type checks, body consumption, and response-header request context.
 - `src/format/` owns presets, sanitization, physical-line containment, connectors, labels, and color.
 - `src/create-errors/` owns factory defaults, merge precedence, documentation links, custom constructors, and `onReport` ordering.
 - `src/types.ts` holds the shared contract types (`PublicErrorDetails`, `VercelErrorOptions`, `VercelErrorLike`); any feature may import it type-only.
@@ -27,10 +28,11 @@ Keep feature implementations in `src/<feature>/index.ts` with colocated `index.s
 - Keep the package framework-neutral, dependency-free at runtime, side-effect free on import, and compatible with `package.json#sideEffects: false`.
 - Keep every module isomorphic: the same code runs in browsers, workers, edge runtimes, and Node. Feature-detect newer builtins with a documented fallback instead of requiring them.
 - Keep public entry modules independent. A public entry module never imports another public entry module.
-- `vercel-error` never imports response data, the HTTP adapter, the client entry, or the server entry.
-- `format` never imports the class, response data, or the HTTP adapter at runtime.
-- `error-response-data` never imports a public entry module or the HTTP adapter.
-- The HTTP adapter reads symbol-recognized values as data and never invokes their methods.
+- `vercel-error` never imports response data, either HTTP response module, the client entry, or the server entry.
+- `format` never imports the class, response data, or either HTTP response module at runtime.
+- `error-response-data` never imports a public entry module or either HTTP response module.
+- The server response module reads symbol-recognized values as data and never invokes their methods.
+- The client response reader uses only the Web `Response` interface and response-data functions. It never reports an error, invents a fallback, or decides whether to trust response guidance.
 - Treat `dist/` as generated output. Change source and rebuild.
 
 When a public entry point changes, update its source module, `tsdown.config.ts`, and the `package.json` export map together. Prove the published subpath with the packed-consumer check (`pnpm verify:packed`).
@@ -44,10 +46,12 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Validate `public` at construction (nonblank string `message`, string-only optional fields), drop unknown fields, and freeze the copy so approved copy cannot change through an input alias.
 - `errorResponse()` is the client-safe serializer. It uses only `public` prose or the fixed generic fallback, while preserving public `scope` and `code`.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
-- Use `statusCode` for authored mappings and `status` only for a concrete response. The HTTP adapter accepts integer error statuses from 400 through 599 and defaults omission to 500.
+- Use `statusCode` for authored mappings and `status` only for a concrete response. Server response production accepts integer error statuses from 400 through 599 and defaults omission to 500. Client response reading accepts only observed statuses in that range.
 - Keep request ID, metadata, attributes, cause, stack, developer name, and status out of `ErrorResponseData` and both serialized body formats.
+- `fromHttpResponse()` reads `x-vercel-id` into local `requestId` by default. An explicit request ID wins; callers can select another header or disable lookup. Treat the default as Vercel routing context, not an application trace ID.
 - Treat `toJSON()` as diagnostic serialization. It may contain developer prose, stack, metadata, attributes, and public data.
 - Parse known response data fields strictly and ignore unknown fields. Parsing validates shape, not producer trust or action authority.
+- Name data-level client functions `parseErrorResponseData` and `fromErrorResponseData`; reserve `fromHttpResponse` for native Web response consumption.
 - Keep cross-realm recognition as `instanceof` plus the namespaced symbol and data-shape validation. The tag is forgeable. Use `instanceof VercelError` when local methods are required.
 - Classify the package-namespaced tag before untagged public input; any other symbol carries no meaning. Tagged-invalid values throw instead of falling through.
 - Require untagged `ErrorResponseInput` to put approved prose under `public`. Reject a top-level untagged `message`.

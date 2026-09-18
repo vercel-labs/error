@@ -121,7 +121,7 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 ### `requestId`
 
 - Accept an opaque correlation ID already owned by the request, response, or trace. Do not generate a new ID silently at the error site.
-- When a verified Vercel HTTP or telemetry contract already uses `x-vercel-id` for correlation, preserve it instead of introducing another ID. Use `vercel.request_id` only where the inspected telemetry integration expects that attribute.
+- `fromHttpResponse()` preserves `x-vercel-id` as request context by default. Treat it as Vercel routing context, not an application trace ID. Pass an explicit `requestId` or `requestIdHeader` when the receiving application owns another correlation contract.
 - Keep request IDs distinct from idempotency keys, trace IDs, deployment IDs, build IDs, and other resource identifiers.
 - A correlation ID is not authentication and is usually unsuitable as a metric dimension.
 - A `requestId` audit is incomplete until it names the owning source, states that correlation does not grant access, and identifies each logging or telemetry destination.

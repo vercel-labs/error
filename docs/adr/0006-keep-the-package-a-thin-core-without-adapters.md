@@ -1,5 +1,9 @@
 # Keep the package a thin core without adapters
 
+## Status
+
+Partially superseded by [Read HTTP responses through the client entry point](0009-read-http-responses-through-the-client-entry-point.md).
+
 ## Context
 
 Error libraries often add middleware and integrations for frameworks, reporters, and telemetry exporters. This package replaces utilities that ship in client bundles across many applications. Its purpose is to define a stable error shape and disclosure rules.

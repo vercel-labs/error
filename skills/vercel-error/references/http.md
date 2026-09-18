@@ -1,6 +1,6 @@
 # HTTP boundaries
 
-Use this reference for producing `ErrorResponse`, validating `ErrorResponseData`, and reconstructing errors.
+Use this reference for producing `ErrorResponse`, consuming a Web `Response`, validating `ErrorResponseData`, and reconstructing errors.
 
 ## Producer
 
@@ -89,32 +89,27 @@ The body is the Vercel REST API error envelope, not RFC 9457 problem details; th
 
 ## Consumer
 
-Validate unknown JSON before rebuilding an error. If parsing fails, retain the local HTTP failure instead of assuming the upstream response is trustworthy.
+Use `fromHttpResponse()` to validate and reconstruct a package error. Retain the local HTTP failure when the response is not a valid package response.
 
 ```ts
-import { fromErrorResponse, parseErrorResponse } from '@vercel/error/client';
+import { fromHttpResponse } from '@vercel/error/client';
 
 const response = await fetch(url);
 
 if (!response.ok) {
   const failedFetch = new Error(`${response.url} returned ${response.status}`);
-  const parsed = parseErrorResponse(
-    await response.json().catch(() => undefined),
-  );
+  const error = await fromHttpResponse(response, { cause: failedFetch });
 
-  if (!parsed) throw failedFetch;
-
-  throw fromErrorResponse(parsed, {
-    cause: failedFetch,
-    requestId: response.headers.get('x-request-id') ?? undefined,
-    statusCode: response.status,
-  });
+  reporter.captureException(error ?? failedFetch);
+  throw error ?? failedFetch;
 }
 ```
 
-`parseErrorResponse()` requires a nonblank string message. A present known field with the wrong type rejects the entire response. Unknown fields are ignored for additive evolution.
+`fromHttpResponse()` accepts only 400 through 599 responses with an `application/json` content type and valid `ErrorResponseData`. It uses the observed status and reads `x-vercel-id` into `requestId` by default. An explicit `requestId` wins. Set `requestIdHeader` to another header name or to `false` to skip lookup. Cross-origin browser responses must expose a non-safelisted request ID header through `Access-Control-Expose-Headers`.
 
-`fromErrorResponse()` copies response identity to `scope` and `code`, and copies response prose into the reconstructed developer fields and `public`. Passing the reconstructed error to `errorResponse()` therefore sends that identity and prose again. The caller supplies only status, cause, request ID, metadata, and attributes. The observed response status is authoritative.
+The function returns `undefined` without consuming non-error or non-JSON responses. Once it attempts JSON parsing, the body is consumed even if parsing or validation fails. It does not report or create a fallback.
+
+Use `parseErrorResponseData()` for unknown decoded data and `fromErrorResponseData()` to reconstruct a `VercelError` from validated data. Parsing requires a nonblank string message. A present known field with the wrong type rejects the entire response. Unknown fields are ignored for additive evolution. Reconstruction copies response identity and prose; the caller supplies local context. The observed response status is authoritative.
 
 Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 
