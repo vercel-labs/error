@@ -103,12 +103,13 @@ describe('fromHttpResponse', () => {
     expect(error?.requestId).toBeUndefined();
   });
 
-  it('propagates an invalid custom header name', async () => {
+  it('rejects an invalid custom header before consuming the body', async () => {
     const response = Response.json(responseData, { status: 500 });
 
     await expect(
       fromHttpResponse(response, { requestIdHeader: 'bad header' }),
     ).rejects.toThrow(TypeError);
+    expect(response.bodyUsed).toBe(false);
   });
 
   it.each([200, 302])(

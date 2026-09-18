@@ -381,7 +381,7 @@ Tagged matches do not prove the producer is trusted. Their metadata and attribut
 | `getMessage`             |             187 B |
 | `getRootCause`           |             139 B |
 | **@vercel/error/client** |                   |
-| `fromErrorResponseData`  |           1.76 kB |
+| `fromErrorResponseData`  |           1.75 kB |
 | `fromHttpResponse`       |           2.02 kB |
 | `parseErrorResponseData` |             245 B |
 | **@vercel/error/server** |                   |

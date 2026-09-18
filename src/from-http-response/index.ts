@@ -49,20 +49,23 @@ export async function fromHttpResponse(
     return undefined;
   }
 
+  const {
+    requestId: explicitRequestId,
+    requestIdHeader = DEFAULT_REQUEST_ID_HEADER,
+    ...localContext
+  } = options;
+  const requestId =
+    explicitRequestId ??
+    (requestIdHeader === false
+      ? undefined
+      : (response.headers.get(requestIdHeader) ?? undefined));
+
   const data = parseErrorResponseData(
     await response.json().catch(() => undefined),
   );
   if (data === undefined) {
     return undefined;
   }
-
-  const { requestIdHeader = DEFAULT_REQUEST_ID_HEADER, ...localContext } =
-    options;
-  const requestId =
-    options.requestId ??
-    (requestIdHeader === false
-      ? undefined
-      : (response.headers.get(requestIdHeader) ?? undefined));
 
   return fromErrorResponseData(data, {
     ...localContext,

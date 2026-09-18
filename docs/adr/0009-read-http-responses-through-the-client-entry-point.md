@@ -16,4 +16,4 @@ The reader centralizes package-specific protocol logic without a runtime depende
 
 ## Consequences
 
-The 0.2 client interface replaces the previous data-level function names. Candidate JSON bodies are consumed even when parsing fails. Browser code can read `x-vercel-id` across origins only when the server exposes it through CORS. The value remains routing context and does not become an application trace ID.
+The 0.3 client interface replaces the previous data-level function names. Candidate JSON bodies are consumed even when parsing fails. Browser code can read `x-vercel-id` across origins only when the server exposes it through CORS. The value remains routing context and does not become an application trace ID.
