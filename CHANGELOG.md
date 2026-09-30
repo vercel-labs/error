@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.4.0
+
+### Minor Changes
+
+- Reject blank identity, omit blank optional public details, honor ANSI quality weights, return `text/plain+ansi` with `Vary`, and add adopter guidance.
+
 ## 0.3.0
 
 ### Minor Changes

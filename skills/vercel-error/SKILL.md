@@ -55,6 +55,8 @@ Apply [Contract design](references/contract-design.md) to every field in scope, 
 
 Before implementation, verify that every populated field has a known use and every client-visible field is safe.
 
+Defined `scope` and `code` values must be nonblank; validation preserves surrounding whitespace. Blank optional public details are omitted, and nonblank text is preserved exactly.
+
 ### 5. Implement or review
 
 For review work, report correctness, disclosure, and recovery gaps; edit only when asked.
@@ -69,7 +71,7 @@ Test the behavior that consumes the error, not private formatting helpers:
 
 - creation, throwing, and reporting through the factory when those paths matter
 - stable code and preserved cause for programmatic handling
-- client-safe JSON and ANSI text parity, plus the returned HTTP status
+- client-safe JSON and ANSI text parity, returned content type, `Vary` header when request headers are supplied, and HTTP status
 - rejection of invalid unknown response data before reconstruction
 - terminal output with and without optional sections
 - the actual public package entry point used by the target project

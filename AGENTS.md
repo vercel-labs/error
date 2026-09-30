@@ -39,12 +39,15 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 
 ## Error Contract
 
-- Keep stable `scope` and `code` separate from prose. Preserve an original failure through `cause`.
+- Keep stable `scope` and `code` separate from prose. Either may be omitted; a defined value must be a nonblank string. Use `trim()` only to check blankness and preserve the original nonblank value. Preserve an original failure through `cause`.
 - Put nested debugging context in `metadata` and flat telemetry values in `attributes`. Keep secrets out of both.
 - Treat constructor `message`, `reason`, `hint`, `fix`, and `link` as developer-facing.
 - Put client-approved prose under `public`, with a required nonblank `public.message`.
-- Validate `public` at construction (nonblank string `message`, string-only optional fields), drop unknown fields, and freeze the copy so approved copy cannot change through an input alias.
-- `errorResponse()` is the client-safe serializer. It uses only `public` prose or the fixed generic fallback, while preserving public `scope` and `code`.
+- Validate `public` at construction (nonblank string `message`, string-only optional fields), omit blank optional public details, drop unknown fields, and freeze the copy so approved copy cannot change through an input alias. Preserve nonblank public text exactly.
+- `errorResponse()` is the client-safe serializer. It uses only normalized `public` prose or the fixed generic fallback and rejects blank defined `scope` or `code` at projection.
+- Parsing rejects blank defined response identity and omits blank optional public details. Keep `isVercelError()`, `isVercelErrorLikeData()`, and `hasCode()` as structural guards with their current contracts.
+- ANSI selection uses exact `X-Error-Format: ansi`, then an exact `text/plain+ansi` Accept range with positive quality, then the case-sensitive `curl/` marker only when the exact range is absent. Duplicate exact ranges use the highest valid quality. Exact ranges with only zero or invalid weights select JSON and skip the fallback; wildcards do not select ANSI.
+- JSON uses `application/json`; ANSI uses `text/plain+ansi; charset=utf-8`. Add `Vary: X-Error-Format, Accept, User-Agent` for either format whenever `errorResponse()` receives `request`; omit it when no request is supplied.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
 - Use `statusCode` for authored mappings and `status` only for a concrete response. Server response production accepts integer error statuses from 400 through 599 and defaults omission to 500. Client response reading accepts only observed statuses in that range.
 - Keep request ID, metadata, attributes, cause, stack, developer name, and status out of `ErrorResponseData` and both serialized body formats.

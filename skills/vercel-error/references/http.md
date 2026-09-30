@@ -38,7 +38,9 @@ export function deploymentErrorResponse(
 
 `statusCode` must be an integer from 400 through 599. Omission defaults to 500. Invalid values throw before public projection or diagnostics run.
 
-Passing `request` through the options enables ANSI negotiation. JSON and ANSI text contain the same public identity and prose. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Otherwise `Accept` and `User-Agent` provide fallbacks. These headers choose the body format; they do not authenticate the caller.
+Passing `request` through the options enables ANSI negotiation. JSON and ANSI text contain the same normalized public identity and prose. A present `X-Error-Format` header is authoritative; only the exact value `ansi` selects ANSI. Otherwise, an exact case-insensitive `text/plain+ansi` media range selects ANSI when its `q` value is valid and positive; a missing `q` means `1`. RFC 9110 quality-value syntax applies, and duplicate exact ranges use the highest valid quality. If an exact range is present only with zero or invalid weights, JSON wins and the `curl/` fallback is skipped. When the exact range is absent, the existing case-sensitive `curl/` User-Agent marker selects ANSI. Wildcards do not select ANSI. These headers choose the body format; they do not authenticate the caller.
+
+JSON uses `Content-Type: application/json`. ANSI uses `Content-Type: text/plain+ansi; charset=utf-8`. Whenever `request` is supplied, both representations include `Vary: X-Error-Format, Accept, User-Agent`. The response omits `Vary` when no request headers are supplied.
 
 Scope, code, and status are public disclosures even when the generic message is used. Protected-resource handlers own neutral mappings that do not reveal whether a resource exists.
 
@@ -83,7 +85,7 @@ The callback receives the original source plus `{ status, bodyFormat }`. `bodyFo
 
 ## Response data contract
 
-`message` is required and nonblank. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data. The shape can cross JSON or message channels after source validation; it is not a full diagnostic transport.
+`message` is required and nonblank. Defined `scope` and `code` values must also be nonblank. Blank optional public `reason`, `hint`, `fix`, and `link` values are omitted, and nonblank text is preserved exactly. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data. The shape can cross JSON or message channels after source validation; it is not a full diagnostic transport.
 
 The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 
@@ -109,7 +111,7 @@ if (!response.ok) {
 
 The function returns `undefined` without consuming non-error or non-JSON responses. Once it attempts JSON parsing, the body is consumed even if parsing or validation fails. It does not report or create a fallback.
 
-Use `parseErrorResponseData()` for unknown decoded data and `fromErrorResponseData()` to reconstruct a `VercelError` from validated data. Parsing requires a nonblank string message. A present known field with the wrong type rejects the entire response. Unknown fields are ignored for additive evolution. Reconstruction copies response identity and prose; the caller supplies local context. The observed response status is authoritative.
+Use `parseErrorResponseData()` for unknown decoded data and `fromErrorResponseData()` to reconstruct a `VercelError` from validated data. Parsing requires a nonblank string message and nonblank scope or code when present. A present known field with the wrong type rejects the entire response. Blank optional public details are omitted; unknown fields are ignored for additive evolution. Reconstruction copies response identity and prose; the caller supplies local context. The observed response status is authoritative.
 
 Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 

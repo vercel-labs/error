@@ -27,7 +27,7 @@ export function paymentGatewayTimeout(
 
 The generic keeps `code` limited to `PaymentErrorCode`. Preserve a caught value through `cause`; do not copy its message or stack into public fields.
 
-Construction validates `public` (nonblank string `message`, optional string details, `TypeError` otherwise), drops unknown fields, and stores a frozen copy. Build the complete client-approved projection before creating the error rather than mutating it later.
+Construction requires nonblank `scope` and `code` values when supplied and preserves their text exactly. It validates `public` (nonblank string `message` and string-only optional details, `TypeError` otherwise), omits blank optional public details, drops unknown fields, and stores a frozen copy.
 
 ## Subclasses
 

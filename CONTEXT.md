@@ -7,7 +7,7 @@
 ### Error Model
 
 **Error identity**:
-The stable `scope` and `code` values that software uses to classify an error. Identity remains stable when explanatory text changes.
+The stable `scope` and `code` values that software uses to classify an error. Either field may be absent, but a defined value must be nonblank. Validation uses trimming only to check blankness and preserves the supplied value. Identity remains stable when explanatory text changes.
 _Avoid_: Error type
 
 **Developer error details**:
@@ -15,7 +15,7 @@ Technical text intended for developers and operators diagnosing a failure. The d
 _Avoid_: Internal error details
 
 **Public error details**:
-Text explicitly approved for disclosure to the intended recipient of an error response. Public describes a disclosure decision, not producer trust or authority to act.
+Text explicitly approved for disclosure to the intended recipient of an error response. `message` must be nonblank; optional fields must be strings. Blank optional fields are omitted, while nonblank text is preserved. Public describes a disclosure decision, not producer trust or authority to act.
 _Avoid_: User message
 
 **Recovery guidance**:
@@ -44,11 +44,11 @@ Caller-authored error identity, nested public error details, and an authored sta
 _Avoid_: Error response params
 
 **Error response data**:
-Client-facing data in one canonical shape, independent of source and body format, consisting of error identity and public error details. It excludes concrete HTTP status and diagnostic context and does not imply producer trust.
+Client-facing data in one canonical shape, independent of source and body format, consisting of nonblank defined identity values and public error details with blank optional fields omitted. It excludes concrete HTTP status and diagnostic context and does not imply producer trust.
 _Avoid_: Error response payload
 
 **Error response**:
-The complete concrete HTTP status, serialized body, and headers for an error. It is framework-neutral response information rather than a native or framework response object.
+The complete concrete HTTP status, serialized body, and headers for an error. ANSI uses `text/plain+ansi; charset=utf-8`; when request headers are supplied, either format varies on `X-Error-Format`, `Accept`, and `User-Agent`. It is framework-neutral response information rather than a native or framework response object.
 _Avoid_: Error response result
 
 **Client response reading**:
