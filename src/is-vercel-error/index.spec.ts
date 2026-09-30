@@ -70,4 +70,15 @@ describe('isVercelError', () => {
 
     expect(isVercelError(fake)).toBe(true);
   });
+
+  it('keeps blank identity within the structural recognition contract', () => {
+    const fake = {
+      code: ' ',
+      message: 'Failed',
+      scope: '',
+      [VERCEL_ERROR_TAG]: true,
+    };
+
+    expect(isVercelError(fake)).toBe(true);
+  });
 });

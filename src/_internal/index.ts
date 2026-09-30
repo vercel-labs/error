@@ -6,6 +6,20 @@ export function isObject(
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/** Validate a defined identity value without changing its supplied text. */
+export function normalizeErrorIdentity(
+  value: unknown,
+  field: 'scope' | 'code',
+): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new TypeError(`${field} must be a nonblank string`);
+  }
+  return value;
+}
+
 export const OPTIONAL_PUBLIC_DETAIL_FIELDS = [
   'reason',
   'hint',
@@ -20,8 +34,8 @@ type MutablePublicErrorDetails = {
 /**
  * Read each public detail field once, validate the read value, and build a
  * fresh record from those same reads. Unknown fields are dropped and
- * explicitly `undefined` optional fields are omitted. Throws `TypeError` for
- * a missing or blank `message` or a non-string optional field.
+ * blank or explicitly `undefined` optional fields are omitted. Throws
+ * `TypeError` for a missing or blank `message` or a non-string optional field.
  *
  * Shared by `VercelError` construction and response-data projection so the
  * two disclosure seams cannot drift.
@@ -44,6 +58,9 @@ export function pickPublicErrorDetails(value: unknown): PublicErrorDetails {
     }
     if (typeof fieldValue !== 'string') {
       throw new TypeError(`${field} must be a string`);
+    }
+    if (fieldValue.trim().length === 0) {
+      continue;
     }
     details[field] = fieldValue;
   }

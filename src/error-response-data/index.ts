@@ -1,5 +1,6 @@
 import {
   isObject,
+  normalizeErrorIdentity,
   OPTIONAL_PUBLIC_DETAIL_FIELDS,
   pickPublicErrorDetails,
 } from '../_internal';
@@ -17,26 +18,28 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Client-facing fields shared by JSON and ANSI responses. Excludes status,
- * request ID, metadata, attributes, cause, stack, and error name. `message`
- * must contain non-whitespace text. Use `parseErrorResponseData` from
- * `@vercel/error/client` before using unknown data.
+ * Client-facing fields shared by JSON and ANSI responses. Defined `scope` and
+ * `code` values must be nonblank; nonblank text is preserved exactly. Blank
+ * optional public details are omitted. The shape excludes status, request ID,
+ * metadata, attributes, cause, stack, and error name. `message` must contain
+ * non-whitespace text. Use `parseErrorResponseData` from `@vercel/error/client`
+ * before using unknown data.
  */
 export interface ErrorResponseData {
   readonly error: {
-    /** Client-visible namespace for the error. */
+    /** Nonblank client-visible namespace for the error. */
     readonly scope?: string;
-    /** Client-visible stable error code. */
+    /** Nonblank client-visible stable error code. */
     readonly code?: string;
     /** Client-facing summary containing non-whitespace text. */
     readonly message: string;
-    /** Client-facing explanation of why the error occurred. */
+    /** Client-facing explanation; blank text is omitted. */
     readonly reason?: string;
-    /** Client-facing investigation advice. */
+    /** Client-facing investigation advice; blank text is omitted. */
     readonly hint?: string;
-    /** Client-facing recovery guidance. */
+    /** Client-facing recovery guidance; blank text is omitted. */
     readonly fix?: string;
-    /** Client-facing documentation URL. */
+    /** Client-facing documentation URL; blank text is omitted. */
     readonly link?: string;
   };
 }
@@ -62,9 +65,11 @@ export type FromErrorResponseDataOptions = Pick<
 /**
  * Build client-facing response data from a tagged error or explicit public input.
  *
- * Invalid tagged values and untagged values without nested `public` details
- * throw. Tagged errors without `public` use a generic message. Each response
- * field is copied from the same property read that was checked.
+ * Defined `scope` and `code` values must be nonblank. Invalid tagged values,
+ * blank identity, and untagged values without nested `public` details throw.
+ * Tagged errors without `public` use a generic message. Blank optional public
+ * details are omitted, and nonblank values are preserved exactly. Each
+ * response field is copied from the same property read that was checked.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
@@ -76,16 +81,22 @@ export function buildErrorResponseData(
   }
 
   if (VERCEL_ERROR_TAG in source) {
-    if (!isVercelError(source) || !isVercelErrorLikeData(source)) {
+    const identityValues = readResponseIdentity(source);
+    const identitySource = withResponseIdentitySnapshot(source, identityValues);
+    if (
+      !isVercelError(identitySource) ||
+      !isVercelErrorLikeData(identitySource)
+    ) {
       throw new TypeError(
         'Tagged VercelError-like data does not match the expected field types',
       );
     }
 
+    const identity = normalizeResponseIdentity(identityValues);
     const publicDetails = source.public;
     return {
       error: {
-        ...pickResponseIdentity(source),
+        ...identity,
         ...(publicDetails === undefined
           ? { message: GENERIC_PUBLIC_MESSAGE }
           : pickPublicErrorDetails(publicDetails)),
@@ -106,9 +117,10 @@ export function buildErrorResponseData(
     );
   }
   const publicDetails = pickPublicErrorDetails(publicValue);
+  const identity = normalizeResponseIdentity(readResponseIdentity(source));
   return {
     error: {
-      ...pickResponseIdentity(source),
+      ...identity,
       ...publicDetails,
     },
   };
@@ -117,10 +129,12 @@ export function buildErrorResponseData(
 /**
  * Parse unknown data as `ErrorResponseData`.
  *
- * Returns `undefined` unless `data.error` has a nonblank string `message` and
- * string values for every known optional field. Unknown fields are ignored.
- * This checks field types, not who produced the data or whether its guidance is
- * safe. Property-access exceptions propagate.
+ * Returns `undefined` unless `data.error` has a nonblank string `message`,
+ * nonblank `scope` and `code` when present, and string values for every known
+ * optional field. Blank optional public details are omitted; nonblank text is
+ * preserved exactly. Unknown fields are ignored. This checks field types, not
+ * who produced the data or whether its guidance is safe. Property-access
+ * exceptions propagate.
  */
 export function parseErrorResponseData(
   data?: unknown,
@@ -137,11 +151,16 @@ export function parseErrorResponseData(
 
   const identity = parseStringFields(error, RESPONSE_IDENTITY_FIELDS);
   const details = parseStringFields(error, OPTIONAL_PUBLIC_DETAIL_FIELDS);
-  if (identity === undefined || details === undefined) {
+  if (
+    identity === undefined ||
+    !hasNonblankIdentity(identity) ||
+    details === undefined
+  ) {
     return undefined;
   }
 
-  return { error: { ...identity, message, ...details } };
+  const publicDetails = pickPublicErrorDetails({ message, ...details });
+  return { error: { ...identity, ...publicDetails } };
 }
 
 /**
@@ -176,26 +195,58 @@ function hasErrorDiagnosticFields(
   return 'name' in value || 'stack' in value;
 }
 
-/**
- * Read `scope` and `code` once each and validate the read values.
- * Serialization uses only these copies, never a second property read.
- */
-function pickResponseIdentity(source: {
+interface ResponseIdentityValues {
+  readonly scope: unknown;
+  readonly code: unknown;
+}
+
+/** Read identity once each; validation and serialization use these copies. */
+function readResponseIdentity(source: {
   readonly scope?: unknown;
   readonly code?: unknown;
-}): Pick<ErrorResponseData['error'], 'scope' | 'code'> {
+}): ResponseIdentityValues {
+  const scope = source.scope;
+  const code = source.code;
+  return { scope, code };
+}
+
+function normalizeResponseIdentity(
+  values: ResponseIdentityValues,
+): Pick<ErrorResponseData['error'], 'scope' | 'code'> {
   const identity: { scope?: string; code?: string } = {};
   for (const field of RESPONSE_IDENTITY_FIELDS) {
-    const value = source[field];
-    if (value === undefined) {
-      continue;
+    const value = normalizeErrorIdentity(values[field], field);
+    if (value !== undefined) {
+      identity[field] = value;
     }
-    if (typeof value !== 'string') {
-      throw new TypeError(`${field} must be a string`);
-    }
-    identity[field] = value;
   }
   return identity;
+}
+
+function withResponseIdentitySnapshot(
+  source: Record<PropertyKey, unknown>,
+  identity: ResponseIdentityValues,
+): Record<PropertyKey, unknown> {
+  return new Proxy(source, {
+    get(target, field) {
+      if (field === 'scope' || field === 'code') {
+        return identity[field];
+      }
+      return Reflect.get(target, field, target);
+    },
+  });
+}
+
+function hasNonblankIdentity(
+  identity: Partial<Record<(typeof RESPONSE_IDENTITY_FIELDS)[number], string>>,
+): boolean {
+  for (const field of RESPONSE_IDENTITY_FIELDS) {
+    const value = identity[field];
+    if (value !== undefined && value.trim().length === 0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**

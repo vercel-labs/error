@@ -32,25 +32,28 @@ export interface ErrorLike {
 
 /**
  * Text approved for clients. `message` must contain non-whitespace text;
- * optional fields must be strings. Invalid fields throw `TypeError`. Receiving
- * a `fix` or `link` does not authorize using it.
+ * optional fields must be strings. Blank optional fields are omitted, while
+ * nonblank text is preserved exactly. Invalid fields throw `TypeError`.
+ * Receiving a `fix` or `link` does not authorize using it.
  */
 export interface PublicErrorDetails {
   /** Client-facing summary containing non-whitespace text. */
   readonly message: string;
-  /** Client-facing explanation of why the error occurred. */
+  /** Client-facing explanation; blank text is omitted. */
   readonly reason?: string;
-  /** Client-facing investigation advice. */
+  /** Client-facing investigation advice; blank text is omitted. */
   readonly hint?: string;
-  /** Client-facing recovery guidance. */
+  /** Client-facing recovery guidance; blank text is omitted. */
   readonly fix?: string;
-  /** Client-facing documentation URL. */
+  /** Client-facing documentation URL; blank text is omitted. */
   readonly link?: string;
 }
 
 /**
- * Options for `VercelError`. Responses include `public`, `scope`, `code`, and
- * the mapped `statusCode`; other fields stay server-side.
+ * Options for `VercelError`. Defined `scope` and `code` values must be
+ * nonblank; construction throws `TypeError` for blank values and preserves
+ * nonblank text exactly. Responses include `public`, `scope`, `code`, and the
+ * mapped `statusCode`; other fields stay server-side.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
   /** Flat OpenTelemetry-compatible values stored by reference. */
@@ -59,7 +62,7 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** The underlying error or value that triggered this one, for chaining. */
   readonly cause?: unknown;
 
-  /** Stable machine-readable code; keep it unchanged when rewording messages. */
+  /** Stable nonblank code; surrounding whitespace is preserved. */
   readonly code?: TCode;
 
   /** Suggested recovery step and any condition required before trying it. */
@@ -80,13 +83,13 @@ export interface VercelErrorOptions<TCode extends string = string> {
   /** Request ID used for tracing and excluded from error responses. */
   requestId?: string;
 
-  /** Namespace that produced the error, such as a service or subsystem. */
+  /** Nonblank namespace, such as a service or subsystem; text is preserved. */
   readonly scope?: string;
 
   /** Status mapping; `errorResponse()` defaults to 500 or accepts 400-599. */
   readonly statusCode?: number;
 
-  /** Client text; validated, copied without unknown fields, and frozen. */
+  /** Client text; validated, blank optional fields omitted, copied, and frozen. */
   readonly public?: PublicErrorDetails;
 
   /** Reserved. Automatically captured from Error. */
@@ -113,9 +116,9 @@ export interface VercelErrorLike<
   readonly stack?: string;
   /** Original value that caused the error; excluded from error responses. */
   readonly cause?: unknown;
-  /** Stable machine-readable code included by `errorResponse()` when defined. */
+  /** Optional code; response projection requires nonblank text when defined. */
   readonly code?: TCode;
-  /** Error scope included by `errorResponse()` when defined. */
+  /** Optional scope; response projection requires nonblank text when defined. */
   readonly scope?: string;
   /** Status mapping; `errorResponse()` defaults to 500 or throws `RangeError`. */
   readonly statusCode?: number;

@@ -52,6 +52,27 @@ describe('VercelError', () => {
     });
 
     it.each([
+      ['code', ''],
+      ['code', ' \t\n'],
+      ['scope', ''],
+      ['scope', ' \t\n'],
+    ] as const)('rejects blank %s at construction', (field, value) => {
+      expect(() => new VercelError('test', { [field]: value })).toThrow(
+        TypeError,
+      );
+    });
+
+    it('preserves nonblank identity exactly as supplied', () => {
+      const error = new VercelError('test', {
+        code: ' timeout ',
+        scope: ' api ',
+      });
+
+      expect(error.code).toBe(' timeout ');
+      expect(error.scope).toBe(' api ');
+    });
+
+    it.each([
       {},
       { message: '' },
       { message: '   ' },
@@ -78,6 +99,23 @@ describe('VercelError', () => {
 
       expect(error.public).toEqual({ message: 'Public message' });
       expect(Object.isFrozen(error.public)).toBe(true);
+    });
+
+    it('omits blank optional public details and preserves nonblank text', () => {
+      const error = new VercelError('Developer message', {
+        public: {
+          fix: '',
+          hint: '  Inspect pool usage  ',
+          link: ' \t\n',
+          message: ' Public message ',
+          reason: ' \t ',
+        },
+      });
+
+      expect(error.public).toEqual({
+        hint: '  Inspect pool usage  ',
+        message: ' Public message ',
+      });
     });
 
     it('ignores reserved properties from options', () => {

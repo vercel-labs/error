@@ -1,4 +1,4 @@
-import { pickPublicErrorDetails } from '../_internal';
+import { normalizeErrorIdentity, pickPublicErrorDetails } from '../_internal';
 import { formatError } from '../format/index';
 import type {
   ErrorAttributes,
@@ -11,12 +11,16 @@ import { VERCEL_ERROR_TAG } from './tag';
 /**
  * An `Error` with stable identity and separate developer and client details.
  * Developer text stays outside `public`; construction validates and freezes
- * `public`. Use `instanceof VercelError` before calling methods on tagged data.
+ * `public`. Defined `scope` and `code` values must be nonblank; validation
+ * preserves nonblank text exactly. Blank optional public details are omitted.
+ * Use `instanceof VercelError` before calling methods on tagged data.
  * Authored fields declared here are readonly; inherited `name`, `stack`, and
  * `cause` retain the standard `Error` types. `requestId`, `metadata`, and
  * `attributes` are intentionally writable for diagnostic enrichment.
  *
  * @template TCode - Strongly typed error code union
+ *
+ * @throws {TypeError} If defined `scope` or `code` is blank, or `public` is invalid.
  *
  * @example
  * ```ts
@@ -34,9 +38,9 @@ export class VercelError<TCode extends string = string> extends Error {
   /** Developer message; responses use `public.message` or a generic message. */
   declare readonly message: string;
 
-  /** Stable machine-readable code included by `errorResponse()` when defined. */
+  /** Stable nonblank code included by `errorResponse()` when defined. */
   readonly code?: TCode;
-  /** Error scope included by `errorResponse()` when defined. */
+  /** Nonblank error scope included by `errorResponse()` when defined. */
   readonly scope?: string;
 
   /** HTTP status mapping; `errorResponse()` accepts 400-599 and defaults to 500. */
@@ -50,7 +54,7 @@ export class VercelError<TCode extends string = string> extends Error {
   readonly fix?: string;
   /** Developer URL; set `public.link` separately for responses. */
   readonly link?: string;
-  /** Public error details, validated and copied at construction. */
+  /** Public details, validated and copied; blank optional fields are omitted. */
   readonly public?: PublicErrorDetails;
 
   /** Mutable request ID included in `toJSON()` and excluded from responses. */
@@ -65,8 +69,10 @@ export class VercelError<TCode extends string = string> extends Error {
 
     this.name = 'VercelError';
 
-    this.code = options.code;
-    this.scope = options.scope;
+    this.code = normalizeErrorIdentity(options.code, 'code') as
+      | TCode
+      | undefined;
+    this.scope = normalizeErrorIdentity(options.scope, 'scope');
     this.statusCode = options.statusCode;
     this.reason = options.reason;
     this.hint = options.hint;

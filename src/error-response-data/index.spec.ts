@@ -125,6 +125,103 @@ describe('error response data', () => {
       });
     });
 
+    it('omits blank public details and preserves nonblank input text', () => {
+      const source = {
+        code: ' timeout ',
+        public: {
+          fix: '',
+          hint: '  Inspect the pool  ',
+          link: ' \t\n',
+          message: ' Public message ',
+          reason: ' \t ',
+        },
+        scope: ' api ',
+      };
+
+      expect(buildErrorResponseData(source)).toEqual({
+        error: {
+          code: ' timeout ',
+          hint: '  Inspect the pool  ',
+          message: ' Public message ',
+          scope: ' api ',
+        },
+      });
+    });
+
+    it.each([
+      ['scope', ''],
+      ['scope', ' \t\n'],
+      ['code', ''],
+      ['code', ' \t\n'],
+    ] as const)('rejects blank explicit %s', (field, value) => {
+      expect(() =>
+        buildErrorResponseData({
+          [field]: value,
+          public: { message: 'Public message' },
+        }),
+      ).toThrow(TypeError);
+    });
+
+    it.each([
+      ['scope', ''],
+      ['scope', ' \t\n'],
+      ['code', ''],
+      ['code', ' \t\n'],
+    ] as const)('rejects blank tagged %s', (field, value) => {
+      const tagged = {
+        message: 'Developer detail',
+        public: { message: 'Public message' },
+        [VERCEL_ERROR_TAG]: true,
+        [field]: value,
+      };
+
+      expect(() => buildErrorResponseData(tagged as never)).toThrow(TypeError);
+    });
+
+    it('preserves the original receiver for tagged data getters', () => {
+      const messages = new WeakMap<object, string>();
+      const tagged = {
+        public: { message: 'Public message' },
+        [VERCEL_ERROR_TAG]: true,
+        get message() {
+          return messages.get(this);
+        },
+      };
+      messages.set(tagged, 'Developer detail');
+
+      expect(buildErrorResponseData(tagged as never)).toEqual({
+        error: { message: 'Public message' },
+      });
+    });
+
+    it('reads tagged identity once and preserves its nonblank whitespace', () => {
+      let codeReads = 0;
+      let scopeReads = 0;
+      const tagged = {
+        message: 'Developer detail',
+        public: { message: 'Public message' },
+        [VERCEL_ERROR_TAG]: true,
+        get code() {
+          codeReads += 1;
+          return ' timeout ';
+        },
+        get scope() {
+          scopeReads += 1;
+          return ' api ';
+        },
+      };
+
+      expect(buildErrorResponseData(tagged as never)).toEqual({
+        error: {
+          code: ' timeout ',
+          message: 'Public message',
+          scope: ' api ',
+        },
+      });
+      expect(codeReads).toBe(1);
+      expect(scopeReads).toBe(1);
+    });
+
     it.each(['', '   '])('rejects a blank public message: %o', (message) => {
       expect(() => buildErrorResponseData({ public: { message } })).toThrow(
         TypeError,
@@ -365,6 +462,38 @@ describe('error response data', () => {
       { error: { hint: false, message: 'Error' } },
     ])('rejects a malformed response: %o', (input) => {
       expect(parseErrorResponseData(input)).toBeUndefined();
+    });
+
+    it.each(['', ' \t\n'])('rejects blank response identity: %o', (value) => {
+      expect(
+        parseErrorResponseData({ error: { message: 'Failed', scope: value } }),
+      ).toBeUndefined();
+      expect(
+        parseErrorResponseData({ error: { code: value, message: 'Failed' } }),
+      ).toBeUndefined();
+    });
+
+    it('omits blank public details and preserves nonblank response text', () => {
+      expect(
+        parseErrorResponseData({
+          error: {
+            code: ' timeout ',
+            fix: '',
+            hint: '  Inspect the pool  ',
+            link: ' \t\n',
+            message: ' Public message ',
+            reason: ' \t ',
+            scope: ' api ',
+          },
+        }),
+      ).toEqual({
+        error: {
+          code: ' timeout ',
+          hint: '  Inspect the pool  ',
+          message: ' Public message ',
+          scope: ' api ',
+        },
+      });
     });
   });
 
