@@ -178,6 +178,11 @@ for (const untaggedError of [
 const ansi = errorResponse(reported, {
   request: new Headers({ 'X-Error-Format': 'ansi' }),
 });
+assert(
+  ansi.headers['Content-Type'] === 'text/plain+ansi; charset=utf-8' &&
+    ansi.headers['Vary'] === 'X-Error-Format, Accept, User-Agent',
+  'ANSI response metadata did not match the negotiated representation',
+);
 assert(ansi.body.includes('\x1b['), 'explicit ANSI consulted ambient NO_COLOR');
 assert(
   ansi.body.includes('Visitor signals are unavailable'),
@@ -190,6 +195,33 @@ assert(
 assert(
   wantsAnsi(new Headers({ 'X-Error-Format': 'ansi' })),
   'server subpath negotiation failed',
+);
+
+const ansiByAccept = errorResponse(reported, {
+  request: new Headers({ Accept: 'text/plain+ansi;q=0.5' }),
+});
+assert(
+  ansiByAccept.headers['Content-Type'] === 'text/plain+ansi; charset=utf-8',
+  'positive Accept quality did not select the ANSI media type',
+);
+const declinedAnsi = errorResponse(reported, {
+  request: new Headers({
+    Accept: 'text/plain+ansi;q=0',
+    'User-Agent': 'curl/8.1.2',
+  }),
+});
+assert(
+  declinedAnsi.headers['Content-Type'] === 'application/json' &&
+    declinedAnsi.headers['Vary'] === 'X-Error-Format, Accept, User-Agent',
+  'zero Accept quality did not keep JSON or emit Vary',
+);
+const nativeAnsiResponse = new Response(ansiByAccept.body, ansiByAccept);
+assert(
+  nativeAnsiResponse.headers.get('Content-Type') ===
+    'text/plain+ansi; charset=utf-8' &&
+    nativeAnsiResponse.headers.get('Vary') ===
+      'X-Error-Format, Accept, User-Agent',
+  'native Response lost negotiated ANSI headers',
 );
 
 assert(

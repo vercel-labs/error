@@ -61,6 +61,29 @@ assert(
   !json.body.includes('DEV_MESSAGE'),
   'JSON response contains the developer message',
 );
+const ansiRequest = {
+  get(name: string) {
+    return name.toLowerCase() === 'x-error-format' ? 'ansi' : null;
+  },
+};
+const ansi = server.errorResponse(error, { request: ansiRequest });
+assert(
+  ansi.headers['Content-Type'] === 'text/plain+ansi; charset=utf-8' &&
+    ansi.headers.Vary === 'X-Error-Format, Accept, User-Agent' &&
+    ansi.body.includes('\x1b['),
+  'browser bundle did not negotiate ANSI response headers and body',
+);
+const jsonRequest = {
+  get(name: string) {
+    return name.toLowerCase() === 'accept' ? 'text/plain+ansi;q=0' : null;
+  },
+};
+const variedJson = server.errorResponse(error, { request: jsonRequest });
+assert(
+  variedJson.headers['Content-Type'] === 'application/json' &&
+    variedJson.headers.Vary === 'X-Error-Format, Accept, User-Agent',
+  'browser bundle did not retain JSON and Vary for q=0',
+);
 const explicitPublic = server.errorResponse({
   public: { message: 'Explicit public input' },
   statusCode: 400,

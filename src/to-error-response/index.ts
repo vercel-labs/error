@@ -9,23 +9,27 @@ import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
 /**
  * Client-facing input used without a `VercelError`. `public` is required and
- * validated before its prose is included in the response. `statusCode`
- * defaults to 500 and accepts 400-599.
+ * validated before its prose is included in the response. Defined `scope` and
+ * `code` values must be nonblank. `statusCode` defaults to 500 and accepts
+ * 400-599.
  */
 export interface ErrorResponseInput {
-  /** Optional error scope included in the response. */
+  /** Optional nonblank error scope included in the response. */
   readonly scope?: string;
-  /** Optional stable error code included in the response. */
+  /** Optional nonblank stable error code included in the response. */
   readonly code?: string;
   /** Status mapping; defaults to 500 or throws `RangeError` unless 400-599. */
   readonly statusCode?: number;
-  /** Details explicitly approved for the response; `message` must be nonblank. */
+  /** Approved response details; `message` must be nonblank. */
   readonly public: PublicErrorDetails;
 }
 
 /** Options for body format and the `onSerialize` callback. */
 export interface ErrorResponseOptions {
-  /** Request or headers used for body selection; omission uses JSON. */
+  /**
+   * Request or headers used for body selection; omission uses JSON. When
+   * supplied, the response includes `Vary: X-Error-Format, Accept, User-Agent`.
+   */
   readonly request?: Request | HeadersLike;
 
   /**
@@ -45,29 +49,40 @@ export interface ErrorResponseOptions {
 
 /**
  * HTTP response data returned by {@link errorResponse}. Pass these fields to a
- * native or framework response constructor.
+ * native or framework response constructor. ANSI uses
+ * `text/plain+ansi; charset=utf-8`; supplied request headers add `Vary`.
  */
 export interface ErrorResponse {
   /** Concrete HTTP status to send. */
   readonly status: number;
   /** Serialized `ErrorResponseData` or ANSI text with the same public fields. */
   readonly body: string;
-  /** Matching JSON or plain-text `Content-Type` header. */
+  /** Matching `Content-Type` and conditional `Vary` response headers. */
   readonly headers: Record<string, string>;
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
-const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
+const TEXT_HEADERS = {
+  'Content-Type': 'text/plain+ansi; charset=utf-8',
+} as const;
+const VARY_HEADERS = {
+  Vary: 'X-Error-Format, Accept, User-Agent',
+} as const;
 
 /**
  * Build HTTP response data from an error or explicit public data.
  *
  * `VercelError` and tagged values expose only `public`, `scope`, and `code`; a
- * missing `public` uses a generic message. Untagged errors and inputs without
- * valid nested `public` details throw `TypeError`.
+ * missing `public` uses a generic message. Defined identity values must be
+ * nonblank. Untagged errors and inputs without valid nested `public` details
+ * throw `TypeError`.
  *
  * `statusCode` defaults to 500 and accepts integers from 400 through 599.
  * Invalid status throws `RangeError`; invalid public data throws `TypeError`.
+ * With `request`, `X-Error-Format` is authoritative, then a positive-quality
+ * exact `text/plain+ansi` Accept range, then the `curl/` User-Agent heuristic.
+ * ANSI responses use `text/plain+ansi; charset=utf-8`; either representation
+ * includes `Vary: X-Error-Format, Accept, User-Agent` when `request` is set.
  * Property-access exceptions propagate. `onSerialize` runs after the response
  * is built.
  *
@@ -88,18 +103,25 @@ export function errorResponse(
 ): ErrorResponse {
   const status = resolveStatus(source);
   const responseData = buildErrorResponseData(source);
-  const bodyFormat = wantsAnsi(options.request) ? 'ansi' : 'json';
+  const request = options.request;
+  const bodyFormat = wantsAnsi(request) ? 'ansi' : 'json';
 
   const result: ErrorResponse =
     bodyFormat === 'ansi'
       ? {
           body: renderPublicError(responseData.error),
-          headers: { ...TEXT_HEADERS },
+          headers: {
+            ...TEXT_HEADERS,
+            ...(request === undefined ? {} : VARY_HEADERS),
+          },
           status,
         }
       : {
           body: JSON.stringify(responseData),
-          headers: { ...JSON_HEADERS },
+          headers: {
+            ...JSON_HEADERS,
+            ...(request === undefined ? {} : VARY_HEADERS),
+          },
           status,
         };
 
