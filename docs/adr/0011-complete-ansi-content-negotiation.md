@@ -7,7 +7,7 @@ Substring matching treats `q=0` as a request for ANSI. ANSI responses also use a
 ## Decision
 
 - A present `X-Error-Format` is authoritative. Only its exact `ansi` value selects ANSI.
-- Otherwise, an exact case-insensitive `text/plain+ansi` Accept range selects ANSI for a valid positive quality value. An omitted `q` means `1`. For duplicate exact ranges, use the highest valid quality. A matching range with only zero or invalid weights selects JSON and skips the User-Agent fallback.
+- Otherwise, an exact case-insensitive `text/plain+ansi` Accept range selects ANSI for a valid positive quality value. An omitted `q` means `1`. For duplicate exact ranges, use the highest valid quality. If exact ranges have only zero or invalid weights, select JSON and skip the User-Agent fallback.
 - If the exact Accept range is absent, the existing case-sensitive `curl/` marker selects ANSI. Wildcards do not select ANSI.
 - ANSI responses use `Content-Type: text/plain+ansi; charset=utf-8`. If request headers were supplied, JSON and ANSI responses include `Vary: X-Error-Format, Accept, User-Agent`.
 - Keep `fromHttpResponse()` JSON-only.

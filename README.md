@@ -32,7 +32,6 @@ export async function handleCheckout(
         code: 'pool_exhausted',
         scope: 'database',
         statusCode: 503,
-        reason: 'All 20 connections are in use.',
         public: {
           message: 'The service is temporarily unavailable.',
         },
@@ -44,7 +43,7 @@ export async function handleCheckout(
 }
 ```
 
-The original failure stays in `cause`, and the constructor message and `reason` remain diagnostic. Only `public` supplies response prose; `scope` and `code` are separately disclosed in the body, while `statusCode` maps to the HTTP status. Read the [project narrative](https://github.com/vercel-labs/error/blob/main/docs/narrative.md) for the problem, alternatives, and adoption path.
+The original failure stays in `cause`, and the constructor message remains diagnostic. Only `public` supplies response prose; `scope` and `code` are separately disclosed in the body, while `statusCode` maps to the HTTP status. Read the [project narrative](https://github.com/vercel-labs/error/blob/main/docs/narrative.md) for the problem, alternatives, and adoption path.
 
 ## Agent guidance
 

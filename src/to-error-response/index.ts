@@ -79,8 +79,14 @@ const VARY_HEADERS = {
  *
  * `statusCode` defaults to 500 and accepts integers from 400 through 599.
  * Invalid status throws `RangeError`; invalid public data throws `TypeError`.
- * With `request`, `X-Error-Format` is authoritative, then a positive-quality
- * exact `text/plain+ansi` Accept range, then the `curl/` User-Agent heuristic.
+ * With `request`, a present `X-Error-Format` is authoritative; only the exact
+ * value `ansi` selects ANSI. Otherwise, an exact case-insensitive
+ * `text/plain+ansi` Accept range selects ANSI for a valid positive quality
+ * (omitted `q` means `1`). Duplicate exact ranges use the highest valid quality.
+ * Exact ranges with only zero or invalid weights select JSON and skip the
+ * User-Agent fallback. Only when the exact range is absent does the
+ * case-sensitive `curl/` User-Agent marker select ANSI. Wildcards do not select
+ * ANSI.
  * ANSI responses use `text/plain+ansi; charset=utf-8`; either representation
  * includes `Vary: X-Error-Format, Accept, User-Agent` when `request` is set.
  * Property-access exceptions propagate. `onSerialize` runs after the response
