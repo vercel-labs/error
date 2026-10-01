@@ -22,12 +22,6 @@ The package gives each reader the information they need:
 - Clients check the response data and add only context they observed themselves.
 - People and agents read diagnostic and recovery text. That text does not authorize an action.
 
-The [README](../README.md) documents the interface. The decisions are grouped by topic:
-
-- [ADR 0001](adr/0001-separate-developer-and-public-error-details.md) covers what can reach clients.
-- [ADR 0002](adr/0002-separate-response-data-from-http-response.md) and [ADR 0009](adr/0009-read-http-responses-through-the-client-entry-point.md) cover responses and reading Web responses.
-- [ADR 0010](adr/0010-normalize-response-identity-and-public-details.md) and [ADR 0011](adr/0011-complete-ansi-content-negotiation.md) cover blank fields and ANSI selection.
-
 ## Adoption path
 
 Install with `pnpm add @vercel/error`. Direct Node.js use requires Node.js 24 or newer. The package is ESM-only.
