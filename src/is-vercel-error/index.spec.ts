@@ -71,7 +71,7 @@ describe('isVercelError', () => {
     expect(isVercelError(fake)).toBe(true);
   });
 
-  it('keeps blank identity within the structural recognition contract', () => {
+  it('still recognizes tagged data with blank identity', () => {
     const fake = {
       code: ' ',
       message: 'Failed',

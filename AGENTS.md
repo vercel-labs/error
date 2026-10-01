@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`@vercel/error` gives errors stable codes, recovery fields, diagnostic context, client-safe HTTP projection, and terminal formatting without a framework or runtime dependency.
+`@vercel/error` gives errors stable codes, recovery advice, developer details, HTTP responses built from approved text, and terminal formatting. It has no framework or runtime dependency.
 
 Software branches on stable `scope` and `code` values, including those in `ErrorResponseData`. Frames and prose are for reading, not parsing.
 
@@ -12,7 +12,7 @@ Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concept
 
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
-- `src/error-response-data/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
+- `src/error-response-data/` alone owns response data, the client-safe copy, strict parsing, and reconstruction.
 - `src/to-error-response/` owns server response status validation, headers, and `onSerialize` ordering. `src/wants-ansi/` implements the content negotiation it consumes.
 - `src/from-http-response/` owns Web `Response` status and media-type checks, body consumption, and response-header request context.
 - `src/format/` owns presets, sanitization, physical-line containment, connectors, labels, and color.
@@ -39,14 +39,16 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 
 ## Error Contract
 
-- Keep stable `scope` and `code` separate from prose. Either may be omitted; a defined value must be a nonblank string. Use `trim()` only to check blankness and preserve the original nonblank value. Preserve an original failure through `cause`.
+- Keep stable `scope` and `code` separate from messages. Either may be omitted; a defined value must be a nonblank string. Use `trim()` only to check blankness. Preserve the original value and keep the original failure in `cause`.
 - Put nested debugging context in `metadata` and flat telemetry values in `attributes`. Keep secrets out of both.
 - Treat constructor `message`, `reason`, `hint`, `fix`, and `link` as developer-facing.
 - Put client-approved prose under `public`, with a required nonblank `public.message`.
-- Validate `public` at construction (nonblank string `message`, string-only optional fields), omit blank optional public details, drop unknown fields, and freeze the copy so approved copy cannot change through an input alias. Preserve nonblank public text exactly.
-- `errorResponse()` is the client-safe serializer. It uses only normalized `public` prose or the fixed generic fallback and rejects blank defined `scope` or `code` at projection.
+- Validate `public` at construction: require a nonblank string `message` and strings for optional fields. Omit blank optional fields, drop unknown fields, and freeze the copy so later input changes cannot alter it. Preserve nonblank text exactly.
+- `errorResponse()` builds client-safe output from `public` text or the fixed generic message. It rejects blank `scope` or `code` values when building a response.
 - Parsing rejects blank defined response identity and omits blank optional public details. Keep `isVercelError()`, `isVercelErrorLikeData()`, and `hasCode()` as structural guards with their current contracts.
-- ANSI selection uses exact `X-Error-Format: ansi`, then an exact `text/plain+ansi` Accept range with positive quality, then the case-sensitive `curl/` marker only when the exact range is absent. Duplicate exact ranges use the highest valid quality. Exact ranges with only zero or invalid weights select JSON and skip the fallback; wildcards do not select ANSI.
+- ANSI selection checks `X-Error-Format` first. Only its exact `ansi` value selects ANSI.
+- Otherwise, an exact `text/plain+ansi` range in `Accept` selects ANSI with a positive `q` value and no unsupported media parameters. Duplicate ranges use the highest valid `q`. Ranges with only zero, invalid, or unsupported values select JSON and skip the User-Agent fallback.
+- When the exact range is absent, a case-sensitive `curl/` marker selects ANSI. Wildcards do not select ANSI.
 - JSON uses `application/json`; ANSI uses `text/plain+ansi; charset=utf-8`. Add `Vary: X-Error-Format, Accept, User-Agent` for either format whenever `errorResponse()` receives `request`; omit it when no request is supplied.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
 - Use `statusCode` for authored mappings and `status` only for a concrete response. Server response production accepts integer error statuses from 400 through 599 and defaults omission to 500. Client response reading accepts only observed statuses in that range.
@@ -68,7 +70,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Keep `hint`, `fix`, and `link` as structured `FrameSection` values. Renderer behavior comes from the token kind, not a parsed string prefix.
 - Sanitize every caller-controlled field, normalize CRLF, remove bare carriage returns, and frame every physical continuation line.
 - Preserve tabs, blank lines, and useful multiline text while keeping every continuation line under a library-owned prefix.
-- Render negotiated HTTP text from normalized public data with explicit `ansi`; never call a symbol-recognized object's method.
+- Render HTTP text from client-safe response data with explicit `ansi`; never call a method on a value recognized only by its symbol tag.
 
 ## Public Documentation
 

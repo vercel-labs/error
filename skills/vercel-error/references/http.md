@@ -36,11 +36,18 @@ export function deploymentErrorResponse(
 }
 ```
 
-`statusCode` must be an integer from 400 through 599. Omission defaults to 500. Invalid values throw before public projection or diagnostics run.
+`statusCode` must be an integer from 400 through 599. Omission defaults to 500. Invalid values throw before the response body is built or diagnostics run.
 
-Passing `request` through the options enables ANSI negotiation. JSON and ANSI text contain the same normalized public identity and prose. A present `X-Error-Format` header is authoritative; only the exact value `ansi` selects ANSI. Otherwise, an exact case-insensitive `text/plain+ansi` media range selects ANSI when its `q` value is valid and positive; a missing `q` means `1`. RFC 9110 quality-value syntax applies, and duplicate exact ranges use the highest valid quality. If an exact range is present only with zero or invalid weights, JSON wins and the `curl/` fallback is skipped. When the exact range is absent, the existing case-sensitive `curl/` User-Agent marker selects ANSI. Wildcards do not select ANSI. These headers choose the body format; they do not authenticate the caller.
+Pass `request` to let its headers select JSON or ANSI text. Both formats use the same client-approved fields. Selection follows this order:
 
-JSON uses `Content-Type: application/json`. ANSI uses `Content-Type: text/plain+ansi; charset=utf-8`. Whenever `request` is supplied, both representations include `Vary: X-Error-Format, Accept, User-Agent`. The response omits `Vary` when no request headers are supplied.
+1. If `X-Error-Format` is present, only the exact value `ansi` selects ANSI. Any other value selects JSON.
+2. Otherwise, an exact, case-insensitive `text/plain+ansi` range in `Accept` selects ANSI with a valid positive `q`. Missing `q` means `1`; duplicate ranges use the highest valid `q`.
+3. Unsupported media parameters, including a charset other than UTF-8, cannot select ANSI. Exact ranges with only zero, invalid, or unsupported values select JSON.
+4. If the exact range is absent, a case-sensitive `curl/` in `User-Agent` selects ANSI. Wildcards do not select ANSI.
+
+These headers choose a format. They do not authenticate the caller or authorize disclosure.
+
+JSON uses `Content-Type: application/json`. ANSI uses `Content-Type: text/plain+ansi; charset=utf-8`. Whenever `request` is supplied, both include `Vary: X-Error-Format, Accept, User-Agent`. Without `request`, `Vary` is omitted.
 
 Scope, code, and status are public disclosures even when the generic message is used. Protected-resource handlers own neutral mappings that do not reveal whether a resource exists.
 
@@ -85,7 +92,9 @@ The callback receives the original source plus `{ status, bodyFormat }`. `bodyFo
 
 ## Response data contract
 
-`message` is required and nonblank. Defined `scope` and `code` values must also be nonblank. Blank optional public `reason`, `hint`, `fix`, and `link` values are omitted, and nonblank text is preserved exactly. `ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual response status outside this data. The shape can cross JSON or message channels after source validation; it is not a full diagnostic transport.
+`message` is required and nonblank. When set, `scope` and `code` must also be nonblank. Blank optional `reason`, `hint`, `fix`, and `link` fields are omitted; other text is kept exactly as given.
+
+`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the actual HTTP status. The data can be sent as JSON or through another message channel after checking its source. It does not carry full diagnostics.
 
 The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 
@@ -111,7 +120,9 @@ if (!response.ok) {
 
 The function returns `undefined` without consuming non-error or non-JSON responses. Once it attempts JSON parsing, the body is consumed even if parsing or validation fails. It does not report or create a fallback.
 
-Use `parseErrorResponseData()` for unknown decoded data and `fromErrorResponseData()` to reconstruct a `VercelError` from validated data. Parsing requires a nonblank string message and nonblank scope or code when present. A present known field with the wrong type rejects the entire response. Blank optional public details are omitted; unknown fields are ignored for additive evolution. Reconstruction copies response identity and prose; the caller supplies local context. The observed response status is authoritative.
+Use `parseErrorResponseData()` for unknown decoded data. Use `fromErrorResponseData()` to make a `VercelError` from data that passed parsing.
+
+Parsing requires a nonblank `message` and nonblank `scope` or `code` when present. A known field with the wrong type rejects the whole response. Blank optional public fields are omitted; unknown fields are ignored so new fields can be added later. The new error copies response fields. The caller supplies local context and the observed HTTP status.
 
 Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 

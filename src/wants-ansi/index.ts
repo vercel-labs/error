@@ -9,14 +9,14 @@ export interface HeadersLike {
 /**
  * Return whether a request selects an ANSI-formatted error response.
  *
- * A present `X-Error-Format` is authoritative; only the exact value `ansi`
- * selects ANSI. Otherwise, a case-insensitive exact `text/plain+ansi` media
- * range in `Accept` selects ANSI when its valid `q` value is positive (the
- * default is `1`). Duplicate exact ranges use the highest valid quality.
- * If exact ranges have only zero or invalid weights, JSON wins and the
- * User-Agent fallback is skipped. If the exact range is absent, the
- * case-sensitive `curl/` marker selects ANSI. Wildcards do not select ANSI.
- * Missing input or no match returns `false`; header-access exceptions propagate.
+ * A present `X-Error-Format` selects ANSI only when its value is exactly
+ * `ansi`. Otherwise, an exact, case-insensitive `text/plain+ansi` range in
+ * `Accept` selects ANSI with a positive `q` (default `1`) and no unsupported
+ * media parameters. Duplicate ranges use the highest valid `q`. Ranges with
+ * only zero, invalid, or unsupported values select JSON and skip User-Agent.
+ * When the exact range is absent, a case-sensitive `curl/` marker selects
+ * ANSI. Wildcards do not. Missing input or no match returns `false`;
+ * header-access exceptions propagate.
  */
 export function wantsAnsi(
   requestOrHeaders?: Request | HeadersLike | null,
@@ -65,7 +65,7 @@ function getAcceptAnsiSelection(accept: string | null): boolean | undefined {
     }
 
     foundExactRange = true;
-    const quality = getRangeQuality(parameters);
+    const quality = getAnsiRangeQuality(parameters);
     if (quality !== undefined) {
       highestQuality = Math.max(highestQuality, quality);
     }
@@ -74,7 +74,9 @@ function getAcceptAnsiSelection(accept: string | null): boolean | undefined {
   return foundExactRange ? highestQuality > 0 : undefined;
 }
 
-function getRangeQuality(parameters: readonly string[]): number | undefined {
+function getAnsiRangeQuality(
+  parameters: readonly string[],
+): number | undefined {
   let hasQuality = false;
   let quality = 1;
 
@@ -85,6 +87,21 @@ function getRangeQuality(parameters: readonly string[]): number | undefined {
         ? parameter.trim().toLowerCase()
         : parameter.slice(0, separator).trim().toLowerCase();
     if (name !== 'q') {
+      // Parameters after q do not constrain the response media type.
+      if (hasQuality) {
+        continue;
+      }
+      const value = parameter
+        .slice(separator + 1)
+        .trim()
+        .toLowerCase();
+      if (
+        name !== 'charset' ||
+        separator === -1 ||
+        (value !== 'utf-8' && value !== '"utf-8"')
+      ) {
+        return undefined;
+      }
       continue;
     }
     if (hasQuality || separator === -1) {

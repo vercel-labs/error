@@ -201,7 +201,7 @@ describe('errorResponse', () => {
     },
   );
 
-  it('validates status before projection and onSerialize', () => {
+  it('validates status before building the body or calling onSerialize', () => {
     const onSerialize = vi.fn();
     const malformed = {
       message: 'Must not become public',
@@ -218,7 +218,7 @@ describe('errorResponse', () => {
     expect(onSerialize).not.toHaveBeenCalled();
   });
 
-  it('rejects tagged-invalid input before nested public projection', () => {
+  it('rejects invalid tagged input before reading public details', () => {
     const malformed = {
       message: 'Must not become public',
       public: {},
@@ -267,7 +267,7 @@ describe('errorResponse', () => {
     expect(result.body).not.toContain('Developer fix');
   });
 
-  it('uses the same normalized public fields for JSON and ANSI bodies', () => {
+  it('uses the same public fields for JSON and ANSI bodies', () => {
     const error = new VercelError('Developer message', {
       public: {
         fix: '',
@@ -342,6 +342,21 @@ describe('errorResponse', () => {
     );
     expect(result.headers['Content-Type']).toBe('application/json');
     expect(result.headers['Vary']).toBe('X-Error-Format, Accept, User-Agent');
+  });
+
+  it('uses JSON when an ANSI range requests another charset', () => {
+    const result = errorResponse(
+      { public: { message: 'Failed' } },
+      {
+        request: makeRequest({
+          Accept: 'text/plain+ansi;charset=iso-8859-1',
+          'User-Agent': 'curl/8.1.2',
+        }),
+      },
+    );
+
+    expect(result.headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(result.body)).toEqual({ error: { message: 'Failed' } });
   });
 
   it('omits Vary when no request headers were supplied', () => {

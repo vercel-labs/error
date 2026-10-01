@@ -1,6 +1,6 @@
 # Structured Error Contract
 
-`@vercel/error` defines a structured error contract with stable machine identity and separate developer and public details. It covers package and realm recognition, HTTP response data, diagnostics, and terminal presentation.
+`@vercel/error` gives errors stable identity and keeps developer details separate from text sent to clients. It covers error recognition across packages and realms, HTTP response data, diagnostics, and terminal output.
 
 ## Language
 
@@ -15,7 +15,7 @@ Technical text intended for developers and operators diagnosing a failure. The d
 _Avoid_: Internal error details
 
 **Public error details**:
-Text explicitly approved for disclosure to the intended recipient of an error response. `message` must be nonblank; optional fields must be strings. Blank optional fields are omitted, while nonblank text is preserved. Public describes a disclosure decision, not producer trust or authority to act.
+Text approved for the intended recipient of an error response. `message` must be nonblank. Optional fields must be strings; blank ones are omitted, and other text is preserved. Approval to show text does not establish who sent it or authorize an action.
 _Avoid_: User message
 
 **Recovery guidance**:
@@ -44,11 +44,11 @@ Caller-authored error identity, nested public error details, and an authored sta
 _Avoid_: Error response params
 
 **Error response data**:
-Client-facing data in one canonical shape, independent of source and body format, consisting of nonblank defined identity values and public error details with blank optional fields omitted. It excludes concrete HTTP status and diagnostic context and does not imply producer trust.
+Client-facing identity and details shared by JSON and ANSI output. Defined identity values must be nonblank, and blank optional public details are omitted. This data excludes HTTP status and diagnostic context. Its shape does not establish who sent it.
 _Avoid_: Error response payload
 
 **Error response**:
-The complete concrete HTTP status, serialized body, and headers for an error. ANSI uses `text/plain+ansi; charset=utf-8`; when request headers are supplied, either format varies on `X-Error-Format`, `Accept`, and `User-Agent`. It is framework-neutral response information rather than a native or framework response object.
+The HTTP status, body, and headers for an error. ANSI uses `text/plain+ansi; charset=utf-8`. When a request is supplied, either format includes `Vary` for `X-Error-Format`, `Accept`, and `User-Agent`. This is response information, not a Web `Response` object.
 _Avoid_: Error response result
 
 **Client response reading**:

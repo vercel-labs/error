@@ -36,6 +36,11 @@ describe('wantsAnsi', () => {
     ['text/plain+ansi;Q=1.000', true],
     ['TEXT/PLAIN+ANSI;Q=0.5', true],
     ['application/json, text/plain+ansi;q=0.5', true],
+    ['text/plain+ansi;charset=utf-8', true],
+    ['text/plain+ansi;charset="UTF-8";q=0.5', true],
+    ['text/plain+ansi;q=0.5;extension=value', true],
+    ['text/plain+ansi;charset=iso-8859-1', false],
+    ['text/plain+ansi;unsupported=value', false],
     ['text/plain+ansi;q=0', false],
     ['text/plain+ansi;q=2', false],
     ['text/plain+ansi;q=1.001', false],
@@ -44,8 +49,19 @@ describe('wantsAnsi', () => {
     ['text/plain+ansi;q=NaN', false],
     ['text/*', false],
     ['*/*', false],
-  ] as const)('selects ANSI for Accept: %s as %s', (accept, expected) => {
+  ] as const)('Accept: %s selects ANSI: %s', (accept, expected) => {
     expect(wantsAnsi(makeRequest({ Accept: accept }))).toBe(expected);
+  });
+
+  it('does not fall back to curl when an ANSI range requests another charset', () => {
+    expect(
+      wantsAnsi(
+        makeRequest({
+          Accept: 'text/plain+ansi;charset=iso-8859-1',
+          'User-Agent': 'curl/8.1.2',
+        }),
+      ),
+    ).toBe(false);
   });
 
   it('uses the highest valid quality across duplicate ANSI ranges', () => {

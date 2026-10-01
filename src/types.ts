@@ -31,10 +31,10 @@ export interface ErrorLike {
 }
 
 /**
- * Text approved for clients. `message` must contain non-whitespace text;
- * optional fields must be strings. Blank optional fields are omitted, while
- * nonblank text is preserved exactly. Invalid fields throw `TypeError`.
- * Receiving a `fix` or `link` does not authorize using it.
+ * Text approved for clients. `message` must contain more than whitespace.
+ * Optional fields must be strings. Blank ones are omitted; other text is kept
+ * exactly as given. Invalid fields throw `TypeError`. A received `fix` or `link`
+ * does not authorize an action.
  */
 export interface PublicErrorDetails {
   /** Client-facing summary containing non-whitespace text. */
@@ -50,10 +50,10 @@ export interface PublicErrorDetails {
 }
 
 /**
- * Options for `VercelError`. Defined `scope` and `code` values must be
- * nonblank; construction throws `TypeError` for blank values and preserves
- * nonblank text exactly. Responses include `public`, `scope`, `code`, and the
- * mapped `statusCode`; other fields stay server-side.
+ * Options for `VercelError`. When set, `scope` and `code` must be nonblank;
+ * blank values throw `TypeError`. Other text is kept exactly as given. Responses
+ * include `public`, `scope`, and `code` in the body, and use `statusCode` as the
+ * HTTP status. Other fields stay server-side.
  */
 export interface VercelErrorOptions<TCode extends string = string> {
   /** Flat OpenTelemetry-compatible values stored by reference. */
@@ -116,9 +116,9 @@ export interface VercelErrorLike<
   readonly stack?: string;
   /** Original value that caused the error; excluded from error responses. */
   readonly cause?: unknown;
-  /** Optional code; response projection requires nonblank text when defined. */
+  /** Optional code; must be nonblank when used in a response. */
   readonly code?: TCode;
-  /** Optional scope; response projection requires nonblank text when defined. */
+  /** Optional scope; must be nonblank when used in a response. */
   readonly scope?: string;
   /** Status mapping; `errorResponse()` defaults to 500 or throws `RangeError`. */
   readonly statusCode?: number;

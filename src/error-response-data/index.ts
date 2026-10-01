@@ -18,12 +18,11 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Client-facing fields shared by JSON and ANSI responses. Defined `scope` and
- * `code` values must be nonblank; nonblank text is preserved exactly. Blank
- * optional public details are omitted. The shape excludes status, request ID,
- * metadata, attributes, cause, stack, and error name. `message` must contain
- * non-whitespace text. Use `parseErrorResponseData` from `@vercel/error/client`
- * before using unknown data.
+ * Fields sent to clients in JSON or ANSI responses. `message` is required.
+ * When set, `scope` and `code` must be nonblank. Blank optional details are
+ * omitted; other text is preserved. Status, request ID, metadata, attributes,
+ * cause, stack, and error name are excluded. Parse unknown data with
+ * `parseErrorResponseData` from `@vercel/error/client` first.
  */
 export interface ErrorResponseData {
   readonly error: {
@@ -65,11 +64,10 @@ export type FromErrorResponseDataOptions = Pick<
 /**
  * Build client-facing response data from a tagged error or explicit public input.
  *
- * Defined `scope` and `code` values must be nonblank. Invalid tagged values,
- * blank identity, and untagged values without nested `public` details throw.
- * Tagged errors without `public` use a generic message. Blank optional public
- * details are omitted, and nonblank values are preserved exactly. Each
- * response field is copied from the same property read that was checked.
+ * Defined `scope` and `code` values must be nonblank. Invalid tagged values
+ * and untagged values without `public` details throw `TypeError`. Tagged errors
+ * without `public` use a generic message. Blank optional public fields are
+ * omitted. Each response field uses the value read during validation.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
@@ -130,11 +128,10 @@ export function buildErrorResponseData(
  * Parse unknown data as `ErrorResponseData`.
  *
  * Returns `undefined` unless `data.error` has a nonblank string `message`,
- * nonblank `scope` and `code` when present, and string values for every known
- * optional field. Blank optional public details are omitted; nonblank text is
- * preserved exactly. Unknown fields are ignored. This checks field types, not
- * who produced the data or whether its guidance is safe. Property-access
- * exceptions propagate.
+ * nonblank `scope` and `code` when present, and strings in known optional
+ * fields. Blank optional fields are omitted; other text is preserved. Unknown
+ * fields are ignored. This checks data shape, not its source or the safety of
+ * its advice. Property-access exceptions propagate.
  */
 export function parseErrorResponseData(
   data?: unknown,
@@ -223,6 +220,10 @@ function normalizeResponseIdentity(
   return identity;
 }
 
+/**
+ * Expose captured identity to validators so they see the values later serialized.
+ * Other properties are read from the source, with getters receiving it as `this`.
+ */
 function withResponseIdentitySnapshot(
   source: Record<PropertyKey, unknown>,
   identity: ResponseIdentityValues,

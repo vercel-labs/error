@@ -37,8 +37,7 @@ type MutablePublicErrorDetails = {
  * blank or explicitly `undefined` optional fields are omitted. Throws
  * `TypeError` for a missing or blank `message` or a non-string optional field.
  *
- * Shared by `VercelError` construction and response-data projection so the
- * two disclosure seams cannot drift.
+ * Error construction and response building use the same copy rule.
  */
 export function pickPublicErrorDetails(value: unknown): PublicErrorDetails {
   if (!isObject(value)) {

@@ -9,14 +9,14 @@ import type {
 import { VERCEL_ERROR_TAG } from './tag';
 
 /**
- * An `Error` with stable identity and separate developer and client details.
- * Developer text stays outside `public`; construction validates and freezes
- * `public`. Defined `scope` and `code` values must be nonblank; validation
- * preserves nonblank text exactly. Blank optional public details are omitted.
- * Use `instanceof VercelError` before calling methods on tagged data.
- * Authored fields declared here are readonly; inherited `name`, `stack`, and
- * `cause` retain the standard `Error` types. `requestId`, `metadata`, and
- * `attributes` are intentionally writable for diagnostic enrichment.
+ * An `Error` with stable `scope` and `code`, separate from developer and client
+ * text. Construction validates and freezes `public`. Defined `scope` and `code`
+ * must be nonblank; blank optional public fields are omitted. Other text is
+ * kept exactly as given.
+ * Use `instanceof VercelError` before calling methods on tagged data. Fields
+ * declared here are readonly, except `requestId`, `metadata`, and `attributes`
+ * so callers can add diagnostic context. Inherited `name`, `stack`, and `cause`
+ * keep the standard `Error` types.
  *
  * @template TCode - Strongly typed error code union
  *

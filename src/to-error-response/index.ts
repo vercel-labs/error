@@ -8,10 +8,9 @@ import type { PublicErrorDetails, VercelErrorLike } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
 /**
- * Client-facing input used without a `VercelError`. `public` is required and
- * validated before its prose is included in the response. Defined `scope` and
- * `code` values must be nonblank. `statusCode` defaults to 500 and accepts
- * 400-599.
+ * Input for a client-facing response without a `VercelError`. `public` is
+ * required and checked before its text is sent. When set, `scope` and `code`
+ * must be nonblank. `statusCode` defaults to 500 and accepts 400-599.
  */
 export interface ErrorResponseInput {
   /** Optional nonblank error scope included in the response. */
@@ -48,9 +47,9 @@ export interface ErrorResponseOptions {
 }
 
 /**
- * HTTP response data returned by {@link errorResponse}. Pass these fields to a
- * native or framework response constructor. ANSI uses
- * `text/plain+ansi; charset=utf-8`; supplied request headers add `Vary`.
+ * Status, body, and headers returned by {@link errorResponse}. Pass these fields
+ * to a native or framework response constructor. ANSI uses
+ * `text/plain+ansi; charset=utf-8`; supplying a request adds `Vary`.
  */
 export interface ErrorResponse {
   /** Concrete HTTP status to send. */
@@ -70,25 +69,24 @@ const VARY_HEADERS = {
 } as const;
 
 /**
- * Build HTTP response data from an error or explicit public data.
+ * Build a client-facing HTTP response from an error or explicit `public` data.
  *
- * `VercelError` and tagged values expose only `public`, `scope`, and `code`; a
- * missing `public` uses a generic message. Defined identity values must be
- * nonblank. Untagged errors and inputs without valid nested `public` details
+ * `VercelError` and tagged values send only `public`, `scope`, and `code` in the
+ * body. Missing `public` uses a generic message. Defined `scope` and `code`
+ * must be nonblank. Untagged errors and inputs without valid `public` details
  * throw `TypeError`.
  *
  * `statusCode` defaults to 500 and accepts integers from 400 through 599.
  * Invalid status throws `RangeError`; invalid public data throws `TypeError`.
- * With `request`, a present `X-Error-Format` is authoritative; only the exact
- * value `ansi` selects ANSI. Otherwise, an exact case-insensitive
- * `text/plain+ansi` Accept range selects ANSI for a valid positive quality
- * (omitted `q` means `1`). Duplicate exact ranges use the highest valid quality.
- * Exact ranges with only zero or invalid weights select JSON and skip the
- * User-Agent fallback. Only when the exact range is absent does the
- * case-sensitive `curl/` User-Agent marker select ANSI. Wildcards do not select
- * ANSI.
- * ANSI responses use `text/plain+ansi; charset=utf-8`; either representation
- * includes `Vary: X-Error-Format, Accept, User-Agent` when `request` is set.
+ * With `request`, an exact `X-Error-Format: ansi` selects ANSI; any other value
+ * in that header selects JSON. Otherwise, an exact `text/plain+ansi` Accept
+ * range selects ANSI with a positive `q` (default `1`) and no unsupported media
+ * parameters. Duplicate ranges use the highest valid `q`. Ranges with only
+ * zero, invalid, or unsupported values select JSON and skip the User-Agent
+ * fallback. When no exact range appears, a case-sensitive `curl/` User-Agent
+ * selects ANSI. Wildcards do not select ANSI.
+ * ANSI uses `text/plain+ansi; charset=utf-8`. Supplying `request` adds
+ * `Vary: X-Error-Format, Accept, User-Agent` to either format.
  * Property-access exceptions propagate. `onSerialize` runs after the response
  * is built.
  *

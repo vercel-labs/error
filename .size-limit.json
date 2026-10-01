@@ -75,7 +75,7 @@
     "name": "wantsAnsi",
     "path": "dist/server.js",
     "import": "{ wantsAnsi }",
-    "limit": "500 B"
+    "limit": "550 B"
   },
   {
     "name": "formatError",

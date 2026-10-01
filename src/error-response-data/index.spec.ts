@@ -282,7 +282,7 @@ describe('error response data', () => {
       });
     });
 
-    it('ignores unknown public fields during projection', () => {
+    it('ignores unknown public fields when building response data', () => {
       const error = new VercelError('Developer detail', {
         public: {
           message: 'Public message',
