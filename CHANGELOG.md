@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Reject blank codes and scopes, omit blank public fields, respect `Accept` weights and UTF-8, set `Content-Type` and `Vary`, and add adoption guidance.
+- Reject blank identity, omit blank public details, honor ANSI `q` and UTF-8, set `Content-Type` and `Vary`, and add adoption guidance.
 
 ## 0.3.0
 

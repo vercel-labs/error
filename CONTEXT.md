@@ -7,7 +7,7 @@
 ### Error Model
 
 **Error identity**:
-The stable `scope` and `code` values that software uses to classify an error. Either field may be absent, but a defined value must be nonblank. Validation uses trimming only to check blankness and preserves the supplied value. Identity remains stable when explanatory text changes.
+The stable `scope` and `code` values that software uses to classify an error. Either may be absent; a defined value must be nonblank. Identity stays the same when explanatory text changes.
 _Avoid_: Error type
 
 **Developer error details**:
@@ -15,7 +15,7 @@ Technical text intended for developers and operators diagnosing a failure. The d
 _Avoid_: Internal error details
 
 **Public error details**:
-Text approved for the intended recipient of an error response. `message` must be nonblank. Optional fields must be strings; blank ones are omitted, and other text is preserved. Approval to show text does not establish who sent it or authorize an action.
+Text approved for the intended recipient of an error response. It needs a nonblank `message`. Approval to show text does not verify who sent it or authorize an action.
 _Avoid_: User message
 
 **Recovery guidance**:
@@ -44,11 +44,11 @@ Caller-authored error identity, nested public error details, and an authored sta
 _Avoid_: Error response params
 
 **Error response data**:
-Client-facing identity and details shared by JSON and ANSI output. Defined identity values must be nonblank, and blank optional public details are omitted. This data excludes HTTP status and diagnostic context. Its shape does not establish who sent it.
+Client-facing identity and details shared by JSON and ANSI output. This data excludes HTTP status and diagnostic context. Its shape does not verify who sent it.
 _Avoid_: Error response payload
 
 **Error response**:
-The HTTP status, body, and headers for an error. ANSI uses `text/plain+ansi; charset=utf-8`. When a request is supplied, either format includes `Vary` for `X-Error-Format`, `Accept`, and `User-Agent`. This is response information, not a Web `Response` object.
+The HTTP status, body, and headers for an error, separate from a Web `Response` object.
 _Avoid_: Error response result
 
 **Client response reading**:

@@ -14,7 +14,7 @@ A framework-specific error type works when one framework handles the request. It
 
 ## Decision
 
-The package gives each reader the information they need:
+The fields have distinct jobs:
 
 - Code uses `scope` and `code` to identify an error. It does not parse messages or terminal output.
 - Error producers keep the original failure in `cause` and add identity when another caller needs it.
@@ -28,6 +28,8 @@ Install with `pnpm add @vercel/error`. Direct Node.js use requires Node.js 24 or
 
 Start with the [README example](https://github.com/vercel-labs/error/blob/main/README.md#quick-start).
 
-For repository terms and decisions, read [CONTEXT.md](../CONTEXT.md) and the [ADR index](adr/README.md). [AGENTS.md](../AGENTS.md) has code rules. The [changelog](../CHANGELOG.md) lists releases. Coding agents can use the [vercel-error skill](../skills/vercel-error/SKILL.md).
+For terms and decisions, read [CONTEXT.md](../CONTEXT.md) and the [ADR index](adr/README.md). The [changelog](../CHANGELOG.md) lists releases.
+
+For implementation rules, use [AGENTS.md](../AGENTS.md). Coding agents can use the [vercel-error skill](../skills/vercel-error/SKILL.md).
 
 Use [GitHub Issues](https://github.com/vercel-labs/error/issues) for support and bugs. Report vulnerabilities through [Vercel's Open Source Bug Bounty program](https://hackerone.com/vercel-open-source), as described in the [security policy](../SECURITY.md).

@@ -37,13 +37,13 @@ Use a structured error only when you can name the caller, transport, logger, or 
 
 ### 3. Choose the public API
 
-| Need                                                                                                    | Public API                                                                             | Read                                                    |
-| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Decide error codes, details, public text, and reporting                                                 | `VercelErrorOptions`                                                                   | [Contract design](references/contract-design.md)        |
-| Construct one error, define a subclass, preserve a cause, or inspect a caught value                     | `VercelError`, core guards and extractors                                              | [Core errors](references/core.md)                       |
-| Create a typed error family with shared scope, diagnostics, documentation, reporting, or a custom class | `createErrors`                                                                         | [`createErrors` factories](references/create-errors.md) |
-| Produce or consume HTTP error responses                                                                 | `errorResponse`, `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData` | [HTTP errors](references/http.md)                       |
-| Format an error you do not own for people and agents                                                    | `formatError`, `frame`, `hint`, `fix`, `link`                                          | [Terminal output](references/format.md)                 |
+| Need                                                                                  | Public API                                                                             | Read                                                    |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Decide error codes, details, public text, and reporting                               | `VercelErrorOptions`                                                                   | [Contract design](references/contract-design.md)        |
+| Construct one error, define a subclass, preserve a cause, or inspect a caught value   | `VercelError`, core guards and extractors                                              | [Core errors](references/core.md)                       |
+| Create a typed family with shared fields, documentation, reporting, or a custom class | `createErrors`                                                                         | [`createErrors` factories](references/create-errors.md) |
+| Produce or consume HTTP error responses                                               | `errorResponse`, `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData` | [HTTP errors](references/http.md)                       |
+| Format errors for terminal output                                                     | `formatError`, `frame`, `hint`, `fix`, `link`                                          | [Terminal output](references/format.md)                 |
 
 Use `VercelError#toString()` for a `VercelError`; it already uses the package formatter. Use `frame()` for errors or CLI output that should remain another type.
 
@@ -55,7 +55,7 @@ Apply [Contract design](references/contract-design.md) to every field in scope, 
 
 Before implementation, verify that every populated field has a known use and every client-visible field is safe.
 
-When set, `scope` and `code` must contain more than whitespace. Validation keeps their text exactly as given. Blank optional `public` fields are omitted; other text is kept.
+When set, `scope` and `code` must be nonblank. Keep their original text. Omit blank optional `public` fields and preserve other text.
 
 ### 5. Implement or review
 
@@ -71,7 +71,7 @@ Test the behavior that consumes the error, not private formatting helpers:
 
 - creation, throwing, and reporting through the factory when those paths matter
 - stable code and preserved cause for programmatic handling
-- matching client-safe fields in JSON and ANSI text, plus content type, `Vary` when a request is supplied, and HTTP status
+- the same public fields in JSON and ANSI, plus `Content-Type`, conditional `Vary`, and HTTP status
 - rejection of invalid unknown response data before reconstruction
 - terminal output with and without optional sections
 - the actual public package entry point used by the target project

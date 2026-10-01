@@ -181,7 +181,7 @@ const ansi = errorResponse(reported, {
 assert(
   ansi.headers['Content-Type'] === 'text/plain+ansi; charset=utf-8' &&
     ansi.headers['Vary'] === 'X-Error-Format, Accept, User-Agent',
-  'ANSI response metadata did not match the negotiated representation',
+  'ANSI response has the wrong Content-Type or Vary',
 );
 assert(ansi.body.includes('\x1b['), 'explicit ANSI consulted ambient NO_COLOR');
 assert(
@@ -202,7 +202,7 @@ const ansiByAccept = errorResponse(reported, {
 });
 assert(
   ansiByAccept.headers['Content-Type'] === 'text/plain+ansi; charset=utf-8',
-  'positive Accept quality did not select the ANSI media type',
+  'Accept q>0 did not select the ANSI Content-Type',
 );
 const declinedAnsi = errorResponse(reported, {
   request: new Headers({
@@ -213,7 +213,7 @@ const declinedAnsi = errorResponse(reported, {
 assert(
   declinedAnsi.headers['Content-Type'] === 'application/json' &&
     declinedAnsi.headers['Vary'] === 'X-Error-Format, Accept, User-Agent',
-  'zero Accept quality did not keep JSON or emit Vary',
+  'Accept q=0 did not select JSON with Vary',
 );
 const nativeAnsiResponse = new Response(ansiByAccept.body, ansiByAccept);
 assert(
@@ -221,7 +221,7 @@ assert(
     'text/plain+ansi; charset=utf-8' &&
     nativeAnsiResponse.headers.get('Vary') ===
       'X-Error-Format, Accept, User-Agent',
-  'native Response lost negotiated ANSI headers',
+  'native Response did not preserve ANSI headers',
 );
 
 assert(

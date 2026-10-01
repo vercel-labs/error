@@ -489,7 +489,7 @@ describe('errorResponse', () => {
     expect(response.headers.get('Content-Type')).toBe('application/json');
   });
 
-  it('constructs a native ANSI Response with the selected media type and Vary', () => {
+  it('constructs a native ANSI Response with Content-Type and Vary', () => {
     const result = errorResponse(
       { public: { message: 'Not found' }, statusCode: 404 },
       { request: makeRequest({ 'X-Error-Format': 'ansi' }) },

@@ -71,7 +71,7 @@ assert(
   ansi.headers['Content-Type'] === 'text/plain+ansi; charset=utf-8' &&
     ansi.headers.Vary === 'X-Error-Format, Accept, User-Agent' &&
     ansi.body.includes('\x1b['),
-  'browser bundle did not negotiate ANSI response headers and body',
+  'browser bundle returned the wrong ANSI body or headers',
 );
 const jsonRequest = {
   get(name: string) {
@@ -82,7 +82,7 @@ const variedJson = server.errorResponse(error, { request: jsonRequest });
 assert(
   variedJson.headers['Content-Type'] === 'application/json' &&
     variedJson.headers.Vary === 'X-Error-Format, Accept, User-Agent',
-  'browser bundle did not retain JSON and Vary for q=0',
+  'browser bundle did not select JSON with Vary for q=0',
 );
 const explicitPublic = server.errorResponse({
   public: { message: 'Explicit public input' },

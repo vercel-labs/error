@@ -27,9 +27,9 @@ export function paymentGatewayTimeout(
 
 The generic keeps `code` limited to `PaymentErrorCode`. Preserve a caught value through `cause`; do not copy its message or stack into public fields.
 
-When set, `scope` and `code` must contain more than whitespace. Construction keeps their text exactly as given.
+When set, `scope` and `code` must be nonblank. Construction keeps their original text.
 
-If `public` is set, its `message` must be nonblank and its optional fields must be strings. Blank optional fields and unknown fields are dropped. The stored copy is frozen; invalid fields throw `TypeError`.
+If `public` is set, its `message` must be nonblank and optional fields must be strings. Construction drops blank optional and unknown fields, then freezes a copy. Invalid fields throw `TypeError`.
 
 ## Subclasses
 

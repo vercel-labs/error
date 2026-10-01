@@ -64,7 +64,7 @@ describe('wantsAnsi', () => {
     ).toBe(false);
   });
 
-  it('uses the highest valid quality across duplicate ANSI ranges', () => {
+  it('uses the highest valid q from duplicate ANSI ranges', () => {
     expect(
       wantsAnsi(
         makeRequest({
@@ -82,7 +82,7 @@ describe('wantsAnsi', () => {
     ).toBe(false);
   });
 
-  it('does not use curl fallback when an ANSI range has zero or invalid quality', () => {
+  it('skips curl fallback for zero or invalid ANSI q', () => {
     for (const Accept of ['text/plain+ansi;q=0', 'text/plain+ansi;q=invalid']) {
       expect(
         wantsAnsi(makeRequest({ Accept, 'User-Agent': 'curl/8.1.2' })),
@@ -90,7 +90,7 @@ describe('wantsAnsi', () => {
     }
   });
 
-  it('keeps a present non-ansi format header authoritative', () => {
+  it('uses JSON when X-Error-Format is present but not ansi', () => {
     expect(
       wantsAnsi(
         makeRequest({

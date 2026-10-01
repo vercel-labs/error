@@ -1,8 +1,8 @@
 # @vercel/error
 
-Use native `Error` when a failure stays local. Use `@vercel/error` when code needs to recognize a failure, an HTTP handler needs to return approved details, or a reader needs recovery advice.
+Use native `Error` for local failures. Use `@vercel/error` when callers need stable codes, clients need approved text, or readers need recovery advice.
 
-An error message should not have to do all those jobs. This package keeps stable `scope` and `code`, developer details, and client-approved `public` text separate. It also formats errors for the terminal. It has no runtime dependencies.
+The package separates `scope` and `code` from developer details and client-approved `public` text. It also formats terminal output and has no runtime dependencies.
 
 ## Install
 
@@ -97,9 +97,9 @@ Preserve an original failure through `cause`. Put nested debugging context in `m
 
 ### Client-facing details (`public`)
 
-`public` is the only text from a `VercelError` that `errorResponse()` sends to a client. If you set it, `public.message` must contain more than whitespace. Optional `reason`, `hint`, `fix`, and `link` fields must be strings. Blank optional fields are omitted; other text is kept exactly as given. Invalid fields throw `TypeError`.
+Only `public` text from a `VercelError` reaches clients through `errorResponse()`. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
 
-The constructor copies and freezes `public` and drops unknown fields. Later changes to your input object cannot change the approved copy.
+The constructor throws `TypeError` for invalid details. It drops unknown fields and freezes a copy, so later input changes cannot alter the approved text.
 
 ```ts
 interface PublicErrorDetails {
@@ -111,9 +111,7 @@ interface PublicErrorDetails {
 }
 ```
 
-When `public` is absent from a `VercelError` or tagged value, `errorResponse()` uses the fixed message `An error occurred.`. It never falls back to developer prose. Untagged input must provide `public`. `docsBaseUrl` derives only the developer `link`; a public link must be set explicitly under `public.link`.
-
-The fallback keeps developer text out of responses. `scope`, `code`, and the HTTP status still reach the client.
+Without `public`, a `VercelError` or tagged value sends `An error occurred.` instead of developer text. Untagged input requires `public`. `docsBaseUrl` sets only the developer `link`; set `public.link` explicitly for clients. `scope`, `code`, and HTTP status still reach clients.
 
 ### Transport
 
@@ -269,10 +267,10 @@ const result = errorResponse(error, {
 
 `request` accepts a `Request` or `HeadersLike`. The headers choose the format in this order:
 
-1. If `X-Error-Format` is present, only the exact value `ansi` selects ANSI. Any other value selects JSON.
-2. Otherwise, an exact `text/plain+ansi` range in `Accept` selects ANSI when its `q` value is positive. Missing `q` means `1`. The media type and `q` name are case-insensitive. Duplicate ranges use the highest valid `q`.
-3. A range requesting a charset other than UTF-8, or another unsupported media parameter, cannot select ANSI. If exact ranges have only zero, invalid, or unsupported values, JSON wins.
-4. If the exact range is absent, a case-sensitive `curl/` in `User-Agent` selects ANSI. Wildcards do not select ANSI.
+1. `X-Error-Format` wins when present. Only the exact value `ansi` selects ANSI; any other value selects JSON.
+2. Otherwise, check exact `text/plain+ansi` entries in `Accept`. A valid `q > 0` selects ANSI; missing `q` counts as `1`. Media type and `q` names ignore case. Duplicates use the highest valid `q`.
+3. Unsupported parameters, including a non-UTF-8 charset, cannot select ANSI. If exact entries exist but none qualifies, use JSON without checking `User-Agent`.
+4. If no exact entry exists, a case-sensitive `curl/` in `User-Agent` selects ANSI. Wildcards do not select ANSI.
 
 Headers choose a format; they do not authenticate the caller or authorize disclosure.
 
@@ -280,7 +278,7 @@ JSON uses `Content-Type: application/json`. ANSI uses `Content-Type: text/plain+
 
 Both formats use the same `public` details. ANSI never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
 
-`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Cross-realm metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` before relying on the typed local fields. Callback exceptions propagate and replace the response the caller would have received.
+`onSerialize` runs after the response is built. It receives the original source and `{ status, bodyFormat }`, where `bodyFormat` is `json` or `ansi`. The callback is synchronous, returns `undefined`, and propagates exceptions.
 
 ### Explicit public input
 
@@ -361,9 +359,9 @@ const data = parseErrorResponseData(value);
 if (data) throw fromErrorResponseData(data, { statusCode: 502 });
 ```
 
-Parsing requires a nonblank string `message` and nonblank `scope` or `code` when present. A known field with the wrong type rejects the whole value. Blank optional details are omitted. Other text is preserved, and unknown fields are ignored so new fields can be added later.
+Parsing requires a nonblank string `message`, plus nonblank `scope` and `code` when present. A wrong type in any known field rejects the data. Blank optional details are omitted; other text stays unchanged. Unknown fields are ignored so new fields can be added later.
 
-`fromErrorResponseData()` copies the response fields into a `VercelError`. Parsing checks the data shape; it does not verify who sent it. Check the source and review fields before showing them to another recipient. Check permissions before acting on a `fix` or `link`.
+`fromErrorResponseData()` copies parsed fields into a `VercelError`. Parsing does not verify who sent the data. Check the source before forwarding details, and check permissions before acting on a `fix` or `link`.
 
 ## Recognition and utilities
 
