@@ -6,7 +6,6 @@ export function isObject(
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Validate a defined identity value without changing its supplied text. */
 export function normalizeErrorIdentity(
   value: unknown,
   field: 'scope' | 'code',
@@ -32,12 +31,8 @@ type MutablePublicErrorDetails = {
 } & { message: string };
 
 /**
- * Read each public detail field once, validate the read value, and build a
- * fresh record from those same reads. Unknown fields are dropped and
- * blank or explicitly `undefined` optional fields are omitted. Throws
- * `TypeError` for a missing or blank `message` or a non-string optional field.
- *
- * Error construction and response building use the same copy rule.
+ * Copy known public fields, reading each once. Requires a nonblank `message`,
+ * drops blank details, and rejects other invalid values.
  */
 export function pickPublicErrorDetails(value: unknown): PublicErrorDetails {
   if (!isObject(value)) {

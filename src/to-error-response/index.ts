@@ -7,34 +7,24 @@ import { formatError } from '../format/index';
 import type { PublicErrorDetails, VercelErrorLike } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
-/**
- * Input for a client-facing response without a `VercelError`. `public` is
- * required and checked before its text is sent. When set, `scope` and `code`
- * must be nonblank. `statusCode` defaults to 500 and accepts 400-599.
- */
+/** Public input to `errorResponse()` when no tagged error is available. */
 export interface ErrorResponseInput {
-  /** Optional nonblank error scope included in the response. */
+  /** Optional nonblank error scope. */
   readonly scope?: string;
-  /** Optional nonblank stable error code included in the response. */
+  /** Optional nonblank stable error code. */
   readonly code?: string;
   /** Status mapping; defaults to 500 or throws `RangeError` unless 400-599. */
   readonly statusCode?: number;
-  /** Approved response details; `message` must be nonblank. */
+  /** Required details approved for clients. */
   readonly public: PublicErrorDetails;
 }
 
-/** Options for body format and the `onSerialize` callback. */
+/** Options for format selection and the `onSerialize` callback. */
 export interface ErrorResponseOptions {
-  /**
-   * Request or headers used for body selection; omission uses JSON. When
-   * supplied, the response includes `Vary: X-Error-Format, Accept, User-Agent`.
-   */
+  /** Headers for format selection. Defaults to JSON; adds `Vary` when supplied. */
   readonly request?: Request | HeadersLike;
 
-  /**
-   * Called with the original source after the response is built. Exceptions
-   * propagate. Must return `undefined`; TypeScript rejects async callbacks.
-   */
+  /** Runs after the response is built. Errors propagate; return `undefined`. */
   readonly onSerialize?: (
     source: VercelErrorLike | ErrorResponseInput,
     context: {
@@ -46,17 +36,13 @@ export interface ErrorResponseOptions {
   ) => undefined;
 }
 
-/**
- * Status, body, and headers returned by {@link errorResponse}. Pass these fields
- * to a native or framework response constructor. ANSI uses
- * `text/plain+ansi; charset=utf-8`; supplying a request adds `Vary`.
- */
+/** HTTP fields returned by {@link errorResponse} for a response constructor. */
 export interface ErrorResponse {
   /** Concrete HTTP status to send. */
   readonly status: number;
   /** Serialized `ErrorResponseData` or ANSI text with the same public fields. */
   readonly body: string;
-  /** Matching `Content-Type` and conditional `Vary` response headers. */
+  /** `Content-Type` and, when a request is supplied, `Vary`. */
   readonly headers: Record<string, string>;
 }
 
@@ -69,37 +55,13 @@ const VARY_HEADERS = {
 } as const;
 
 /**
- * Build a client-facing HTTP response from an error or explicit `public` data.
+ * Build HTTP response fields from tagged errors or explicit `public` input.
+ * - Body: approved text and optional `scope` and `code`. Tagged errors without
+ *   `public` use a generic message; untagged input requires it.
+ * - Status: 500 by default; only integers from 400 to 599 are allowed.
+ * - Format: JSON by default; `request` selects ANSI via {@link wantsAnsi}.
  *
- * `VercelError` and tagged values send only `public`, `scope`, and `code` in the
- * body. Missing `public` uses a generic message. Defined `scope` and `code`
- * must be nonblank. Untagged errors and inputs without valid `public` details
- * throw `TypeError`.
- *
- * `statusCode` defaults to 500 and accepts integers from 400 through 599.
- * Invalid status throws `RangeError`; invalid public data throws `TypeError`.
- * With `request`, an exact `X-Error-Format: ansi` selects ANSI; any other value
- * in that header selects JSON. Otherwise, an exact `text/plain+ansi` Accept
- * range selects ANSI with a positive `q` (default `1`) and no unsupported media
- * parameters. Duplicate ranges use the highest valid `q`. Ranges with only
- * zero, invalid, or unsupported values select JSON and skip the User-Agent
- * fallback. When no exact range appears, a case-sensitive `curl/` User-Agent
- * selects ANSI. Wildcards do not select ANSI.
- * ANSI uses `text/plain+ansi; charset=utf-8`. Supplying `request` adds
- * `Vary: X-Error-Format, Accept, User-Agent` to either format.
- * Property-access exceptions propagate. `onSerialize` runs after the response
- * is built.
- *
- * @example
- * ```ts
- * const result = errorResponse(error, {
- *   request,
- *   onSerialize: (source, context) => {
- *     recordSerialization(source, context);
- *   },
- * });
- * return new Response(result.body, result);
- * ```
+ * Invalid input throws `TypeError`; invalid status throws `RangeError`.
  */
 export function errorResponse(
   source: VercelErrorLike | ErrorResponseInput,

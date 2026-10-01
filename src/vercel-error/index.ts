@@ -9,28 +9,19 @@ import type {
 import { VERCEL_ERROR_TAG } from './tag';
 
 /**
- * An `Error` with stable `scope` and `code`, separate from developer and client
- * text. Construction validates and freezes `public`. Defined `scope` and `code`
- * must be nonblank; blank optional public fields are omitted. Other text is
- * kept exactly as given.
- * Use `instanceof VercelError` before calling methods on tagged data. Fields
- * declared here are readonly, except `requestId`, `metadata`, and `attributes`
- * so callers can add diagnostic context. Inherited `name`, `stack`, and `cause`
- * keep the standard `Error` types.
+ * An `Error` with stable identity and separate developer and client text.
+ * Construction validates `scope` and `code`, and freezes a copy of `public`.
+ * Use `instanceof` before calling methods on tagged data.
  *
  * @template TCode - Strongly typed error code union
- *
- * @throws {TypeError} If defined `scope` or `code` is blank, or `public` is invalid.
+ * @throws {TypeError} For blank identity or invalid `public` details.
  *
  * @example
  * ```ts
- * throw new VercelError('Database connection pool exhausted', {
- *   code: 'pool_exhausted',
+ * throw new VercelError('Database connection failed', {
  *   scope: 'database',
- *   reason: 'All 20 connections are in use and none have been released.',
- *   hint: 'Consider using pgBouncer for connection pooling.',
- *   fix: 'Increase max_connections or add pgBouncer.',
- *   link: 'https://vercel.com/docs/storage/neon#connection-pooling',
+ *   code: 'unavailable',
+ *   public: { message: 'Could not complete your request.' },
  * });
  * ```
  */
@@ -38,9 +29,9 @@ export class VercelError<TCode extends string = string> extends Error {
   /** Developer message; responses use `public.message` or a generic message. */
   declare readonly message: string;
 
-  /** Stable nonblank code included by `errorResponse()` when defined. */
+  /** Stable code included in responses when defined. */
   readonly code?: TCode;
-  /** Nonblank error scope included by `errorResponse()` when defined. */
+  /** Error scope included in responses when defined. */
   readonly scope?: string;
 
   /** HTTP status mapping; `errorResponse()` accepts 400-599 and defaults to 500. */
@@ -54,7 +45,7 @@ export class VercelError<TCode extends string = string> extends Error {
   readonly fix?: string;
   /** Developer URL; set `public.link` separately for responses. */
   readonly link?: string;
-  /** Public details, validated and copied; blank optional fields are omitted. */
+  /** Client text, validated and frozen as a copy. */
   readonly public?: PublicErrorDetails;
 
   /** Mutable request ID included in `toJSON()` and excluded from responses. */

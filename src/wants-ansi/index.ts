@@ -7,16 +7,13 @@ export interface HeadersLike {
 }
 
 /**
- * Return whether a request selects an ANSI-formatted error response.
+ * Select ANSI from request headers, in order:
+ * - `X-Error-Format`: only the exact value `ansi`.
+ * - `Accept`: exact `text/plain+ansi` with valid `q > 0` (default `1`).
+ * - `User-Agent`: case-sensitive `curl/`, if no exact Accept range exists.
  *
- * A present `X-Error-Format` selects ANSI only when its value is exactly
- * `ansi`. Otherwise, an exact, case-insensitive `text/plain+ansi` range in
- * `Accept` selects ANSI with a positive `q` (default `1`) and no unsupported
- * media parameters. Duplicate ranges use the highest valid `q`. Ranges with
- * only zero, invalid, or unsupported values select JSON and skip User-Agent.
- * When the exact range is absent, a case-sensitive `curl/` marker selects
- * ANSI. Wildcards do not. Missing input or no match returns `false`;
- * header-access exceptions propagate.
+ * A present `X-Error-Format` or exact Accept range blocks later checks.
+ * Missing input selects JSON.
  */
 export function wantsAnsi(
   requestOrHeaders?: Request | HeadersLike | null,

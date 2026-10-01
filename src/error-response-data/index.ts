@@ -18,56 +18,44 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Fields sent to clients in JSON or ANSI responses. `message` is required.
- * When set, `scope` and `code` must be nonblank. Blank optional details are
- * omitted; other text is preserved. Status, request ID, metadata, attributes,
- * cause, stack, and error name are excluded. Parse unknown data with
- * `parseErrorResponseData` from `@vercel/error/client` first.
+ * Client-facing data shared by JSON and ANSI responses. Contains approved text
+ * and optional nonblank identity, but no status or diagnostic fields. Parse
+ * unknown data before use.
  */
 export interface ErrorResponseData {
   readonly error: {
-    /** Nonblank client-visible namespace for the error. */
+    /** Stable error namespace. */
     readonly scope?: string;
-    /** Nonblank client-visible stable error code. */
+    /** Stable error code. */
     readonly code?: string;
     /** Client-facing summary containing non-whitespace text. */
     readonly message: string;
-    /** Client-facing explanation; blank text is omitted. */
+    /** Why the error occurred. */
     readonly reason?: string;
-    /** Client-facing investigation advice; blank text is omitted. */
+    /** Investigation advice. */
     readonly hint?: string;
-    /** Client-facing recovery guidance; blank text is omitted. */
+    /** Recovery step. */
     readonly fix?: string;
-    /** Client-facing documentation URL; blank text is omitted. */
+    /** Documentation URL. */
     readonly link?: string;
   };
 }
 
-/**
- * Identity and nested public details accepted while building response data.
- */
 interface PublicErrorInput {
   readonly scope?: string;
   readonly code?: string;
   readonly public: PublicErrorDetails;
 }
 
-/**
- * Values added during reconstruction. Set `statusCode` from the HTTP response;
- * the remaining options stay local to the reconstructed error.
- */
+/** Local context for a reconstructed error. Set `statusCode` from the HTTP response. */
 export type FromErrorResponseDataOptions = Pick<
   VercelErrorOptions,
   'statusCode' | 'cause' | 'requestId' | 'metadata' | 'attributes'
 >;
 
 /**
- * Build client-facing response data from a tagged error or explicit public input.
- *
- * Defined `scope` and `code` values must be nonblank. Invalid tagged values
- * and untagged values without `public` details throw `TypeError`. Tagged errors
- * without `public` use a generic message. Blank optional public fields are
- * omitted. Each response field uses the value read during validation.
+ * Build response data from tagged errors or explicit `public` input. Tagged
+ * errors without `public` use a generic message. Invalid input throws `TypeError`.
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | PublicErrorInput,
@@ -125,13 +113,10 @@ export function buildErrorResponseData(
 }
 
 /**
- * Parse unknown data as `ErrorResponseData`.
- *
- * Returns `undefined` unless `data.error` has a nonblank string `message`,
- * nonblank `scope` and `code` when present, and strings in known optional
- * fields. Blank optional fields are omitted; other text is preserved. Unknown
- * fields are ignored. This checks data shape, not its source or the safety of
- * its advice. Property-access exceptions propagate.
+ * Parse unknown response data. Requires a nonblank `message`, and nonblank
+ * `scope` and `code` when present. Returns `undefined` for invalid known fields;
+ * ignores unknown fields and omits blank optional details. Valid shape does not
+ * establish who sent the data. Getter errors propagate.
  */
 export function parseErrorResponseData(
   data?: unknown,
@@ -161,12 +146,8 @@ export function parseErrorResponseData(
 }
 
 /**
- * Reconstruct a `VercelError` from validated `ErrorResponseData`.
- *
- * Copies response fields to the matching developer and `public` fields.
- * `options` supplies status, cause, request ID, metadata, and attributes. Parse
- * unknown input first. Review the data before sending it to another audience or
- * following its guidance.
+ * Rebuild a `VercelError` from parsed response data. Options add local status
+ * and context. Review received guidance before acting on it.
  */
 export function fromErrorResponseData(
   data: ErrorResponseData,
@@ -197,7 +178,6 @@ interface ResponseIdentityValues {
   readonly code: unknown;
 }
 
-/** Read identity once each; validation and serialization use these copies. */
 function readResponseIdentity(source: {
   readonly scope?: unknown;
   readonly code?: unknown;
@@ -220,10 +200,7 @@ function normalizeResponseIdentity(
   return identity;
 }
 
-/**
- * Expose captured identity to validators so they see the values later serialized.
- * Other properties are read from the source, with getters receiving it as `this`.
- */
+/** Show validators the captured identity; other getters keep the source as `this`. */
 function withResponseIdentitySnapshot(
   source: Record<PropertyKey, unknown>,
   identity: ResponseIdentityValues,
@@ -250,11 +227,6 @@ function hasNonblankIdentity(
   return true;
 }
 
-/**
- * Copy string fields from already-validated response data. A present field
- * whose value is not a string rejects the whole value with `undefined`,
- * matching strict parsing.
- */
 function parseStringFields<TField extends string>(
   source: Record<PropertyKey, unknown>,
   fields: readonly TField[],
