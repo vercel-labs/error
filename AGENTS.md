@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`@vercel/error` gives errors stable codes, recovery fields, diagnostic context, client-safe HTTP projection, and terminal formatting without a framework or runtime dependency.
+`@vercel/error` keeps stable codes, developer details, and client-approved text separate. It builds HTTP response fields and formats terminal output without framework or runtime dependencies.
 
 Software branches on stable `scope` and `code` values, including those in `ErrorResponseData`. Frames and prose are for reading, not parsing.
 
@@ -12,7 +12,7 @@ Read [`CONTEXT.md`](CONTEXT.md) before naming or changing error-contract concept
 
 - `src/index.ts`, `client.ts`, `server.ts`, and `format.ts` are the designated public entry modules.
 - `src/vercel-error/` owns authored error fields, mutability, the stable tag, Error subclass behavior, and diagnostic `toJSON()`.
-- `src/error-response-data/` alone owns normalized response data, public projection, strict parsing, and reconstruction.
+- `src/error-response-data/` alone builds and parses client-facing data, then reconstructs errors from it.
 - `src/to-error-response/` owns server response status validation, headers, and `onSerialize` ordering. `src/wants-ansi/` implements the content negotiation it consumes.
 - `src/from-http-response/` owns Web `Response` status and media-type checks, body consumption, and response-header request context.
 - `src/format/` owns presets, sanitization, physical-line containment, connectors, labels, and color.
@@ -39,12 +39,17 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 
 ## Error Contract
 
-- Keep stable `scope` and `code` separate from prose. Preserve an original failure through `cause`.
+- Keep `scope` and `code` separate from messages. Either may be absent; defined values must be nonblank strings. Use `trim()` only to check blankness; keep the original value. Keep the original failure in `cause`.
 - Put nested debugging context in `metadata` and flat telemetry values in `attributes`. Keep secrets out of both.
 - Treat constructor `message`, `reason`, `hint`, `fix`, and `link` as developer-facing.
 - Put client-approved prose under `public`, with a required nonblank `public.message`.
-- Validate `public` at construction (nonblank string `message`, string-only optional fields), drop unknown fields, and freeze the copy so approved copy cannot change through an input alias.
-- `errorResponse()` is the client-safe serializer. It uses only `public` prose or the fixed generic fallback, while preserving public `scope` and `code`.
+- Validate `public` at construction. Require a nonblank `message` and strings for optional fields. Omit blanks, drop unknown fields, and freeze a copy. Keep nonblank text unchanged.
+- `errorResponse()` builds client-safe output from `public` text or the fixed generic message. It rejects blank `scope` or `code` values when building a response.
+- Parsing rejects blank defined response identity and omits blank optional public details. Keep `isVercelError()`, `isVercelErrorLikeData()`, and `hasCode()` as structural guards with their current contracts.
+- `X-Error-Format` wins when present. Only exact `ansi` selects ANSI; other values select JSON.
+- Next, check exact `text/plain+ansi` ranges in `Accept`. They need supported parameters and valid `q > 0` (default `1`). Duplicates use the highest valid `q`. Exact ranges with no qualifying value select JSON and block the User-Agent fallback.
+- If no exact range exists, a case-sensitive `curl/` in `User-Agent` selects ANSI. Wildcards do not.
+- JSON uses `application/json`; ANSI uses `text/plain+ansi; charset=utf-8`. Add `Vary: X-Error-Format, Accept, User-Agent` for either format whenever `errorResponse()` receives `request`; omit it when no request is supplied.
 - Treat scope, code, and status as disclosures. Protected-resource handlers own neutral identity and status mappings.
 - Use `statusCode` for authored mappings and `status` only for a concrete response. Server response production accepts integer error statuses from 400 through 599 and defaults omission to 500. Client response reading accepts only observed statuses in that range.
 - Keep request ID, metadata, attributes, cause, stack, developer name, and status out of `ErrorResponseData` and both serialized body formats.
@@ -65,7 +70,7 @@ When a public entry point changes, update its source module, `tsdown.config.ts`,
 - Keep `hint`, `fix`, and `link` as structured `FrameSection` values. Renderer behavior comes from the token kind, not a parsed string prefix.
 - Sanitize every caller-controlled field, normalize CRLF, remove bare carriage returns, and frame every physical continuation line.
 - Preserve tabs, blank lines, and useful multiline text while keeping every continuation line under a library-owned prefix.
-- Render negotiated HTTP text from normalized public data with explicit `ansi`; never call a symbol-recognized object's method.
+- Render HTTP text from client-safe response data with explicit `ansi`; never call a method on a value recognized only by its symbol tag.
 
 ## Public Documentation
 

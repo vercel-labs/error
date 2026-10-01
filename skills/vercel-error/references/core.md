@@ -27,7 +27,9 @@ export function paymentGatewayTimeout(
 
 The generic keeps `code` limited to `PaymentErrorCode`. Preserve a caught value through `cause`; do not copy its message or stack into public fields.
 
-Construction validates `public` (nonblank string `message`, optional string details, `TypeError` otherwise), drops unknown fields, and stores a frozen copy. Build the complete client-approved projection before creating the error rather than mutating it later.
+When set, `scope` and `code` must be nonblank. Construction keeps their original text.
+
+If `public` is set, its `message` must be nonblank and optional fields must be strings. Construction drops blank optional and unknown fields, then freezes a copy. Invalid fields throw `TypeError`.
 
 ## Subclasses
 
@@ -54,4 +56,4 @@ class PaymentError extends VercelError {
 
 The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure. Tagged metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics.
 
-`VercelError#toJSON()` includes the name, developer message, optional stack, public projection, and defined enumerable fields such as metadata and attributes; it excludes `cause`. Because that output may contain private diagnostics, do not send it to clients. Use `errorResponse()` for public HTTP responses.
+`VercelError#toJSON()` includes the name, developer message, optional stack, `public` details, and fields such as metadata and attributes. It excludes `cause`. This output may contain private details; use `errorResponse()` for client-facing HTTP responses.

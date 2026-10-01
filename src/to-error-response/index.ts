@@ -7,31 +7,24 @@ import { formatError } from '../format/index';
 import type { PublicErrorDetails, VercelErrorLike } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
-/**
- * Client-facing input used without a `VercelError`. `public` is required and
- * validated before its prose is included in the response. `statusCode`
- * defaults to 500 and accepts 400-599.
- */
+/** Public input to `errorResponse()` when no tagged error is available. */
 export interface ErrorResponseInput {
-  /** Optional error scope included in the response. */
+  /** Optional nonblank error scope. */
   readonly scope?: string;
-  /** Optional stable error code included in the response. */
+  /** Optional nonblank stable error code. */
   readonly code?: string;
   /** Status mapping; defaults to 500 or throws `RangeError` unless 400-599. */
   readonly statusCode?: number;
-  /** Details explicitly approved for the response; `message` must be nonblank. */
+  /** Required details approved for clients. */
   readonly public: PublicErrorDetails;
 }
 
-/** Options for body format and the `onSerialize` callback. */
+/** Options for format selection and the `onSerialize` callback. */
 export interface ErrorResponseOptions {
-  /** Request or headers used for body selection; omission uses JSON. */
+  /** Headers for format selection. Defaults to JSON; adds `Vary` when supplied. */
   readonly request?: Request | HeadersLike;
 
-  /**
-   * Called with the original source after the response is built. Exceptions
-   * propagate. Must return `undefined`; TypeScript rejects async callbacks.
-   */
+  /** Runs after the response is built. Errors propagate; return `undefined`. */
   readonly onSerialize?: (
     source: VercelErrorLike | ErrorResponseInput,
     context: {
@@ -43,44 +36,32 @@ export interface ErrorResponseOptions {
   ) => undefined;
 }
 
-/**
- * HTTP response data returned by {@link errorResponse}. Pass these fields to a
- * native or framework response constructor.
- */
+/** HTTP fields returned by {@link errorResponse} for a response constructor. */
 export interface ErrorResponse {
   /** Concrete HTTP status to send. */
   readonly status: number;
   /** Serialized `ErrorResponseData` or ANSI text with the same public fields. */
   readonly body: string;
-  /** Matching JSON or plain-text `Content-Type` header. */
+  /** `Content-Type` and, when a request is supplied, `Vary`. */
   readonly headers: Record<string, string>;
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
-const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' } as const;
+const TEXT_HEADERS = {
+  'Content-Type': 'text/plain+ansi; charset=utf-8',
+} as const;
+const VARY_HEADERS = {
+  Vary: 'X-Error-Format, Accept, User-Agent',
+} as const;
 
 /**
- * Build HTTP response data from an error or explicit public data.
+ * Build HTTP response fields from tagged errors or explicit `public` input.
+ * - Body: approved text and optional `scope` and `code`. Tagged errors without
+ *   `public` use a generic message; untagged input requires it.
+ * - Status: 500 by default; only integers from 400 to 599 are allowed.
+ * - Format: JSON by default; `request` selects ANSI via {@link wantsAnsi}.
  *
- * `VercelError` and tagged values expose only `public`, `scope`, and `code`; a
- * missing `public` uses a generic message. Untagged errors and inputs without
- * valid nested `public` details throw `TypeError`.
- *
- * `statusCode` defaults to 500 and accepts integers from 400 through 599.
- * Invalid status throws `RangeError`; invalid public data throws `TypeError`.
- * Property-access exceptions propagate. `onSerialize` runs after the response
- * is built.
- *
- * @example
- * ```ts
- * const result = errorResponse(error, {
- *   request,
- *   onSerialize: (source, context) => {
- *     recordSerialization(source, context);
- *   },
- * });
- * return new Response(result.body, result);
- * ```
+ * Invalid input throws `TypeError`; invalid status throws `RangeError`.
  */
 export function errorResponse(
   source: VercelErrorLike | ErrorResponseInput,
@@ -88,18 +69,25 @@ export function errorResponse(
 ): ErrorResponse {
   const status = resolveStatus(source);
   const responseData = buildErrorResponseData(source);
-  const bodyFormat = wantsAnsi(options.request) ? 'ansi' : 'json';
+  const request = options.request;
+  const bodyFormat = wantsAnsi(request) ? 'ansi' : 'json';
 
   const result: ErrorResponse =
     bodyFormat === 'ansi'
       ? {
           body: renderPublicError(responseData.error),
-          headers: { ...TEXT_HEADERS },
+          headers: {
+            ...TEXT_HEADERS,
+            ...(request === undefined ? {} : VARY_HEADERS),
+          },
           status,
         }
       : {
           body: JSON.stringify(responseData),
-          headers: { ...JSON_HEADERS },
+          headers: {
+            ...JSON_HEADERS,
+            ...(request === undefined ? {} : VARY_HEADERS),
+          },
           status,
         };
 

@@ -70,4 +70,15 @@ describe('isVercelError', () => {
 
     expect(isVercelError(fake)).toBe(true);
   });
+
+  it('still recognizes tagged data with blank identity', () => {
+    const fake = {
+      code: ' ',
+      message: 'Failed',
+      scope: '',
+      [VERCEL_ERROR_TAG]: true,
+    };
+
+    expect(isVercelError(fake)).toBe(true);
+  });
 });

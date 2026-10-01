@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.4.0
+
+### Minor Changes
+
+- Reject blank identity, omit blank public details, honor ANSI `q` and UTF-8, set `Content-Type` and `Vary`, and add adoption guidance.
+
 ## 0.3.0
 
 ### Minor Changes

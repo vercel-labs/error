@@ -34,7 +34,7 @@ Terminal sanitization removes control sequences, not PII or confidential prose. 
 
 Factory and per-error `metadata` and `attributes` merge one level deep, with per-error keys winning. Nested objects are replaced rather than merged recursively.
 
-`docsBaseUrl` can be a string or a function. A string trims trailing slashes and appends the code without changing it. A per-error developer `link` takes precedence. The factory never derives `public.link`; set client-approved links explicitly under each error's `public` projection.
+`docsBaseUrl` can be a string or a function. A string trims trailing slashes and appends the code without changing it. A per-error developer `link` takes precedence. The factory never derives `public.link`; set client-approved links explicitly under each error's `public` fields.
 
 ## Custom error class
 

@@ -63,19 +63,19 @@
     "name": "parseErrorResponseData",
     "path": "dist/client.js",
     "import": "{ parseErrorResponseData }",
-    "limit": "260 B"
+    "limit": "400 B"
   },
   {
     "name": "errorResponse",
     "path": "dist/server.js",
     "import": "{ errorResponse }",
-    "limit": "2.6 kB"
+    "limit": "3.1 kB"
   },
   {
     "name": "wantsAnsi",
     "path": "dist/server.js",
     "import": "{ wantsAnsi }",
-    "limit": "175 B"
+    "limit": "550 B"
   },
   {
     "name": "formatError",

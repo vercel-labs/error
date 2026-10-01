@@ -1,13 +1,13 @@
 # Structured Error Contract
 
-`@vercel/error` defines a structured error contract with stable machine identity and separate developer and public details. It covers package and realm recognition, HTTP response data, diagnostics, and terminal presentation.
+`@vercel/error` gives errors stable identity and keeps developer details separate from text sent to clients. It covers error recognition across packages and realms, HTTP response data, diagnostics, and terminal output.
 
 ## Language
 
 ### Error Model
 
 **Error identity**:
-The stable `scope` and `code` values that software uses to classify an error. Identity remains stable when explanatory text changes.
+The stable `scope` and `code` values that software uses to classify an error. Either may be absent; a defined value must be nonblank. Identity stays the same when explanatory text changes.
 _Avoid_: Error type
 
 **Developer error details**:
@@ -15,7 +15,7 @@ Technical text intended for developers and operators diagnosing a failure. The d
 _Avoid_: Internal error details
 
 **Public error details**:
-Text explicitly approved for disclosure to the intended recipient of an error response. Public describes a disclosure decision, not producer trust or authority to act.
+Text approved for the intended recipient of an error response. It needs a nonblank `message`. Approval to show text does not verify who sent it or authorize an action.
 _Avoid_: User message
 
 **Recovery guidance**:
@@ -44,11 +44,11 @@ Caller-authored error identity, nested public error details, and an authored sta
 _Avoid_: Error response params
 
 **Error response data**:
-Client-facing data in one canonical shape, independent of source and body format, consisting of error identity and public error details. It excludes concrete HTTP status and diagnostic context and does not imply producer trust.
+Client-facing identity and details shared by JSON and ANSI output. This data excludes HTTP status and diagnostic context. Its shape does not verify who sent it.
 _Avoid_: Error response payload
 
 **Error response**:
-The complete concrete HTTP status, serialized body, and headers for an error. It is framework-neutral response information rather than a native or framework response object.
+The HTTP status, body, and headers for an error, separate from a Web `Response` object.
 _Avoid_: Error response result
 
 **Client response reading**:

@@ -37,6 +37,8 @@ Review every populated field and every missing field required by a known caller 
 
 ## Identity
 
+When set, `scope` and `code` must be nonblank strings. Keep the original text, including surrounding spaces.
+
 ### `code`
 
 - Use a stable machine identifier for the condition a caller handles. Distinguish errors when callers take different recovery branches.
@@ -90,10 +92,11 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 
 ### `public`
 
-- Put application-owned, client-safe prose under `public`. `ErrorResponseInput` requires `public`; `VercelError` may omit it. When present, `public.message` is required and nonblank; `public.reason`, `public.hint`, `public.fix`, and `public.link` are optional.
+- Put client-approved text under `public`. `ErrorResponseInput` requires it; `VercelError` may omit it.
+- `public.message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings. Omit blank optional values and keep other text unchanged.
 - State what happened and a supported next step. Exclude implementation details, topology, raw provider text, secrets, and promises the application cannot guarantee.
 - If no approved client copy exists on a `VercelError`, omit `public`; `errorResponse()` uses its fixed generic message. Untagged `ErrorResponseInput` must always provide `public`.
-- JSON and ANSI-negotiated HTTP output use the same public projection. Scope, code, and status remain visible and require their own disclosure review.
+- JSON and ANSI responses use the same client-approved fields. Scope, code, and status also reach clients; review each one before sending it.
 
 ### `reason`, `hint`, and `fix`
 
@@ -159,7 +162,7 @@ Record a thrown error at the final operation boundary instead of reporting it fr
 
 - Unknown errors are internal diagnostics. Untagged `errorResponse()` input must put approved prose under `public`; a top-level `message` is not a disclosure decision.
 - Review every publicly visible field and transport signal, including code, HTTP status, JSON fields, and ANSI output. Unauthorized callers must not learn whether a protected resource exists through different codes or statuses.
-- Every field under `public` must be client-safe. JSON and ANSI use the same projection; headers select the body format rather than authorization.
+- Approve every `public` field for clients. JSON and ANSI use the same fields. `Vary` lists the headers that can affect format selection; headers do not grant disclosure permission.
 - Parsing validates fields, not who sent them or whether they are safe. Apply the Recovery authority rules before acting on error text or links.
 - Automation should branch on stable fields and rules defined by the receiving application, never rendered text.
 - `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. It can cross serialization channels after source validation, but tagged `VercelErrorLike` data cannot rely on its Symbol tag surviving. When rebuilding an error, use the observed response status and add only context the receiving application already knows.

@@ -30,6 +30,97 @@ describe('wantsAnsi', () => {
     ).toBe(true);
   });
 
+  it.each([
+    ['text/plain+ansi', true],
+    ['text/plain+ansi;q=0.125', true],
+    ['text/plain+ansi;Q=1.000', true],
+    ['TEXT/PLAIN+ANSI;Q=0.5', true],
+    ['application/json, text/plain+ansi;q=0.5', true],
+    ['text/plain+ansi;charset=utf-8', true],
+    ['text/plain+ansi;charset="UTF-8";q=0.5', true],
+    ['text/plain+ansi;q=0.5;extension=value', true],
+    ['text/plain+ansi;charset=iso-8859-1', false],
+    ['text/plain+ansi;unsupported=value', false],
+    ['text/plain+ansi;q=0', false],
+    ['text/plain+ansi;q=2', false],
+    ['text/plain+ansi;q=1.001', false],
+    ['text/plain+ansi;q=.5', false],
+    ['text/plain+ansi;q=0.1234', false],
+    ['text/plain+ansi;q=NaN', false],
+    ['text/*', false],
+    ['*/*', false],
+  ] as const)('Accept: %s selects ANSI: %s', (accept, expected) => {
+    expect(wantsAnsi(makeRequest({ Accept: accept }))).toBe(expected);
+  });
+
+  it('does not fall back to curl when an ANSI range requests another charset', () => {
+    expect(
+      wantsAnsi(
+        makeRequest({
+          Accept: 'text/plain+ansi;charset=iso-8859-1',
+          'User-Agent': 'curl/8.1.2',
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('uses the highest valid q from duplicate ANSI ranges', () => {
+    expect(
+      wantsAnsi(
+        makeRequest({
+          Accept: 'text/plain+ansi;q=0, text/plain+ansi;q=0.7',
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      wantsAnsi(
+        makeRequest({
+          Accept: 'text/plain+ansi;q=0, text/plain+ansi;q=2',
+          'User-Agent': 'curl/8.1.2',
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('skips curl fallback for zero or invalid ANSI q', () => {
+    for (const Accept of ['text/plain+ansi;q=0', 'text/plain+ansi;q=invalid']) {
+      expect(
+        wantsAnsi(makeRequest({ Accept, 'User-Agent': 'curl/8.1.2' })),
+      ).toBe(false);
+    }
+  });
+
+  it('uses JSON when X-Error-Format is present but not ansi', () => {
+    expect(
+      wantsAnsi(
+        makeRequest({
+          Accept: 'text/plain+ansi',
+          'User-Agent': 'curl/8.1.2',
+          'X-Error-Format': 'ANSI',
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('reads each selecting header no more than once', () => {
+    const reads = new Map<string, number>();
+    const headers = {
+      get(name: string) {
+        const normalized = name.toLowerCase();
+        reads.set(normalized, (reads.get(normalized) ?? 0) + 1);
+        return normalized === 'accept' ? 'text/plain+ansi;q=0' : null;
+      },
+    };
+
+    expect(wantsAnsi(headers)).toBe(false);
+    expect(reads).toEqual(
+      new Map([
+        ['x-error-format', 1],
+        ['accept', 1],
+      ]),
+    );
+  });
+
   it('returns true for curl user agent', () => {
     expect(wantsAnsi(makeRequest({ 'User-Agent': 'curl/8.1.2' }))).toBe(true);
   });

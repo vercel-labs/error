@@ -201,7 +201,7 @@ describe('errorResponse', () => {
     },
   );
 
-  it('validates status before projection and onSerialize', () => {
+  it('validates status before building the body or calling onSerialize', () => {
     const onSerialize = vi.fn();
     const malformed = {
       message: 'Must not become public',
@@ -218,7 +218,7 @@ describe('errorResponse', () => {
     expect(onSerialize).not.toHaveBeenCalled();
   });
 
-  it('rejects tagged-invalid input before nested public projection', () => {
+  it('rejects invalid tagged input before reading public details', () => {
     const malformed = {
       message: 'Must not become public',
       public: {},
@@ -254,7 +254,8 @@ describe('errorResponse', () => {
     vi.unstubAllGlobals();
 
     expect(result.headers).toEqual({
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': 'text/plain+ansi; charset=utf-8',
+      Vary: 'X-Error-Format, Accept, User-Agent',
     });
     expect(result.body).toContain('Service unavailable');
     expect(result.body).toContain('A dependency is unavailable');
@@ -264,6 +265,32 @@ describe('errorResponse', () => {
     expect(result.body).not.toContain('Developer message');
     expect(result.body).not.toContain('Developer reason');
     expect(result.body).not.toContain('Developer fix');
+  });
+
+  it('uses the same public fields for JSON and ANSI bodies', () => {
+    const error = new VercelError('Developer message', {
+      public: {
+        fix: '',
+        hint: '  Inspect pool usage  ',
+        link: ' \t\n',
+        message: 'Public response',
+        reason: ' \t ',
+      },
+    });
+    const json = errorResponse(error);
+    const ansi = errorResponse(error, {
+      request: makeRequest({ 'X-Error-Format': 'ansi' }),
+    });
+
+    expect(JSON.parse(json.body).error).toEqual({
+      hint: '  Inspect pool usage  ',
+      message: 'Public response',
+    });
+    expect(ansi.body).toContain('Public response');
+    expect(stripAnsi(ansi.body)).toContain('hint:   Inspect pool usage  ');
+    expect(ansi.body).not.toContain('reason:');
+    expect(ansi.body).not.toContain('fix:');
+    expect(ansi.body).not.toContain('read more:');
   });
 
   it('sanitizes and contains every public field in ANSI output', () => {
@@ -314,6 +341,47 @@ describe('errorResponse', () => {
       { request: makeRequest({ 'User-Agent': 'Mozilla/5.0' }) },
     );
     expect(result.headers['Content-Type']).toBe('application/json');
+    expect(result.headers['Vary']).toBe('X-Error-Format, Accept, User-Agent');
+  });
+
+  it('uses JSON when an ANSI range requests another charset', () => {
+    const result = errorResponse(
+      { public: { message: 'Failed' } },
+      {
+        request: makeRequest({
+          Accept: 'text/plain+ansi;charset=iso-8859-1',
+          'User-Agent': 'curl/8.1.2',
+        }),
+      },
+    );
+
+    expect(result.headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(result.body)).toEqual({ error: { message: 'Failed' } });
+  });
+
+  it('omits Vary when no request headers were supplied', () => {
+    expect(errorResponse({ public: { message: 'Failed' } }).headers).toEqual({
+      'Content-Type': 'application/json',
+    });
+  });
+
+  it('reads the request option once for selection and Vary', () => {
+    let reads = 0;
+    const request = makeRequest({ 'X-Error-Format': 'ansi' });
+    const options = {
+      get request() {
+        reads += 1;
+        return request;
+      },
+    };
+
+    const result = errorResponse({ public: { message: 'Failed' } }, options);
+
+    expect(reads).toBe(1);
+    expect(result.headers).toEqual({
+      'Content-Type': 'text/plain+ansi; charset=utf-8',
+      Vary: 'X-Error-Format, Accept, User-Agent',
+    });
   });
 
   it('accepts Headers directly through options', () => {
@@ -321,7 +389,10 @@ describe('errorResponse', () => {
       { public: { message: 'Failed' } },
       { request: new Headers({ 'X-Error-Format': 'ansi' }) },
     );
-    expect(result.headers['Content-Type']).toBe('text/plain; charset=utf-8');
+    expect(result.headers).toEqual({
+      'Content-Type': 'text/plain+ansi; charset=utf-8',
+      Vary: 'X-Error-Format, Accept, User-Agent',
+    });
   });
 
   it('calls onSerialize after constructing the complete JSON result', () => {
@@ -416,6 +487,22 @@ describe('errorResponse', () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get('Content-Type')).toBe('application/json');
+  });
+
+  it('constructs a native ANSI Response with Content-Type and Vary', () => {
+    const result = errorResponse(
+      { public: { message: 'Not found' }, statusCode: 404 },
+      { request: makeRequest({ 'X-Error-Format': 'ansi' }) },
+    );
+    const response = new Response(result.body, result);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('Content-Type')).toBe(
+      'text/plain+ansi; charset=utf-8',
+    );
+    expect(response.headers.get('Vary')).toBe(
+      'X-Error-Format, Accept, User-Agent',
+    );
   });
 });
 /* oxlint-enable no-control-regex */

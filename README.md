@@ -1,6 +1,8 @@
 # @vercel/error
 
-`@vercel/error` keeps developer diagnostics separate from client responses. Errors can carry cause, reason, hint, fix, and metadata; response prose comes only from `public`. Scope, code, and status remain separate disclosures. `errorResponse()` produces framework-neutral response data, `fromHttpResponse()` consumes matching Web responses, and `formatError()` renders readable terminal frames. The package has zero runtime dependencies.
+Use native `Error` for local failures. Use `@vercel/error` when callers need stable codes, clients need approved text, or readers need recovery advice.
+
+The package separates `scope` and `code` from developer details and client-approved `public` text. It also formats terminal output and has no runtime dependencies.
 
 ## Install
 
@@ -8,43 +10,49 @@
 pnpm add @vercel/error
 ```
 
-The optional `vercel-error` skill helps coding agents choose fields, migrate existing errors, and review which details reach clients:
+Direct Node.js execution requires Node.js 24 or newer. The package is ESM-only and has no CommonJS export.
+
+## Quick start
+
+```ts
+import { VercelError } from '@vercel/error';
+import { errorResponse } from '@vercel/error/server';
+
+export async function handleCheckout(
+  checkoutConnection: () => Promise<void>,
+): Promise<Response> {
+  try {
+    await checkoutConnection();
+    return new Response(null, { status: 204 });
+  } catch (cause) {
+    const error = new VercelError('Database connection checkout failed', {
+      cause,
+      code: 'checkout_failed',
+      scope: 'database',
+      statusCode: 500,
+      public: {
+        message: 'We could not complete the request.',
+      },
+    });
+    const result = errorResponse(error);
+    return new Response(result.body, result);
+  }
+}
+```
+
+`cause` keeps the original failure. The constructor message is for developers. Only `public` supplies the response message. `scope` and `code` also reach the client, and `statusCode` becomes the HTTP status.
+
+Read the [project narrative](https://github.com/vercel-labs/error/blob/main/docs/narrative.md) for the problem, alternatives, and adoption path.
+
+## Agent guidance
+
+The optional vercel-error skill helps coding agents choose fields, migrate existing errors, and review which details reach clients:
 
 ```bash
 npx skills add vercel-labs/error --skill vercel-error
 ```
 
 Installing the npm package does not activate the skill.
-
-## Quick start
-
-```ts
-import { VercelError } from '@vercel/error';
-
-try {
-  await checkoutConnection(shard);
-} catch (cause) {
-  throw new VercelError('Database shard 7 exhausted its connection pool', {
-    cause,
-    code: 'pool_exhausted',
-    scope: 'database',
-    statusCode: 503,
-    reason: 'All 20 connections are in use.',
-    hint: 'Inspect connection checkout duration.',
-    fix: 'Release leaked connections or increase pool capacity.',
-    link: 'https://example.com/internal/database/pool-exhausted',
-    public: {
-      message: 'The service is temporarily unavailable.',
-      fix: 'Try again shortly.',
-      link: 'https://status.example.com',
-    },
-    metadata: { shard: 7, poolSize: 20 },
-    attributes: { 'db.system': 'postgresql' },
-  });
-}
-```
-
-Developer prose outside `public` stays out of HTTP responses. `scope`, `code`, and status are separate disclosures and still reach clients. Serialize with `errorResponse()`; `JSON.stringify(error)` includes developer text and stack.
 
 ## Entry points
 
@@ -59,7 +67,9 @@ Developer prose outside `public` stays out of HTTP responses. `scope`, `code`, a
 
 ### Identity
 
-`scope` and `code` form stable machine identity. Software should branch on these fields, never on rendered prose. The same rule applies to parsed responses on the client (see Consuming responses).
+`scope` and `code` identify an error for software. When set, each must contain more than whitespace. Validation preserves the original text, including any surrounding spaces.
+
+Branch on these fields, not on messages or terminal output. The same rule applies to [parsed responses](#consuming-responses).
 
 ```ts
 if (hasCode(error, 'pool_exhausted')) {
@@ -87,7 +97,9 @@ Preserve an original failure through `cause`. Put nested debugging context in `m
 
 ### Client-facing details (`public`)
 
-`public` is the only prose from a `VercelError` that `errorResponse()` sends to a client. If it is present, `public.message` is required and must be nonblank; the constructor validates this and throws `TypeError` for invalid details. It also copies and freezes `public` and drops unknown fields, so mutating the object you passed in later cannot change the approved copy.
+Only `public` text from a `VercelError` reaches clients through `errorResponse()`. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
+
+The constructor throws `TypeError` for invalid details. It drops unknown fields and freezes a copy, so later input changes cannot alter the approved text.
 
 ```ts
 interface PublicErrorDetails {
@@ -99,9 +111,7 @@ interface PublicErrorDetails {
 }
 ```
 
-When `public` is absent from a `VercelError` or tagged value, `errorResponse()` uses the fixed message `An error occurred.`. It never falls back to developer prose. Untagged input must provide `public`. `docsBaseUrl` derives only the developer `link`; a public link must be set explicitly under `public.link`.
-
-The fallback keeps developer text out of responses. `scope`, `code`, and the HTTP status still reach the client.
+Without `public`, a `VercelError` or tagged value sends `An error occurred.` instead of developer text. Untagged input requires `public`. `docsBaseUrl` sets only the developer `link`; set `public.link` explicitly for clients. `scope`, `code`, and HTTP status still reach clients.
 
 ### Transport
 
@@ -255,11 +265,20 @@ const result = errorResponse(error, {
 });
 ```
 
-`request` accepts a `Request` or `HeadersLike`. A present `X-Error-Format` header is authoritative; only `ansi` selects ANSI. Without that header, `Accept: text/plain+ansi` or a `curl/` user agent selects ANSI, in that order. Headers choose the body format; they do not authenticate or authorize the caller.
+`request` accepts a `Request` or `HeadersLike`. The headers choose the format in this order:
 
-JSON and negotiated ANSI text render the same `public` details. ANSI negotiation never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
+1. `X-Error-Format` wins when present. Only the exact value `ansi` selects ANSI; any other value selects JSON.
+2. Otherwise, check exact `text/plain+ansi` entries in `Accept`. A valid `q > 0` selects ANSI; missing `q` counts as `1`. Media type and `q` names ignore case. Duplicates use the highest valid `q`.
+3. Unsupported parameters, including a non-UTF-8 charset, cannot select ANSI. If exact entries exist but none qualifies, use JSON without checking `User-Agent`.
+4. If no exact entry exists, a case-sensitive `curl/` in `User-Agent` selects ANSI. Wildcards do not select ANSI.
 
-`onSerialize` receives the original source plus `{ status, bodyFormat }` after the complete result has been built. `bodyFormat` reports whether the serialized body is `json` or `ansi`. The callback is synchronous and returns `undefined`. Cross-realm metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` before relying on the typed local fields. Callback exceptions propagate and replace the response the caller would have received.
+Headers choose a format; they do not authenticate the caller or authorize disclosure.
+
+JSON uses `Content-Type: application/json`. ANSI uses `Content-Type: text/plain+ansi; charset=utf-8`. When you supply `request`, both include `Vary: X-Error-Format, Accept, User-Agent`. Without `request`, `Vary` is omitted.
+
+Both formats use the same `public` details. ANSI never exposes the developer `message`, `reason`, `hint`, `fix`, or `link`.
+
+`onSerialize` runs after the response is built. It receives the original source and `{ status, bodyFormat }`, where `bodyFormat` is `json` or `ansi`. The callback is synchronous, returns `undefined`, and propagates exceptions.
 
 ### Explicit public input
 
@@ -340,7 +359,9 @@ const data = parseErrorResponseData(value);
 if (data) throw fromErrorResponseData(data, { statusCode: 502 });
 ```
 
-Parsing requires a nonblank string message. A present known field with the wrong type rejects the entire value; unknown fields are ignored for additive evolution. Reconstruction copies response identity to `scope` and `code`, and response prose into both the developer fields and `public`. Parsing validates shape only. It does not tell you who sent the response. Verify the producer, review each field before showing it to a different recipient, and check permissions before acting on a `fix` or `link`.
+Parsing requires a nonblank string `message`, plus nonblank `scope` and `code` when present. A wrong type in any known field rejects the data. Blank optional details are omitted; other text stays unchanged. Unknown fields are ignored so new fields can be added later.
+
+`fromErrorResponseData()` copies parsed fields into a `VercelError`. Parsing does not verify who sent the data. Check the source before forwarding details, and check permissions before acting on a `fix` or `link`.
 
 ## Recognition and utilities
 
@@ -372,21 +393,21 @@ Tagged matches do not prove the producer is trusted. Their metadata and attribut
 | Entry point or export    | Size (min+brotli) |
 | ------------------------ | ----------------: |
 | **@vercel/error**        |                   |
-| `VercelError`            |           1.69 kB |
-| `createErrors`           |           1.91 kB |
-| `isVercelError`          |           1.83 kB |
+| `VercelError`            |           1.73 kB |
+| `createErrors`           |           1.95 kB |
+| `isVercelError`          |           1.88 kB |
 | `isError`                |             108 B |
 | `isErrorLike`            |              85 B |
 | `hasCode`                |             120 B |
 | `getMessage`             |             187 B |
 | `getRootCause`           |             139 B |
 | **@vercel/error/client** |                   |
-| `fromErrorResponseData`  |           1.75 kB |
-| `fromHttpResponse`       |           2.02 kB |
-| `parseErrorResponseData` |             245 B |
+| `fromErrorResponseData`  |            1.8 kB |
+| `fromHttpResponse`       |           2.09 kB |
+| `parseErrorResponseData` |             373 B |
 | **@vercel/error/server** |                   |
-| `errorResponse`          |           2.47 kB |
-| `wantsAnsi`              |             153 B |
+| `errorResponse`          |           2.94 kB |
+| `wantsAnsi`              |             505 B |
 | **@vercel/error/format** |                   |
 | `formatError`            |            1.2 kB |
 | `frame`                  |           1.06 kB |
