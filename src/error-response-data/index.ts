@@ -85,9 +85,9 @@ export type FromErrorResponseDataOptions = Pick<
  *
  * @example
  * const data = buildErrorResponseData({
- *   scope: 'roster',
+ *   scope: 'github',
  *   code: 'unavailable',
- *   public: { message: 'The roster is temporarily unavailable.' },
+ *   public: { message: 'We could not retrieve the GitHub issue.' },
  * });
  */
 export function buildErrorResponseData(

@@ -162,7 +162,9 @@ Factory and per-error `metadata` and `attributes` merge one level deep, with per
 
 ### Allowlisted logging
 
-Use `onReport` to emit an application-defined log record. Keep each field and its accepted values explicit. A string or number type alone does not make provider data safe to log.
+A coding agent calls a `getGitHubIssue` tool to read an issue before fixing a bug. If the GitHub request fails, the tool records the final failure once and returns approved error data to the agent.
+
+Use `onReport` to define the log record. This example approves a fixed event name and scope, known error codes, and an integer upstream status from 400 through 599. A string or number type alone does not make provider data safe to log.
 
 ```ts
 import { createErrors } from '@vercel/error';
@@ -172,10 +174,10 @@ const codes = [
   'configuration_failed',
   'unknown_failure',
 ] as const;
-type RosterCode = (typeof codes)[number];
+type GitHubIssueCode = (typeof codes)[number];
 
-const rosterErrors = createErrors<RosterCode>({
-  scope: 'roster',
+const githubErrors = createErrors<GitHubIssueCode>({
+  scope: 'github',
   onReport(error) {
     const status = error.attributes?.['upstream.status'];
     const code =
@@ -183,8 +185,8 @@ const rosterErrors = createErrors<RosterCode>({
         ? error.code
         : 'unknown_failure';
 
-    console.error('roster_failure', {
-      scope: 'roster',
+    console.error('github_issue_fetch_failed', {
+      scope: 'github',
       code,
       ...(typeof status === 'number' &&
       Number.isInteger(status) &&
@@ -196,31 +198,31 @@ const rosterErrors = createErrors<RosterCode>({
   },
 });
 
-function reportRosterFailure(
+function reportGitHubIssueFailure(
   cause: unknown,
-  code: RosterCode,
+  code: GitHubIssueCode,
   upstreamStatus?: number,
 ) {
-  return rosterErrors.report('Roster lookup failed', {
+  return githubErrors.report('GitHub issue request failed', {
     code,
     cause,
     attributes: { 'upstream.status': upstreamStatus },
-    public: { message: 'The roster could not be retrieved.' },
+    public: { message: 'We could not retrieve the GitHub issue.' },
   });
 }
 ```
 
-The application classifies the provider failure before calling `reportRosterFailure`. With code `unavailable` and status `503`, the log event is `roster_failure` with these fields:
+The application classifies the failure before calling `reportGitHubIssueFailure`: GitHub HTTP 503 becomes `unavailable`, missing integration credentials become `configuration_failed`, and unrecognized failures become `unknown_failure`. For the 503 case, the log event is `github_issue_fetch_failed` with these fields:
 
 ```json
 {
-  "scope": "roster",
+  "scope": "github",
   "code": "unavailable",
   "upstreamStatus": 503
 }
 ```
 
-The original caught value remains in `cause` for controlled diagnosis and is excluded from this log record.
+The original caught value remains in `cause` for controlled diagnosis. The log record excludes it, repository names, issue contents, credentials, and raw provider messages.
 
 - Select approved values in `onReport`. Do not spread `error`, `metadata`, or `attributes` into logs.
 - `toJSON()` includes diagnostic data. Terminal sanitization removes control sequences, not confidential content. Neither establishes a log disclosure policy.
@@ -383,24 +385,37 @@ interface ErrorResponse {
 
 Use `buildErrorResponseData()` for tool results and other message channels that need approved error data without HTTP status, headers, or format selection. The `server` entry works in browsers, workers, edge runtimes, and Node.
 
+The GitHub issue tool can use the helper from [allowlisted logging](#allowlisted-logging) to report the failure and build the result from the same error:
+
 ```ts
-import { VercelError } from '@vercel/error';
 import { buildErrorResponseData } from '@vercel/error/server';
 
-const error = new VercelError('Roster provider request failed', {
-  scope: 'roster',
-  code: 'unavailable',
-  public: {
-    message: 'The roster is temporarily unavailable.',
-    fix: 'Try again later.',
-  },
-});
-
-const data = buildErrorResponseData(error);
-const toolResult = { success: false, ...data };
+function githubIssueFailureResult(
+  cause: unknown,
+  code: GitHubIssueCode,
+  upstreamStatus?: number,
+) {
+  const error = reportGitHubIssueFailure(cause, code, upstreamStatus);
+  return { success: false, ...buildErrorResponseData(error) };
+}
 ```
 
-The example defines a tool result shape; existing tools must update their schemas and consumers before adopting it. To keep an existing message field, use `data.error.message`.
+For the GitHub 503 case, the application passes the caught failure, `unavailable`, and `503`. The agent receives:
+
+```json
+{
+  "success": false,
+  "error": {
+    "scope": "github",
+    "code": "unavailable",
+    "message": "We could not retrieve the GitHub issue."
+  }
+}
+```
+
+This result says the lookup failed; it does not establish whether the issue exists. The application owns retry policy. The tool result excludes the cause and upstream status.
+
+The example defines a tool result shape; existing tools must update their schemas and consumers before adopting it. To keep an existing message field, use `buildErrorResponseData(error).error.message`.
 
 The builder accepts a valid tagged error or explicit `ErrorResponseDataInput`. Both input and output types are exported from `@vercel/error/server`. `ErrorResponseInput` extends the data input with optional `statusCode` for HTTP callers.
 

@@ -57,8 +57,8 @@ assert(
 
 const dataInput: ErrorResponseDataInput = {
   code: 'unavailable',
-  scope: 'roster',
-  public: { message: 'The roster is unavailable' },
+  scope: 'github',
+  public: { message: 'We could not retrieve the GitHub issue.' },
 };
 const produced: ServerErrorResponseData = buildErrorResponseData(dataInput);
 const decoded = parseErrorResponseData(JSON.parse(JSON.stringify(produced)));
@@ -66,8 +66,8 @@ assert(decoded, 'produced response data did not survive serialization');
 const dataError = fromErrorResponseData(decoded);
 assert(
   dataError.code === 'unavailable' &&
-    dataError.scope === 'roster' &&
-    dataError.public?.message === 'The roster is unavailable' &&
+    dataError.scope === 'github' &&
+    dataError.public?.message === 'We could not retrieve the GitHub issue.' &&
     dataError.statusCode === undefined,
   'data reconstruction did not preserve identity and public text or unexpectedly set a status',
 );

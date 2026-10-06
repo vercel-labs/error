@@ -30,7 +30,7 @@ A supplied `onReport` receives the original error synchronously, returns `undefi
 
 ## Allowlisted logging
 
-Use `onReport` for application-defined log records. Allowlist fields and values; a string or number type alone does not make provider data safe.
+A coding agent reads a GitHub issue before fixing a bug. If the request fails, its tool reports once and returns approved error data. Use `onReport` to allowlist log fields and values; types alone do not make provider data safe.
 
 ```ts
 import { createErrors } from '@vercel/error';
@@ -40,10 +40,10 @@ const codes = [
   'configuration_failed',
   'unknown_failure',
 ] as const;
-type RosterCode = (typeof codes)[number];
+type GitHubIssueCode = (typeof codes)[number];
 
-const rosterErrors = createErrors<RosterCode>({
-  scope: 'roster',
+const githubErrors = createErrors<GitHubIssueCode>({
+  scope: 'github',
   onReport(error) {
     const status = error.attributes?.['upstream.status'];
     const code =
@@ -51,8 +51,8 @@ const rosterErrors = createErrors<RosterCode>({
         ? error.code
         : 'unknown_failure';
 
-    console.error('roster_failure', {
-      scope: 'roster',
+    console.error('github_issue_fetch_failed', {
+      scope: 'github',
       code,
       ...(typeof status === 'number' &&
       Number.isInteger(status) &&
@@ -64,31 +64,31 @@ const rosterErrors = createErrors<RosterCode>({
   },
 });
 
-function reportRosterFailure(
+function reportGitHubIssueFailure(
   cause: unknown,
-  code: RosterCode,
+  code: GitHubIssueCode,
   upstreamStatus?: number,
 ) {
-  return rosterErrors.report('Roster lookup failed', {
+  return githubErrors.report('GitHub issue request failed', {
     code,
     cause,
     attributes: { 'upstream.status': upstreamStatus },
-    public: { message: 'The roster could not be retrieved.' },
+    public: { message: 'We could not retrieve the GitHub issue.' },
   });
 }
 ```
 
-The application classifies the provider failure before calling `reportRosterFailure`. With code `unavailable` and status `503`, the log event is `roster_failure` with these fields:
+The application maps GitHub HTTP 503 to `unavailable`, missing integration credentials to `configuration_failed`, and unrecognized failures to `unknown_failure`. For the 503 case, `github_issue_fetch_failed` logs:
 
 ```json
 {
-  "scope": "roster",
+  "scope": "github",
   "code": "unavailable",
   "upstreamStatus": 503
 }
 ```
 
-The original caught value remains in `cause` and is excluded from the log record.
+The original failure remains in `cause`. The log excludes it, repository names, issue contents, credentials, and raw provider messages. Pass the reported error to [`buildErrorResponseData`](http.md#data-producer) for the tool result.
 
 - Never spread `error`, `metadata`, or `attributes` into logs; `toJSON()` includes diagnostics.
 - `public` text is approved for the response recipient only. Set separate log access and retention rules.
