@@ -312,9 +312,15 @@ interface ErrorResponse {
 
 ## Response data
 
-Use `buildErrorResponseData()` for tool results and other message channels that need approved error data without HTTP status, headers, or format selection. The `server` entry works in browsers, workers, edge runtimes, and Node.
+Use `buildErrorResponseData()` when you need error data for a tool result or message.
 
-A `getGitHubIssue` tool can use this input when the application maps a GitHub HTTP 503 to `unavailable`:
+- Accepts a `VercelError`, valid tagged error data, or an `ErrorResponseDataInput` object.
+- Returns `scope`, `code`, and approved `public` text. Developer details, diagnostics, and HTTP status are excluded.
+- Works in browsers, workers, edge runtimes, and Node.
+
+### Example: a GitHub issue tool
+
+A coding agent calls `getGitHubIssue` to read an issue before fixing a bug. This example builds the tool's error result when GitHub returns HTTP 503, using `unavailable` as the error code:
 
 ```ts
 import { buildErrorResponseData } from '@vercel/error/server';
@@ -327,7 +333,7 @@ const data = buildErrorResponseData({
 const toolResult = { success: false, ...data };
 ```
 
-The agent receives:
+The agent receives this tool result:
 
 ```json
 {
@@ -340,45 +346,9 @@ The agent receives:
 }
 ```
 
-This result says the lookup failed; it does not establish whether the issue exists. The application owns retry policy. The tool result excludes the cause and upstream status.
+The tool adds `success: false`; the builder supplies `error`. Adapt the wrapper to your tool's schema. For an existing message field, use `data.error.message`.
 
-The example defines a tool result shape; existing tools must update their schemas and consumers before adopting it. To keep an existing message field, use `data.error.message`.
-
-The builder accepts a valid tagged error or explicit `ErrorResponseDataInput`. Both input and output types are exported from `@vercel/error/server`. `ErrorResponseInput` extends the data input with optional `statusCode` for HTTP callers.
-
-```ts
-import type { PublicErrorDetails } from '@vercel/error';
-
-interface ErrorResponseDataInput {
-  readonly scope?: string;
-  readonly code?: string;
-  readonly public: PublicErrorDetails;
-}
-```
-
-Defined identity must be nonblank. `public.message` must be nonblank; optional public details must be strings. Blank optional details and unknown public fields are omitted, and other text is preserved. A tagged error without `public` gets `An error occurred.` while keeping its identity.
-
-Non-object input, invalid identity or public details, malformed tagged data, plain `Error` objects, untagged objects with `name` or `stack`, and untagged input missing `public` throw `TypeError`. A top-level `message` never substitutes for `public.message`. The structural TypeScript signature cannot prove the runtime tag is present, so runtime validation still applies.
-
-The builder returns fresh plain objects, writes nothing to the source, and leaves the output mutable. It does not report, perform I/O, negotiate a format, or call source methods. Getters and Proxy traps can run; their exceptions propagate.
-
-It neither selects nor range-checks an HTTP status. Tagged validation still requires a numeric `statusCode` when defined. For example, data building accepts a tagged error with `statusCode: 200` and omits that field; `errorResponse()` rejects it.
-
-```ts
-interface ErrorResponseData {
-  readonly error: {
-    readonly scope?: string;
-    readonly code?: string;
-    readonly message: string;
-    readonly reason?: string;
-    readonly hint?: string;
-    readonly fix?: string;
-    readonly link?: string;
-  };
-}
-```
-
-`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. When using HTTP, take status from the actual response. Approve identity and text for each recipient. The shape and forgeable tag do not authenticate the producer or authorize a recovery action.
+See the [data producer reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/http.md#data-producer) for validation, fallback messages, and HTTP status rules.
 
 ## Consuming responses
 
