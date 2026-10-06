@@ -11,7 +11,6 @@ A `getGitHubIssue` tool can return this data when its application classifies a f
 ```ts
 import {
   buildErrorResponseData,
-  type ErrorResponseData,
   type ErrorResponseDataInput,
 } from '@vercel/error/server';
 
@@ -20,7 +19,7 @@ const input: ErrorResponseDataInput = {
   code: 'unavailable',
   public: { message: 'We could not retrieve the GitHub issue.' },
 };
-const data: ErrorResponseData = buildErrorResponseData(input);
+const data = buildErrorResponseData(input);
 const toolResult = { success: false, ...data };
 ```
 
