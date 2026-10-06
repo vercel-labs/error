@@ -51,10 +51,9 @@ const githubErrors = createErrors<GitHubIssueCode>({
       Number.isInteger(status) &&
       status >= 400 &&
       status <= 599;
-    const code = hasCode(error, codes) ? error.code : 'unknown_failure';
     const fields = {
       scope: 'github',
-      code,
+      code: hasCode(error, codes) ? error.code : 'unknown_failure',
       ...(isAllowedStatus ? { upstreamStatus: status } : {}),
     };
 
