@@ -68,16 +68,18 @@ export type FromErrorResponseDataOptions = Pick<
  * `An error occurred.`; untagged input requires `public`.
  *
  * Excludes developer details, name, stack, cause, request ID, metadata,
- * attributes, status, and unknown public fields. Does not select or range-check
- * HTTP status; tagged validation still requires a numeric `statusCode` if set.
+ * attributes, HTTP status fields, and unknown public fields. It does not select
+ * or range-check HTTP status, though tagged validation requires a numeric
+ * `statusCode` when set.
  *
- * Throws `TypeError` for invalid identity, public details, or tagged data;
- * untagged Error-like values (including objects with `name` or `stack`),
- * or missing untagged `public`. A top-level `message` never supplies public text.
+ * Throws `TypeError` for non-object input, invalid identity or public details,
+ * malformed tagged data, untagged Error-like values (including objects with
+ * `name` or `stack`), or untagged input without `public`. A top-level `message`
+ * never supplies public text.
  *
- * Does not mutate the source, report, perform I/O, or call source methods.
- * Property access can invoke getters or Proxy traps; their errors propagate.
- * The result is not frozen. The tag and valid shape do not establish producer
+ * Does not write to the source, report, perform I/O, or call source methods.
+ * Getters and Proxy traps can run; their errors propagate. The output is
+ * mutable. The tag and valid shape do not establish producer
  * trust or authorize recovery actions. Approve identity and text for each
  * audience.
  *

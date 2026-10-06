@@ -26,13 +26,11 @@ The returned factory always has three methods:
 
 Without `onReport`, `report()` writes a sanitized developer frame to `console.error`. The default output omits raw stack inspection and enumerable diagnostics.
 
-A supplied `onReport` receives the original error. Synchronous callback errors propagate instead of returning the error. The callback type returns `undefined`, so TypeScript rejects async callbacks. Record thrown errors at the operation boundary rather than adding reporting to `raise()` and risking duplicate telemetry.
-
-Terminal sanitization removes control sequences, not PII or confidential prose. An `onReport` integration must allowlist or scrub data before transmission.
+A supplied `onReport` receives the original error synchronously, returns `undefined`, and propagates callback errors. TypeScript rejects async callbacks. Report once at the final operation boundary; `create()` and `raise()` do not report. Terminal sanitization removes control sequences, not PII or confidential text, so reporter integrations must allowlist or scrub data.
 
 ## Allowlisted logging
 
-Use `onReport` to emit an application-defined log record. Keep each field and its accepted values explicit. A string or number type alone does not make provider data safe to log.
+Use `onReport` for application-defined log records. Allowlist fields and values; a string or number type alone does not make provider data safe.
 
 ```ts
 import { createErrors } from '@vercel/error';
@@ -80,7 +78,7 @@ function reportRosterFailure(
 }
 ```
 
-The application classifies the provider failure before calling `reportRosterFailure`. An invocation with code `unavailable` and status `503` logs only:
+The application classifies the provider failure before calling `reportRosterFailure`. With code `unavailable` and status `503`, the log event is `roster_failure` with these fields:
 
 ```json
 {
@@ -90,20 +88,18 @@ The application classifies the provider failure before calling `reportRosterFail
 }
 ```
 
-The event name is `roster_failure`. The original caught value remains in `cause` for controlled diagnosis and is excluded from this log record.
+The original caught value remains in `cause` and is excluded from the log record.
 
-- Select approved values in `onReport`. Do not spread `error`, `metadata`, or `attributes` into logs.
-- `toJSON()` includes diagnostic data. Terminal sanitization removes control sequences, not confidential content. Neither establishes a log disclosure policy.
-- `public` text is approved for the intended response recipient. Log retention and access need a separate decision.
-- Report once at the operation that owns the final failure. `create` and `raise` do not report. `report` creates, reports, and returns the same error.
-- `onReport` is synchronous and returns `undefined`. Its exceptions propagate; the callback owns how to handle a failing log sink.
-- Store an upstream status as diagnostic context. Reserve `statusCode` for an authored HTTP response mapping.
+- Never spread `error`, `metadata`, or `attributes` into logs; `toJSON()` includes diagnostics.
+- `public` text is approved for the response recipient only. Set separate log access and retention rules.
+- `report()` returns the same error after `onReport`; call it once at the operation that owns the final failure. Callback exceptions propagate, so define how the log sink handles failures.
+- Keep upstream status in diagnostic `attributes`. Reserve `statusCode` for an HTTP response mapping.
 
 ## Shared values
 
 Factory and per-error `metadata` and `attributes` merge one level deep, with per-error keys winning. Nested objects are replaced rather than merged recursively.
 
-`docsBaseUrl` can be a string or a function. A string trims trailing slashes and appends the code without changing it. A per-error developer `link` takes precedence. The factory never derives `public.link`; set client-approved links explicitly under each error's `public` fields.
+`docsBaseUrl` can be a string or a function. A string trims trailing slashes and appends the code without changing it. A per-error developer `link` takes precedence. The factory never derives `public.link`; set recipient-approved links explicitly under each error's `public` fields.
 
 ## Custom error class
 

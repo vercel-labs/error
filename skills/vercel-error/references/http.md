@@ -4,7 +4,7 @@ Use this reference for producing and consuming `ErrorResponseData`, building HTT
 
 ## Data producer
 
-`buildErrorResponseData()` is available from `@vercel/error/server` in 0.5.0 and later. Verify the installed version and exports before using it. The producer entry is isomorphic and works in browsers and workers without Node globals.
+`buildErrorResponseData()` is available from `@vercel/error/server` in 0.5.0 and later. Check the installed version and exports first. The entry works in browser, worker, edge, and Node runtimes.
 
 ```ts
 import {
@@ -22,17 +22,17 @@ const data: ErrorResponseData = buildErrorResponseData(input);
 const toolResult = { success: false, ...data };
 ```
 
-The builder also accepts a valid tagged error, including a local `VercelError`. A tagged error without `public` uses `An error occurred.` and retains identity. Explicit untagged input requires nested `public`; a top-level `message` never substitutes for it.
+The builder accepts valid tagged errors, including local `VercelError` instances. Tagged errors without `public` keep their identity and use `An error occurred.` Untagged input requires nested `public`; a top-level `message` never substitutes for it.
 
-It returns fresh plain objects containing only identity and approved text, with no source mutation or runtime freeze. It performs no reporting, I/O, format negotiation, or source method calls. Property access can run getters or Proxy traps; their exceptions propagate.
+Non-object input, invalid identity or public details, malformed tagged data, plain `Error` values, untagged objects with `name` or `stack`, and missing `public` throw `TypeError`. The structural signature cannot prove a value carries a valid tag.
 
-Invalid identity or public details, invalid tagged values, plain `Error` objects, untagged objects with `name` or `stack`, and untagged input without `public` throw `TypeError`. The structural function signature cannot prove a runtime tag is present.
+Each call returns fresh mutable plain data containing only identity and approved text. It does not write to the source, report, perform I/O, negotiate a format, or call source methods. Getters and Proxy traps can run; their exceptions propagate.
 
-Data building neither selects nor range-checks HTTP status. Tagged shape validation still requires a numeric `statusCode` if set. HTTP production separately requires an integer from 400 through 599. `ErrorResponseInput` extends `ErrorResponseDataInput` with optional `statusCode`.
+Data production does not select or range-check HTTP status. Tagged validation still requires numeric `statusCode` when set; `errorResponse()` separately requires an integer from 400 through 599. `ErrorResponseInput` extends `ErrorResponseDataInput` with optional `statusCode`.
 
-Approve scope and code as well as public text for the intended recipient. Valid shape and the forgeable tag do not authenticate the producer or authorize recovery actions. Logs need a separate [allowlist](create-errors.md#allowlisted-logging).
+Approve scope and code as well as public text for the recipient. Shape and the forgeable tag do not authenticate the producer or authorize recovery actions. Logs need a separate [allowlist](create-errors.md#allowlisted-logging).
 
-Applications own their tool or message schemas. Update those schemas and consumers before adding the envelope; use `data.error.message` when retaining an existing message field.
+Applications own tool and message schemas. Update them and their consumers before adding the envelope; project `data.error.message` into an existing field when needed.
 
 ## HTTP producer
 
@@ -126,7 +126,7 @@ The callback receives the original source plus `{ status, bodyFormat }`. `bodyFo
 
 `message` is required and nonblank. `scope` and `code` must be nonblank when present. Blank optional `reason`, `hint`, `fix`, and `link` fields are omitted; other text stays unchanged.
 
-`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. When using HTTP, take status from the observed response. Check the source before sending this data as JSON or through another channel.
+`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. For HTTP, use the observed response status. Check the source before forwarding data through another channel.
 
 The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 

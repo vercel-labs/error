@@ -1,6 +1,6 @@
 # Structured Error Contract
 
-`@vercel/error` gives errors stable identity and keeps developer details separate from text sent to clients. It covers error recognition across packages and realms, response data, HTTP, diagnostics, and terminal output.
+`@vercel/error` gives errors stable identity and separates developer details from recipient-approved text. It covers cross-package and cross-realm recognition, response data, HTTP, diagnostics, and terminal output.
 
 ## Language
 
@@ -15,7 +15,7 @@ Technical text intended for developers and operators diagnosing a failure. The d
 _Avoid_: Internal error details
 
 **Public error details**:
-Text approved for the intended recipient of an error response. It needs a nonblank `message`. Approval to show text does not verify who sent it or authorize an action.
+Text approved for an intended recipient. It needs a nonblank `message`; approval does not authenticate its source or authorize an action.
 _Avoid_: User message
 
 **Recovery guidance**:
@@ -40,7 +40,7 @@ A prospective HTTP error status associated with an authored error or explicit re
 _Avoid_: calling the authored mapping "status"
 
 **Error response data input**:
-Caller-authored error identity and nested public error details supplied when no structured error value is available. It carries no HTTP status mapping. Identity and every field under `public` are approved for the intended recipient.
+Caller-authored identity and required `public` details for response data production without a tagged error. It has no HTTP status mapping. Approve identity and text for the intended recipient.
 _Avoid_: Public error input
 
 **Error response input**:
@@ -48,7 +48,7 @@ Error response data input with an optional authored HTTP status mapping.
 _Avoid_: Error response params
 
 **Error response data**:
-Client-facing identity and details for HTTP responses and other message channels. This data excludes HTTP status and diagnostic context. Its shape does not verify who sent it.
+Identity and details approved for an HTTP or message recipient. It excludes HTTP status and diagnostic context, and does not authenticate its producer.
 _Avoid_: Error response payload
 
 **Error response**:

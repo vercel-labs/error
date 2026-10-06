@@ -69,7 +69,7 @@ assert(
     dataError.scope === 'roster' &&
     dataError.public?.message === 'The roster is unavailable' &&
     dataError.statusCode === undefined,
-  'data reconstruction changed identity, public text, or absent status',
+  'data reconstruction did not preserve identity and public text or unexpectedly set a status',
 );
 const inheritedInput: ErrorResponseDataInput = publicInput;
 assert(

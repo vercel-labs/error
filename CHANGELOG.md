@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Export `buildErrorResponseData` and its input type from the server entry, and document allowlisted logging.
+- Export `buildErrorResponseData` with its input and output types from `@vercel/error/server`, and add allowlisted logging guidance.
 
 ## 0.4.0
 

@@ -139,7 +139,7 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 
 Attach diagnostics at the boundary that owns reporting. `createErrors.report()` invokes `onReport`; without that callback it writes a sanitized developer frame to `console.error`. `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions.
 
-Record a thrown error at the final operation boundary instead of reporting it from each wrapper. Terminal sanitization does not remove PII; reporting integrations must apply their own privacy policy. Use the [allowlisted logging recipe](create-errors.md#allowlisted-logging) to select fields and permitted values while retaining the original cause.
+Report once at the final operation boundary. Terminal formatting removes control sequences, not PII, so reporters need their own privacy policy. The [allowlisted logging recipe](create-errors.md#allowlisted-logging) shows how to select fields and values while retaining `cause`.
 
 ### `metadata`
 

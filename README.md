@@ -2,7 +2,7 @@
 
 Use native `Error` for local failures. Use `@vercel/error` when callers need stable codes, clients need approved text, or readers need recovery advice.
 
-The package separates `scope` and `code` from developer details and client-approved `public` text. It also formats terminal output and has no runtime dependencies.
+The package separates `scope` and `code` from developer details and `public` text approved for the recipient. It also formats terminal output and has no runtime dependencies.
 
 ## Install
 
@@ -95,9 +95,9 @@ The constructor `message` and optional `reason`, `hint`, `fix`, and `link` are d
 
 Preserve an original failure through `cause`. Put nested debugging context in `metadata` and flat telemetry values in `attributes`.
 
-### Client-facing details (`public`)
+### Recipient-facing details (`public`)
 
-Only `public` text from a `VercelError` reaches recipients through `buildErrorResponseData()` or `errorResponse()`. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
+The data builder and `errorResponse()` use only `public` text from a `VercelError` as response prose. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
 
 The constructor throws `TypeError` for invalid details. It drops unknown fields and freezes a copy, so later input changes cannot alter the approved text.
 
@@ -144,7 +144,7 @@ const errors = createErrors<DatabaseCode>({
 });
 ```
 
-Pass the whole error to a reporter only when its disclosure policy permits all included diagnostics. For a restricted log record, use the [allowlisted logging recipe](#allowlisted-logging).
+Pass a whole error to a reporter only when its policy permits all included fields. For restricted logs, use the [allowlist recipe](#allowlisted-logging).
 
 The factory always returns three methods:
 
@@ -210,7 +210,7 @@ function reportRosterFailure(
 }
 ```
 
-The application classifies the provider failure before calling `reportRosterFailure`. An invocation with code `unavailable` and status `503` logs only:
+The application classifies the provider failure before calling `reportRosterFailure`. With code `unavailable` and status `503`, the log event is `roster_failure` with these fields:
 
 ```json
 {
@@ -220,7 +220,7 @@ The application classifies the provider failure before calling `reportRosterFail
 }
 ```
 
-The event name is `roster_failure`. The original caught value remains in `cause` for controlled diagnosis and is excluded from this log record.
+The original caught value remains in `cause` for controlled diagnosis and is excluded from this log record.
 
 - Select approved values in `onReport`. Do not spread `error`, `metadata`, or `attributes` into logs.
 - `toJSON()` includes diagnostic data. Terminal sanitization removes control sequences, not confidential content. Neither establishes a log disclosure policy.
@@ -381,7 +381,7 @@ interface ErrorResponse {
 
 ## Response data
 
-Use `buildErrorResponseData()` for tool results, worker messages, or other channels that need approved error data without HTTP status, headers, or format selection. The `server` entry owns production and works in browsers, workers, edge runtimes, and Node.
+Use `buildErrorResponseData()` for tool results and other message channels that need approved error data without HTTP status, headers, or format selection. The `server` entry works in browsers, workers, edge runtimes, and Node.
 
 ```ts
 import { VercelError } from '@vercel/error';
@@ -405,6 +405,8 @@ The example defines a tool result shape; existing tools must update their schema
 The builder accepts a valid tagged error or explicit `ErrorResponseDataInput`. Both input and output types are exported from `@vercel/error/server`. `ErrorResponseInput` extends the data input with optional `statusCode` for HTTP callers.
 
 ```ts
+import type { PublicErrorDetails } from '@vercel/error';
+
 interface ErrorResponseDataInput {
   readonly scope?: string;
   readonly code?: string;
@@ -414,9 +416,9 @@ interface ErrorResponseDataInput {
 
 Defined identity must be nonblank. `public.message` must be nonblank; optional public details must be strings. Blank optional details and unknown public fields are omitted, and other text is preserved. A tagged error without `public` gets `An error occurred.` while keeping its identity.
 
-Invalid identity or public details, invalid tagged values, plain `Error` objects, untagged objects with `name` or `stack`, and untagged input missing `public` throw `TypeError`. A top-level `message` never substitutes for `public.message`. The structural TypeScript signature cannot prove the runtime tag is present, so runtime validation still applies.
+Non-object input, invalid identity or public details, malformed tagged data, plain `Error` objects, untagged objects with `name` or `stack`, and untagged input missing `public` throw `TypeError`. A top-level `message` never substitutes for `public.message`. The structural TypeScript signature cannot prove the runtime tag is present, so runtime validation still applies.
 
-The builder returns fresh plain objects without mutating the source or freezing the result. It does not report, perform I/O, negotiate a format, or call source methods. Getters and Proxy traps can run; their exceptions propagate.
+The builder returns fresh plain objects, writes nothing to the source, and leaves the output mutable. It does not report, perform I/O, negotiate a format, or call source methods. Getters and Proxy traps can run; their exceptions propagate.
 
 It neither selects nor range-checks an HTTP status. Tagged validation still requires a numeric `statusCode` when defined. For example, data building accepts a tagged error with `statusCode: 200` and omits that field; `errorResponse()` rejects it.
 
