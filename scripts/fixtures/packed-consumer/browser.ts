@@ -47,10 +47,33 @@ assert(
 
 const error = new root.VercelError('DEV_MESSAGE', {
   code: 'unavailable',
-  public: { message: 'The service is unavailable' },
-  scope: 'browser',
+  public: { message: 'We could not retrieve the GitHub issue.' },
+  scope: 'github',
   statusCode: 503,
 });
+
+const data: server.ErrorResponseData = server.buildErrorResponseData(error);
+const dataInput: server.ErrorResponseDataInput = {
+  public: { message: 'Explicit data input' },
+};
+assert(
+  server.buildErrorResponseData(dataInput).error.message ===
+    'Explicit data input',
+  'browser bundle could not build explicit response data',
+);
+const parsedData = client.parseErrorResponseData(
+  JSON.parse(JSON.stringify(data)),
+);
+assert(parsedData, 'browser bundle could not parse produced data');
+const dataError = client.fromErrorResponseData(parsedData);
+assert(
+  dataError.code === 'unavailable' &&
+    dataError.scope === 'github' &&
+    dataError.public?.message === 'We could not retrieve the GitHub issue.' &&
+    dataError.statusCode === undefined &&
+    !JSON.stringify(data).includes('DEV_MESSAGE'),
+  'browser data round trip changed public fields or disclosed diagnostics',
+);
 
 const json = server.errorResponse(error);
 assert(
@@ -96,8 +119,8 @@ assert(
 const parsed = client.parseErrorResponseData(JSON.parse(json.body));
 assert(
   parsed?.error.code === 'unavailable' &&
-    parsed.error.scope === 'browser' &&
-    parsed.error.message === 'The service is unavailable',
+    parsed.error.scope === 'github' &&
+    parsed.error.message === 'We could not retrieve the GitHub issue.',
   'browser-platform bundle response did not preserve its public identity and message',
 );
 const reconstructed = client.fromErrorResponseData(parsed, {
@@ -112,7 +135,7 @@ assert(
 assert(
   format
     .formatError(reconstructed, { format: 'plain' })
-    .includes('The service is unavailable'),
+    .includes('We could not retrieve the GitHub issue.'),
   'plain format omitted the reconstructed public message',
 );
 

@@ -2,7 +2,7 @@
 
 Use native `Error` for local failures. Use `@vercel/error` when callers need stable codes, clients need approved text, or readers need recovery advice.
 
-The package separates `scope` and `code` from developer details and client-approved `public` text. It also formats terminal output and has no runtime dependencies.
+The package separates `scope` and `code` from developer details and `public` text approved for the recipient. It also formats terminal output and has no runtime dependencies.
 
 ## Install
 
@@ -56,12 +56,12 @@ Installing the npm package does not activate the skill.
 
 ## Entry points
 
-| Import                 | Exports                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                              |
-| `@vercel/error/client` | `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData`, `ErrorResponseData`, and option types |
-| `@vercel/error/server` | `errorResponse`, `wantsAnsi`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike`   |
-| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                      |
+| Import                 | Exports                                                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                                                                                                     |
+| `@vercel/error/client` | `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData`, `ErrorResponseData`, and option types                                                                        |
+| `@vercel/error/server` | `buildErrorResponseData`, `errorResponse`, `wantsAnsi`, `ErrorResponseDataInput`, `ErrorResponseData`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike` |
+| `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                                                                                             |
 
 ## Error contract
 
@@ -95,9 +95,9 @@ The constructor `message` and optional `reason`, `hint`, `fix`, and `link` are d
 
 Preserve an original failure through `cause`. Put nested debugging context in `metadata` and flat telemetry values in `attributes`.
 
-### Client-facing details (`public`)
+### Recipient-facing details (`public`)
 
-Only `public` text from a `VercelError` reaches clients through `errorResponse()`. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
+The data builder and `errorResponse()` use only `public` text from a `VercelError` as response prose. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
 
 The constructor throws `TypeError` for invalid details. It drops unknown fields and freezes a copy, so later input changes cannot alter the approved text.
 
@@ -121,9 +121,9 @@ Without `public`, a `VercelError` or tagged value sends `An error occurred.` ins
 
 ### Diagnostics and enrichment
 
-`requestId`, `metadata`, and `attributes` remain mutable so request and telemetry boundaries can add context after construction. They stay server-side during HTTP serialization.
+`requestId`, `metadata`, and `attributes` remain mutable so request and telemetry boundaries can add context after construction. They are excluded from response data and both HTTP body formats.
 
-`VercelError#toJSON()` is diagnostic serialization. It includes the developer message, stack, `public` details, metadata, attributes, and other defined enumerable fields; it excludes `cause`. Its output may contain sensitive data. Use `errorResponse()` for client-safe HTTP serialization.
+`VercelError#toJSON()` is diagnostic serialization. It includes the developer message, stack, `public` details, metadata, attributes, and other defined enumerable fields; it excludes `cause`. Its output may contain sensitive data. Use `buildErrorResponseData()` for client-safe data or `errorResponse()` for HTTP serialization. Logs need their own disclosure policy.
 
 ## Error factories
 
@@ -143,6 +143,8 @@ const errors = createErrors<DatabaseCode>({
   },
 });
 ```
+
+Pass a whole error to a reporter only when its policy permits all included fields. For restricted logs, use the [allowlisted logging recipe](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging).
 
 The factory always returns three methods:
 
@@ -296,25 +298,7 @@ const result = errorResponse({
 });
 ```
 
-The input uses `statusCode`; the result uses `status`. A top-level `message` on an untagged object is rejected because it is not an explicit disclosure decision.
-
-### Response data
-
-```ts
-interface ErrorResponseData {
-  readonly error: {
-    readonly scope?: string;
-    readonly code?: string;
-    readonly message: string;
-    readonly reason?: string;
-    readonly hint?: string;
-    readonly fix?: string;
-    readonly link?: string;
-  };
-}
-```
-
-`ErrorResponseData` and both serialized body formats exclude `requestId`, metadata, attributes, cause, stack, developer name, and status. Use the actual HTTP response status as the source of truth. `ErrorResponseData` is the client-safe shape for JSON and message channels, not a full diagnostic transport. Parsing validates its fields, not its producer.
+The input uses `statusCode`; the result uses `status`. A top-level `message` never substitutes for `public.message`.
 
 The completed server result is:
 
@@ -325,6 +309,46 @@ interface ErrorResponse {
   readonly headers: Record<string, string>;
 }
 ```
+
+## Response data
+
+Use `buildErrorResponseData()` when you need error data for a tool result or message.
+
+- Accepts a `VercelError`, valid tagged error data, or an `ErrorResponseDataInput` object.
+- Returns `scope`, `code`, and approved `public` text. Developer details, diagnostics, and HTTP status are excluded.
+- Works in browsers, workers, edge runtimes, and Node.
+
+### Example: a GitHub issue tool
+
+A coding agent calls `getGitHubIssue` to read an issue before fixing a bug. This example builds the tool's error result when GitHub returns HTTP 503, using `unavailable` as the error code:
+
+```ts
+import { buildErrorResponseData } from '@vercel/error/server';
+
+const data = buildErrorResponseData({
+  scope: 'github',
+  code: 'unavailable',
+  public: { message: 'We could not retrieve the GitHub issue.' },
+});
+const toolResult = { success: false, ...data };
+```
+
+The agent receives this tool result:
+
+```json
+{
+  "success": false,
+  "error": {
+    "scope": "github",
+    "code": "unavailable",
+    "message": "We could not retrieve the GitHub issue."
+  }
+}
+```
+
+The tool adds `success: false`; the builder supplies `error`. Adapt the wrapper to your tool's schema. For an existing message field, use `data.error.message`.
+
+See the [data producer reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/http.md#data-producer) for validation, fallback messages, and HTTP status rules.
 
 ## Consuming responses
 
@@ -406,6 +430,7 @@ Tagged matches do not prove the producer is trusted. Their metadata and attribut
 | `fromHttpResponse`       |           2.09 kB |
 | `parseErrorResponseData` |             373 B |
 | **@vercel/error/server** |                   |
+| `buildErrorResponseData` |           2.25 kB |
 | `errorResponse`          |           2.94 kB |
 | `wantsAnsi`              |             505 B |
 | **@vercel/error/format** |                   |

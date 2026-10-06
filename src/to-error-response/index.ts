@@ -2,21 +2,16 @@ import { isObject } from '../_internal';
 import {
   buildErrorResponseData,
   type ErrorResponseData,
+  type ErrorResponseDataInput,
 } from '../error-response-data';
 import { formatError } from '../format/index';
-import type { PublicErrorDetails, VercelErrorLike } from '../types';
+import type { VercelErrorLike } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
 /** Public input to `errorResponse()` when no tagged error is available. */
-export interface ErrorResponseInput {
-  /** Optional nonblank error scope. */
-  readonly scope?: string;
-  /** Optional nonblank stable error code. */
-  readonly code?: string;
+export interface ErrorResponseInput extends ErrorResponseDataInput {
   /** Status mapping; defaults to 500 or throws `RangeError` unless 400-599. */
   readonly statusCode?: number;
-  /** Required details approved for clients. */
-  readonly public: PublicErrorDetails;
 }
 
 /** Options for format selection and the `onSerialize` callback. */

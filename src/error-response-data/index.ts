@@ -18,9 +18,9 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Client-facing data shared by JSON and ANSI responses. Contains approved text
- * and optional nonblank identity, but no status or diagnostic fields. Parse
- * unknown data before use.
+ * Client-facing data for HTTP responses and other message channels. Contains
+ * approved text and optional nonblank identity, but no status or diagnostics.
+ * Parse unknown data before use.
  */
 export interface ErrorResponseData {
   readonly error: {
@@ -41,9 +41,16 @@ export interface ErrorResponseData {
   };
 }
 
-interface PublicErrorInput {
+/**
+ * Caller-authored identity and recipient-approved text, without an HTTP status
+ * mapping. Identity is also disclosed; approve it for the intended recipient.
+ */
+export interface ErrorResponseDataInput {
+  /** Optional nonblank error scope, preserved without trimming. */
   readonly scope?: string;
+  /** Optional nonblank stable error code, preserved without trimming. */
   readonly code?: string;
+  /** Required approved details with a nonblank message. */
   readonly public: PublicErrorDetails;
 }
 
@@ -54,11 +61,56 @@ export type FromErrorResponseDataOptions = Pick<
 >;
 
 /**
- * Build response data from tagged errors or explicit `public` input. Tagged
- * errors without `public` use a generic message. Invalid input throws `TypeError`.
+ * Build response data from a valid tagged error or explicit `public` input.
+ *
+ * Input:
+ *
+ * - `scope` and `code` are optional; defined values must be nonblank strings.
+ * - Untagged input requires `public`; a top-level `message` never supplies
+ *   public text.
+ * - Tagged errors without `public` use `An error occurred.`.
+ *
+ * Output:
+ *
+ * - Returns fresh, mutable plain objects shaped as `{ error: ... }`.
+ * - Copies `scope`, `code`, and public `message`, `reason`, `hint`, `fix`,
+ *   and `link` text.
+ * - Omits blank optional details and preserves other text.
+ * - Excludes developer details, `name`, `stack`, `cause`, `requestId`,
+ *   `metadata`, `attributes`, HTTP status fields, and unknown public fields.
+ *
+ * Behavior:
+ *
+ * - Does not write to the source, report, perform I/O, or call source methods.
+ * - Getters and Proxy traps can run; their exceptions propagate.
+ * - Does not select or range-check HTTP status. Tagged `statusCode` must
+ *   still be numeric when defined.
+ *
+ * Disclosure:
+ *
+ * - Approve identity and text for each recipient.
+ * - The tag and valid shape do not establish trust in the producer or
+ *   authorize recovery actions.
+ *
+ * @throws {TypeError} For invalid input:
+ *
+ * - Non-object input.
+ * - Invalid identity or public details.
+ * - Malformed tagged data.
+ * - Untagged Error-like values, including objects with `name` or `stack`.
+ * - Untagged input without `public`.
+ *
+ * @example
+ * ```ts
+ * const data = buildErrorResponseData({
+ *   scope: 'github',
+ *   code: 'unavailable',
+ *   public: { message: 'We could not retrieve the GitHub issue.' },
+ * });
+ * ```
  */
 export function buildErrorResponseData(
-  source: VercelErrorLike | PublicErrorInput,
+  source: VercelErrorLike | ErrorResponseDataInput,
 ): ErrorResponseData {
   if (!isObject(source)) {
     throw new TypeError(

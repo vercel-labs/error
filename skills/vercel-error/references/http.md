@@ -1,8 +1,43 @@
-# HTTP boundaries
+# Response data and HTTP boundaries
 
-Use this reference for producing `ErrorResponse`, consuming a Web `Response`, validating `ErrorResponseData`, and reconstructing errors.
+Use this reference for producing and consuming `ErrorResponseData`, building HTTP response fields, and reading a Web `Response`.
 
-## Producer
+## Data producer
+
+`buildErrorResponseData()` is available from `@vercel/error/server` in 0.5.0 and later. Check the installed version and exports first. The entry works in browser, worker, edge, and Node runtimes.
+
+A `getGitHubIssue` tool can return this data when its application classifies a failed GitHub request as `unavailable` (for example, HTTP 503):
+
+```ts
+import {
+  buildErrorResponseData,
+  type ErrorResponseDataInput,
+} from '@vercel/error/server';
+
+const input: ErrorResponseDataInput = {
+  scope: 'github',
+  code: 'unavailable',
+  public: { message: 'We could not retrieve the GitHub issue.' },
+};
+const data = buildErrorResponseData(input);
+const toolResult = { success: false, ...data };
+```
+
+The result does not establish whether the issue exists or authorize a retry. The application owns retry policy. To preserve and report the original failure, pass the error returned by [`reportGitHubIssueFailure`](create-errors.md#allowlisted-logging) to the builder.
+
+The builder accepts valid tagged errors, including local `VercelError` instances. Tagged errors without `public` keep their identity and use `An error occurred.` Untagged input requires nested `public`; a top-level `message` never substitutes for it.
+
+Non-object input, invalid identity or public details, malformed tagged data, plain `Error` values, untagged objects with `name` or `stack`, and missing `public` throw `TypeError`. The structural signature cannot prove a value carries a valid tag.
+
+Each call returns fresh mutable plain data containing only identity and approved text. It does not write to the source, report, perform I/O, negotiate a format, or call source methods. Getters and Proxy traps can run; their exceptions propagate.
+
+Data production does not select or range-check HTTP status. Tagged validation still requires numeric `statusCode` when set; `errorResponse()` separately requires an integer from 400 through 599. `ErrorResponseInput` extends `ErrorResponseDataInput` with optional `statusCode`.
+
+Approve scope and code as well as public text for the recipient. Shape and the forgeable tag do not authenticate the producer or authorize recovery actions. Logs need a separate [allowlist](create-errors.md#allowlisted-logging).
+
+Applications own tool and message schemas. Update them and their consumers before adding the envelope; project `data.error.message` into an existing field when needed.
+
+## HTTP producer
 
 Put every client-approved prose field under `public`. A `VercelError` without `public` receives the fixed response message `An error occurred.`; developer prose never fills the response.
 
@@ -67,7 +102,7 @@ const result = errorResponse({
 });
 ```
 
-Explicit input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`. An untagged top-level `message` is rejected.
+Explicit input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`. A top-level `message` never substitutes for `public.message`.
 
 Pass native, cross-realm, or Proxy-wrapped `Error` values through `cause` on a `VercelError`. `errorResponse()` rejects untagged Error-shaped objects and inputs without nested `public` details.
 
@@ -94,7 +129,7 @@ The callback receives the original source plus `{ status, bodyFormat }`. `bodyFo
 
 `message` is required and nonblank. `scope` and `code` must be nonblank when present. Blank optional `reason`, `hint`, `fix`, and `link` fields are omitted; other text stays unchanged.
 
-`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the observed HTTP status. Check the source before sending this data as JSON or through another channel.
+`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. For HTTP, use the observed response status. Check the source before forwarding data through another channel.
 
 The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 
@@ -124,10 +159,10 @@ Use `parseErrorResponseData()` for unknown decoded data. Use `fromErrorResponseD
 
 Parsing requires a nonblank `message`, plus nonblank `scope` and `code` when present. A wrong type in any known field rejects the data. Blank optional fields are omitted; unknown fields are ignored.
 
-`fromErrorResponseData()` copies parsed fields into a new error. Supply local context and the observed HTTP status.
+`fromErrorResponseData()` copies parsed fields into a new error. Supply local context and, for HTTP, the observed response status.
 
 Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 
 ## Boundary checks
 
-Test body, concrete status, and headers together. Cover nested public input, rejection of legacy flat input, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.
+For data producers, test the public import, approved fields, diagnostic exclusions, and serialization followed by parsing and reconstruction. For HTTP, test body, concrete status, and headers together. Cover nested public input, rejection of legacy flat input, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.
