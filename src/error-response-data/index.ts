@@ -61,34 +61,53 @@ export type FromErrorResponseDataOptions = Pick<
 >;
 
 /**
- * Build a fresh plain response envelope from a valid tagged error or explicit
- * `public` input. Copies optional nonblank `scope` and `code` plus approved
- * `message`, `reason`, `hint`, `fix`, and `link` text. Omits blank optional
- * details and preserves other text. Tagged errors without `public` use
- * `An error occurred.`; untagged input requires `public`.
+ * Build response data from a valid tagged error or explicit `public` input.
  *
- * Excludes developer details, name, stack, cause, request ID, metadata,
- * attributes, HTTP status fields, and unknown public fields. It does not select
- * or range-check HTTP status, though tagged validation requires a numeric
- * `statusCode` when set.
+ * Input:
  *
- * Throws `TypeError` for non-object input, invalid identity or public details,
- * malformed tagged data, untagged Error-like values (including objects with
- * `name` or `stack`), or untagged input without `public`. A top-level `message`
- * never supplies public text.
+ * - `scope` and `code` are optional; defined values must be nonblank strings.
+ * - Untagged input requires `public`; a top-level `message` never supplies
+ *   public text.
+ * - Tagged errors without `public` use `An error occurred.`.
  *
- * Does not write to the source, report, perform I/O, or call source methods.
- * Getters and Proxy traps can run; their errors propagate. The output is
- * mutable. The tag and valid shape do not establish producer
- * trust or authorize recovery actions. Approve identity and text for each
- * audience.
+ * Output:
+ *
+ * - Returns fresh, mutable plain objects shaped as `{ error: ... }`.
+ * - Copies `scope`, `code`, and public `message`, `reason`, `hint`, `fix`,
+ *   and `link` text.
+ * - Omits blank optional details and preserves other text.
+ * - Excludes developer details, `name`, `stack`, `cause`, `requestId`,
+ *   `metadata`, `attributes`, HTTP status fields, and unknown public fields.
+ *
+ * Behavior:
+ *
+ * - Does not write to the source, report, perform I/O, or call source methods.
+ * - Getters and Proxy traps can run; their exceptions propagate.
+ * - Does not select or range-check HTTP status. Tagged `statusCode` must
+ *   still be numeric when defined.
+ *
+ * Disclosure:
+ *
+ * - Approve identity and text for each recipient.
+ * - The tag and valid shape do not establish trust in the producer or
+ *   authorize recovery actions.
+ *
+ * @throws {TypeError} For invalid input:
+ *
+ * - Non-object input.
+ * - Invalid identity or public details.
+ * - Malformed tagged data.
+ * - Untagged Error-like values, including objects with `name` or `stack`.
+ * - Untagged input without `public`.
  *
  * @example
+ * ```ts
  * const data = buildErrorResponseData({
  *   scope: 'github',
  *   code: 'unavailable',
  *   public: { message: 'We could not retrieve the GitHub issue.' },
  * });
+ * ```
  */
 export function buildErrorResponseData(
   source: VercelErrorLike | ErrorResponseDataInput,
