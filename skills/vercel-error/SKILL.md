@@ -28,7 +28,7 @@ Keep native `Error` for a simple local failure that no caller classifies, transp
 
 - a stable code or scope
 - structured reason, hint, fix, or documentation
-- HTTP transport and reconstruction
+- response data or HTTP transport and reconstruction
 - telemetry or debugging context
 - consistent terminal presentation
 - reliable recognition across bundle or realm boundaries
@@ -37,13 +37,13 @@ Use a structured error only when you can name the caller, transport, logger, or 
 
 ### 3. Choose the public API
 
-| Need                                                                                  | Public API                                                                             | Read                                                    |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Decide error codes, details, public text, and reporting                               | `VercelErrorOptions`                                                                   | [Contract design](references/contract-design.md)        |
-| Construct one error, define a subclass, preserve a cause, or inspect a caught value   | `VercelError`, core guards and extractors                                              | [Core errors](references/core.md)                       |
-| Create a typed family with shared fields, documentation, reporting, or a custom class | `createErrors`                                                                         | [`createErrors` factories](references/create-errors.md) |
-| Produce or consume HTTP error responses                                               | `errorResponse`, `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData` | [HTTP errors](references/http.md)                       |
-| Format errors for terminal output                                                     | `formatError`, `frame`, `hint`, `fix`, `link`                                          | [Terminal output](references/format.md)                 |
+| Need                                                                                | Public API                                                                                                       | Read                                                    |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Decide error codes, details, public text, and reporting                             | `VercelErrorOptions`                                                                                             | [Contract design](references/contract-design.md)        |
+| Construct one error, define a subclass, preserve a cause, or inspect a caught value | `VercelError`, core guards and extractors                                                                        | [Core errors](references/core.md)                       |
+| Create a typed family, allowlist reporting, or use a custom class                   | `createErrors`                                                                                                   | [`createErrors` factories](references/create-errors.md) |
+| Produce or consume response data or HTTP error responses                            | `buildErrorResponseData`, `errorResponse`, `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData` | [Response data and HTTP](references/http.md)            |
+| Format errors for terminal output                                                   | `formatError`, `frame`, `hint`, `fix`, `link`                                                                    | [Terminal output](references/format.md)                 |
 
 Use `VercelError#toString()` for a `VercelError`; it already uses the package formatter. Use `frame()` for errors or CLI output that should remain another type.
 
@@ -71,6 +71,7 @@ Test the behavior that consumes the error, not private formatting helpers:
 
 - creation, throwing, and reporting through the factory when those paths matter
 - stable code and preserved cause for programmatic handling
+- response data with approved text and identity, excluding diagnostics
 - the same public fields in JSON and ANSI, plus `Content-Type`, conditional `Vary`, and HTTP status
 - rejection of invalid unknown response data before reconstruction
 - terminal output with and without optional sections

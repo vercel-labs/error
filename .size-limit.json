@@ -66,6 +66,12 @@
     "limit": "400 B"
   },
   {
+    "name": "buildErrorResponseData",
+    "path": "dist/server.js",
+    "import": "{ buildErrorResponseData }",
+    "limit": "2.35 kB"
+  },
+  {
     "name": "errorResponse",
     "path": "dist/server.js",
     "import": "{ errorResponse }",

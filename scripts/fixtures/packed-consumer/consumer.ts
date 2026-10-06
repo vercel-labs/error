@@ -17,10 +17,13 @@ import {
 } from '@vercel/error/client';
 import { fix, formatError, frame, hint, link } from '@vercel/error/format';
 import {
+  buildErrorResponseData,
   errorResponse,
   wantsAnsi,
   type ErrorResponse,
   type ErrorResponseInput,
+  type ErrorResponseData as ServerErrorResponseData,
+  type ErrorResponseDataInput,
 } from '@vercel/error/server';
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -50,6 +53,50 @@ const publicResponse: ErrorResponse = errorResponse(publicInput);
 assert(
   publicResponse.status === 400,
   'ErrorResponseInput status was not preserved in ErrorResponse',
+);
+
+const dataInput: ErrorResponseDataInput = {
+  code: 'unavailable',
+  scope: 'roster',
+  public: { message: 'The roster is unavailable' },
+};
+const produced: ServerErrorResponseData = buildErrorResponseData(dataInput);
+const decoded = parseErrorResponseData(JSON.parse(JSON.stringify(produced)));
+assert(decoded, 'produced response data did not survive serialization');
+const dataError = fromErrorResponseData(decoded);
+assert(
+  dataError.code === 'unavailable' &&
+    dataError.scope === 'roster' &&
+    dataError.public?.message === 'The roster is unavailable' &&
+    dataError.statusCode === undefined,
+  'data reconstruction changed identity, public text, or absent status',
+);
+const inheritedInput: ErrorResponseDataInput = publicInput;
+assert(
+  JSON.stringify(buildErrorResponseData(inheritedInput)) ===
+    publicResponse.body,
+  'HTTP input did not share the response data contract',
+);
+assert(
+  JSON.stringify(buildErrorResponseData(reported)) ===
+    errorResponse(reported).body,
+  'tagged error data did not match HTTP JSON output',
+);
+
+function verifyDataInputContracts(input: ErrorResponseDataInput): void {
+  // @ts-expect-error data input requires nested public details
+  const missingPublic: ErrorResponseDataInput = {};
+  // @ts-expect-error developer text cannot replace nested public details
+  const flatInput: ErrorResponseDataInput = { message: 'Developer detail' };
+  // @ts-expect-error authored identity is readonly
+  input.code = 'changed';
+  // @ts-expect-error authored public details are readonly
+  input.public = { message: 'Changed' };
+  assert(missingPublic && flatInput, 'invalid type fixtures were not defined');
+}
+assert(
+  typeof verifyDataInputContracts === 'function',
+  'data type fixture was not defined',
 );
 
 type CliErrorOptions = VercelErrorOptions<'cli_failure'>;

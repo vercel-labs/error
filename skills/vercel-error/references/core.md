@@ -56,4 +56,4 @@ class PaymentError extends VercelError {
 
 The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure. Tagged metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics.
 
-`VercelError#toJSON()` includes the name, developer message, optional stack, `public` details, and fields such as metadata and attributes. It excludes `cause`. This output may contain private details; use `errorResponse()` for client-facing HTTP responses.
+`VercelError#toJSON()` includes the name, developer message, optional stack, `public` details, and fields such as metadata and attributes. It excludes `cause`. This output may contain private details; use `buildErrorResponseData()` for client-facing data or `errorResponse()` for HTTP responses (see [Response data and HTTP](http.md)). Logs need a separate [allowlist](create-errors.md#allowlisted-logging).

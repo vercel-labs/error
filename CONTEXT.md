@@ -1,6 +1,6 @@
 # Structured Error Contract
 
-`@vercel/error` gives errors stable identity and keeps developer details separate from text sent to clients. It covers error recognition across packages and realms, HTTP response data, diagnostics, and terminal output.
+`@vercel/error` gives errors stable identity and keeps developer details separate from text sent to clients. It covers error recognition across packages and realms, response data, HTTP, diagnostics, and terminal output.
 
 ## Language
 
@@ -39,12 +39,16 @@ _Avoid_: Cross-realm error
 A prospective HTTP error status associated with an authored error or explicit response input. It is separate from error identity and becomes concrete only on an error response.
 _Avoid_: calling the authored mapping "status"
 
+**Error response data input**:
+Caller-authored error identity and nested public error details supplied when no structured error value is available. It carries no HTTP status mapping. Identity and every field under `public` are approved for the intended recipient.
+_Avoid_: Public error input
+
 **Error response input**:
-Caller-authored error identity, nested public error details, and an authored status mapping supplied when no structured error value is available. Every field under `public` is approved for disclosure.
+Error response data input with an optional authored HTTP status mapping.
 _Avoid_: Error response params
 
 **Error response data**:
-Client-facing identity and details shared by JSON and ANSI output. This data excludes HTTP status and diagnostic context. Its shape does not verify who sent it.
+Client-facing identity and details for HTTP responses and other message channels. This data excludes HTTP status and diagnostic context. Its shape does not verify who sent it.
 _Avoid_: Error response payload
 
 **Error response**:

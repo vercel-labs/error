@@ -92,11 +92,11 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 
 ### `public`
 
-- Put client-approved text under `public`. `ErrorResponseInput` requires it; `VercelError` may omit it.
+- Put client-approved text under `public`. `ErrorResponseDataInput` and `ErrorResponseInput` require it; `VercelError` may omit it.
 - `public.message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings. Omit blank optional values and keep other text unchanged.
 - State what happened and a supported next step. Exclude implementation details, topology, raw provider text, secrets, and promises the application cannot guarantee.
-- If no approved client copy exists on a `VercelError`, omit `public`; `errorResponse()` uses its fixed generic message. Untagged `ErrorResponseInput` must always provide `public`.
-- JSON and ANSI responses use the same client-approved fields. Scope, code, and status also reach clients; review each one before sending it.
+- If no approved client copy exists on a `VercelError`, omit `public`; `buildErrorResponseData()` and `errorResponse()` use the fixed generic message. Untagged data and HTTP inputs must always provide `public`.
+- Response data and both HTTP body formats use the same client-approved fields. Scope and code, plus status for HTTP responses, also reach clients; review each one before sending it.
 
 ### `reason`, `hint`, and `fix`
 
@@ -139,14 +139,14 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 
 Attach diagnostics at the boundary that owns reporting. `createErrors.report()` invokes `onReport`; without that callback it writes a sanitized developer frame to `console.error`. `create()` and `raise()` do not report. `errorResponse()` invokes `onSerialize` only when the caller supplies it. Both callbacks are synchronous, return `undefined`, and propagate exceptions.
 
-Record a thrown error at the final operation boundary instead of reporting it from each wrapper. Terminal sanitization does not remove PII; reporting integrations must apply their own privacy policy.
+Record a thrown error at the final operation boundary instead of reporting it from each wrapper. Terminal sanitization does not remove PII; reporting integrations must apply their own privacy policy. Use the [allowlisted logging recipe](create-errors.md#allowlisted-logging) to select fields and permitted values while retaining the original cause.
 
 ### `metadata`
 
 - Store allowlisted nested context needed for debugging.
 - Bound depth, size, string length, and collection counts at untrusted boundaries.
 - Exclude credentials, tokens, sessions, payment data, raw bodies, headers, and whole provider request or response payloads.
-- Use metadata for debugging, not machine decisions. `toJSON()` includes metadata, while `ErrorResponseData` does not. Use `toJSON()` only for internal diagnostics, not public HTTP responses.
+- Use metadata for debugging, not machine decisions. `toJSON()` includes metadata, while `ErrorResponseData` does not. Use `toJSON()` only for internal diagnostics, not client-facing response data.
 
 ### `attributes`
 
@@ -160,12 +160,12 @@ Record a thrown error at the final operation boundary instead of reporting it fr
 
 ## Boundary checks
 
-- Unknown errors are internal diagnostics. Untagged `errorResponse()` input must put approved prose under `public`; a top-level `message` is not a disclosure decision.
+- Unknown errors are internal diagnostics. Untagged `buildErrorResponseData()` and `errorResponse()` input must put approved prose under `public`; a top-level `message` is not a disclosure decision.
 - Review every publicly visible field and transport signal, including code, HTTP status, JSON fields, and ANSI output. Unauthorized callers must not learn whether a protected resource exists through different codes or statuses.
 - Approve every `public` field for clients. JSON and ANSI use the same fields. `Vary` lists the headers that can affect format selection; headers do not grant disclosure permission.
 - Parsing validates fields, not who sent them or whether they are safe. Apply the Recovery authority rules before acting on error text or links.
 - Automation should branch on stable fields and rules defined by the receiving application, never rendered text.
-- `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. It can cross serialization channels after source validation, but tagged `VercelErrorLike` data cannot rely on its Symbol tag surviving. When rebuilding an error, use the observed response status and add only context the receiving application already knows.
+- `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. It can cross serialization channels after source validation, but tagged `VercelErrorLike` data cannot rely on its Symbol tag surviving. When rebuilding an error from HTTP, use the observed response status and add only context the receiving application already knows.
 
 ## Audit output
 

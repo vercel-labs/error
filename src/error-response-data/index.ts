@@ -18,9 +18,9 @@ const GENERIC_PUBLIC_MESSAGE = 'An error occurred.';
 const RESPONSE_IDENTITY_FIELDS = ['scope', 'code'] as const;
 
 /**
- * Client-facing data shared by JSON and ANSI responses. Contains approved text
- * and optional nonblank identity, but no status or diagnostic fields. Parse
- * unknown data before use.
+ * Client-facing data for HTTP responses and other message channels. Contains
+ * approved text and optional nonblank identity, but no status or diagnostics.
+ * Parse unknown data before use.
  */
 export interface ErrorResponseData {
   readonly error: {
@@ -41,9 +41,16 @@ export interface ErrorResponseData {
   };
 }
 
-interface PublicErrorInput {
+/**
+ * Caller-authored identity and recipient-approved text, without an HTTP status
+ * mapping. Identity is also disclosed; approve it for the intended recipient.
+ */
+export interface ErrorResponseDataInput {
+  /** Optional nonblank error scope, preserved without trimming. */
   readonly scope?: string;
+  /** Optional nonblank stable error code, preserved without trimming. */
   readonly code?: string;
+  /** Required approved details with a nonblank message. */
   readonly public: PublicErrorDetails;
 }
 
@@ -54,11 +61,35 @@ export type FromErrorResponseDataOptions = Pick<
 >;
 
 /**
- * Build response data from tagged errors or explicit `public` input. Tagged
- * errors without `public` use a generic message. Invalid input throws `TypeError`.
+ * Build a fresh plain response envelope from a valid tagged error or explicit
+ * `public` input. Copies optional nonblank `scope` and `code` plus approved
+ * `message`, `reason`, `hint`, `fix`, and `link` text. Omits blank optional
+ * details and preserves other text. Tagged errors without `public` use
+ * `An error occurred.`; untagged input requires `public`.
+ *
+ * Excludes developer details, name, stack, cause, request ID, metadata,
+ * attributes, status, and unknown public fields. Does not select or range-check
+ * HTTP status; tagged validation still requires a numeric `statusCode` if set.
+ *
+ * Throws `TypeError` for invalid identity, public details, or tagged data;
+ * untagged Error-like values (including objects with `name` or `stack`),
+ * or missing untagged `public`. A top-level `message` never supplies public text.
+ *
+ * Does not mutate the source, report, perform I/O, or call source methods.
+ * Property access can invoke getters or Proxy traps; their errors propagate.
+ * The result is not frozen. The tag and valid shape do not establish producer
+ * trust or authorize recovery actions. Approve identity and text for each
+ * audience.
+ *
+ * @example
+ * const data = buildErrorResponseData({
+ *   scope: 'roster',
+ *   code: 'unavailable',
+ *   public: { message: 'The roster is temporarily unavailable.' },
+ * });
  */
 export function buildErrorResponseData(
-  source: VercelErrorLike | PublicErrorInput,
+  source: VercelErrorLike | ErrorResponseDataInput,
 ): ErrorResponseData {
   if (!isObject(source)) {
     throw new TypeError(

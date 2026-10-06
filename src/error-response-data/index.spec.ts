@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
-  buildErrorResponseData,
   type ErrorResponseData,
   fromErrorResponseData,
   parseErrorResponseData,
 } from '.';
-import { VercelError } from '../vercel-error';
+import { createErrors, VercelError } from '../index';
+import { buildErrorResponseData, errorResponse } from '../server';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 describe('error response data', () => {
@@ -42,6 +42,91 @@ describe('error response data', () => {
           scope: 'database',
         },
       });
+    });
+
+    it('builds data independently of HTTP status validation', () => {
+      const error = new VercelError('Developer detail', {
+        public: { message: 'Public message' },
+        statusCode: 200,
+      });
+
+      expect(buildErrorResponseData(error)).toEqual({
+        error: { message: 'Public message' },
+      });
+      expect(() => errorResponse(error)).toThrow(RangeError);
+      expect(() =>
+        buildErrorResponseData({
+          message: 'Developer detail',
+          public: { message: 'Public message' },
+          statusCode: '503',
+          [VERCEL_ERROR_TAG]: true,
+        } as never),
+      ).toThrow(TypeError);
+    });
+
+    it('returns fresh data without changing the source or reporting', () => {
+      const onReport = vi.fn(() => undefined);
+      const errors = createErrors({ onReport });
+      const error = errors.create('Developer detail', {
+        public: { message: 'Public message' },
+      });
+      const snapshot = Object.getOwnPropertyDescriptors(error);
+      const first = buildErrorResponseData(error);
+      const second = buildErrorResponseData(error);
+
+      expect(first).toEqual(second);
+      expect(first).not.toBe(second);
+      expect(first.error).not.toBe(second.error);
+      expect(first.error).not.toBe(error.public);
+      expect(Object.getPrototypeOf(first)).toBe(Object.prototype);
+      expect(Object.getPrototypeOf(first.error)).toBe(Object.prototype);
+      expect(Object.getOwnPropertyDescriptors(error)).toEqual(snapshot);
+      expect(onReport).not.toHaveBeenCalled();
+    });
+
+    it('matches HTTP JSON data without calling source methods', () => {
+      const toJSON = vi.fn(() => {
+        throw new Error('Unexpected toJSON');
+      });
+      const toString = vi.fn(() => {
+        throw new Error('Unexpected toString');
+      });
+      const source = {
+        message: 'Developer detail',
+        public: { message: 'Public message' },
+        code: 'unavailable',
+        scope: 'api',
+        statusCode: 503,
+        toJSON,
+        toString,
+        [VERCEL_ERROR_TAG]: true,
+      };
+
+      expect(buildErrorResponseData(source)).toEqual(
+        JSON.parse(errorResponse(source).body),
+      );
+      expect(toJSON).not.toHaveBeenCalled();
+      expect(toString).not.toHaveBeenCalled();
+    });
+
+    it('propagates property access errors', () => {
+      const failure = new Error('Getter failed');
+      const source = {
+        get public() {
+          throw failure;
+        },
+      };
+
+      expect(() => buildErrorResponseData(source)).toThrow(failure);
+    });
+
+    it.each([
+      new Error('Developer detail'),
+      {},
+      { name: 'Error', public: { message: 'Public message' } },
+      { stack: 'Developer stack', public: { message: 'Public message' } },
+    ])('rejects untagged diagnostics or missing public input: %o', (source) => {
+      expect(() => buildErrorResponseData(source as never)).toThrow(TypeError);
     });
 
     it('uses a fixed generic message when public details are absent', () => {

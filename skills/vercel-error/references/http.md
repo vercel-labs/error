@@ -1,8 +1,40 @@
-# HTTP boundaries
+# Response data and HTTP boundaries
 
-Use this reference for producing `ErrorResponse`, consuming a Web `Response`, validating `ErrorResponseData`, and reconstructing errors.
+Use this reference for producing and consuming `ErrorResponseData`, building HTTP response fields, and reading a Web `Response`.
 
-## Producer
+## Data producer
+
+`buildErrorResponseData()` is available from `@vercel/error/server` in 0.5.0 and later. Verify the installed version and exports before using it. The producer entry is isomorphic and works in browsers and workers without Node globals.
+
+```ts
+import {
+  buildErrorResponseData,
+  type ErrorResponseData,
+  type ErrorResponseDataInput,
+} from '@vercel/error/server';
+
+const input: ErrorResponseDataInput = {
+  scope: 'roster',
+  code: 'unavailable',
+  public: { message: 'The roster is temporarily unavailable.' },
+};
+const data: ErrorResponseData = buildErrorResponseData(input);
+const toolResult = { success: false, ...data };
+```
+
+The builder also accepts a valid tagged error, including a local `VercelError`. A tagged error without `public` uses `An error occurred.` and retains identity. Explicit untagged input requires nested `public`; a top-level `message` never substitutes for it.
+
+It returns fresh plain objects containing only identity and approved text, with no source mutation or runtime freeze. It performs no reporting, I/O, format negotiation, or source method calls. Property access can run getters or Proxy traps; their exceptions propagate.
+
+Invalid identity or public details, invalid tagged values, plain `Error` objects, untagged objects with `name` or `stack`, and untagged input without `public` throw `TypeError`. The structural function signature cannot prove a runtime tag is present.
+
+Data building neither selects nor range-checks HTTP status. Tagged shape validation still requires a numeric `statusCode` if set. HTTP production separately requires an integer from 400 through 599. `ErrorResponseInput` extends `ErrorResponseDataInput` with optional `statusCode`.
+
+Approve scope and code as well as public text for the intended recipient. Valid shape and the forgeable tag do not authenticate the producer or authorize recovery actions. Logs need a separate [allowlist](create-errors.md#allowlisted-logging).
+
+Applications own their tool or message schemas. Update those schemas and consumers before adding the envelope; use `data.error.message` when retaining an existing message field.
+
+## HTTP producer
 
 Put every client-approved prose field under `public`. A `VercelError` without `public` receives the fixed response message `An error occurred.`; developer prose never fills the response.
 
@@ -67,7 +99,7 @@ const result = errorResponse({
 });
 ```
 
-Explicit input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`. An untagged top-level `message` is rejected.
+Explicit input and `VercelError` both use `statusCode`. The returned result and native `Response` use the concrete property `status`. A top-level `message` never substitutes for `public.message`.
 
 Pass native, cross-realm, or Proxy-wrapped `Error` values through `cause` on a `VercelError`. `errorResponse()` rejects untagged Error-shaped objects and inputs without nested `public` details.
 
@@ -94,7 +126,7 @@ The callback receives the original source plus `{ status, bodyFormat }`. `bodyFo
 
 `message` is required and nonblank. `scope` and `code` must be nonblank when present. Blank optional `reason`, `hint`, `fix`, and `link` fields are omitted; other text stays unchanged.
 
-`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. Use the observed HTTP status. Check the source before sending this data as JSON or through another channel.
+`ErrorResponseData` excludes HTTP status, request ID, cause, stack, developer name, metadata, and attributes. When using HTTP, take status from the observed response. Check the source before sending this data as JSON or through another channel.
 
 The body is the Vercel REST API error envelope, not RFC 9457 problem details; that stance is deliberate. When an integration requires `application/problem+json`, translate in the application: `code` plus `link` map to `type`, `message` maps to `detail`, and the other fields become extension members.
 
@@ -124,10 +156,10 @@ Use `parseErrorResponseData()` for unknown decoded data. Use `fromErrorResponseD
 
 Parsing requires a nonblank `message`, plus nonblank `scope` and `code` when present. A wrong type in any known field rejects the data. Blank optional fields are omitted; unknown fields are ignored.
 
-`fromErrorResponseData()` copies parsed fields into a new error. Supply local context and the observed HTTP status.
+`fromErrorResponseData()` copies parsed fields into a new error. Supply local context and, for HTTP, the observed response status.
 
 Parsing validates shape only. It does not authenticate the producer, make the fields safe for a different recipient, or authorize an action. Verify the producer and review all fields before forwarding them; validate permissions, parameters, and side effects before following a fix or link. Apply the [Recovery authority rules](contract-design.md#recovery-authority).
 
 ## Boundary checks
 
-Test body, concrete status, and headers together. Cover nested public input, rejection of legacy flat input, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.
+For data producers, test the public import, approved fields, diagnostic exclusions, and serialization followed by parsing and reconstruction. For HTTP, test body, concrete status, and headers together. Cover nested public input, rejection of legacy flat input, the generic fallback, scope/code disclosure, malformed known fields, unknown fields, reconstruction with the observed response status, and JSON/ANSI parity. If diagnostics callbacks are wired, test ordering and synchronous failure propagation.

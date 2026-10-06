@@ -52,6 +52,29 @@ const error = new root.VercelError('DEV_MESSAGE', {
   statusCode: 503,
 });
 
+const data: server.ErrorResponseData = server.buildErrorResponseData(error);
+const dataInput: server.ErrorResponseDataInput = {
+  public: { message: 'Explicit data input' },
+};
+assert(
+  server.buildErrorResponseData(dataInput).error.message ===
+    'Explicit data input',
+  'browser bundle could not build explicit response data',
+);
+const parsedData = client.parseErrorResponseData(
+  JSON.parse(JSON.stringify(data)),
+);
+assert(parsedData, 'browser bundle could not parse produced data');
+const dataError = client.fromErrorResponseData(parsedData);
+assert(
+  dataError.code === 'unavailable' &&
+    dataError.scope === 'browser' &&
+    dataError.public?.message === 'The service is unavailable' &&
+    dataError.statusCode === undefined &&
+    !JSON.stringify(data).includes('DEV_MESSAGE'),
+  'browser data round trip changed public fields or disclosed diagnostics',
+);
+
 const json = server.errorResponse(error);
 assert(
   json.status === 503,

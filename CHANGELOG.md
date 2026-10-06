@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.5.0
+
+### Minor Changes
+
+- Export `buildErrorResponseData` and its input type from the server entry, and document allowlisted logging.
+
 ## 0.4.0
 
 ### Minor Changes

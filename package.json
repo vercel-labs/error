@@ -1,6 +1,6 @@
 {
   "name": "@vercel/error",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A small error contract with stable identity, client-safe responses, and terminal formatting",
   "license": "MIT",
   "author": "Vercel",
