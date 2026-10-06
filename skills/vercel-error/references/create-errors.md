@@ -33,7 +33,7 @@ A supplied `onReport` receives the original error synchronously, returns `undefi
 A coding agent reads a GitHub issue before fixing a bug. If the request fails, its tool reports once and returns approved error data. Use `onReport` to allowlist log fields and values; types alone do not make provider data safe.
 
 ```ts
-import { createErrors } from '@vercel/error';
+import { createErrors, hasCode } from '@vercel/error';
 
 const codes = [
   'unavailable',
@@ -46,21 +46,19 @@ const githubErrors = createErrors<GitHubIssueCode>({
   scope: 'github',
   onReport(error) {
     const status = error.attributes?.['upstream.status'];
-    const code =
-      error.code !== undefined && codes.includes(error.code)
-        ? error.code
-        : 'unknown_failure';
-
-    console.error('github_issue_fetch_failed', {
-      scope: 'github',
-      code,
-      ...(typeof status === 'number' &&
+    const isAllowedStatus =
+      typeof status === 'number' &&
       Number.isInteger(status) &&
       status >= 400 &&
-      status <= 599
-        ? { upstreamStatus: status }
-        : {}),
-    });
+      status <= 599;
+    const code = hasCode(error, codes) ? error.code : 'unknown_failure';
+    const fields = {
+      scope: 'github',
+      code,
+      ...(isAllowedStatus ? { upstreamStatus: status } : {}),
+    };
+
+    console.error('github_issue_fetch_failed', fields);
   },
 });
 
@@ -77,6 +75,8 @@ function reportGitHubIssueFailure(
   });
 }
 ```
+
+`hasCode(error, codes)` checks membership at runtime. The application defines the list and the fallback.
 
 The application maps GitHub HTTP 503 to `unavailable`, missing integration credentials to `configuration_failed`, and unrecognized failures to `unknown_failure`. For the 503 case, `github_issue_fetch_failed` logs:
 
