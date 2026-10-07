@@ -10,11 +10,13 @@ import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 /**
  * Match a local `VercelError` or tagged data with valid authored field types.
  * Narrows to `RecognizedVercelError`, which adds the package tag to the
- * structural `VercelErrorLike` fields. Diagnostic object contents are not
- * validated. Any object can forge the tag, so use `instanceof VercelError`
- * before calling methods or relying on typed local diagnostics. Tagged
- * `public.message` may be blank; serialization checks it later. Property-access
- * exceptions propagate.
+ * structural `VercelErrorLike` fields.
+ *
+ * - Diagnostic object contents are not validated.
+ * - Any object can forge the tag. Use `instanceof VercelError` before calling
+ *   methods or relying on typed local diagnostics.
+ * - Tagged `public.message` may be blank; serialization checks it later.
+ * - Property-access exceptions propagate.
  */
 export function isVercelError(error: unknown): error is RecognizedVercelError {
   if (error instanceof VercelError) {

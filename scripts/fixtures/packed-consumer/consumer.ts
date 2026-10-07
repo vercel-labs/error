@@ -235,7 +235,7 @@ function verifyRecognizedProducerContracts(
   buildErrorResponseData(reconstructed);
   errorResponse(reconstructed);
   formatError(new Error('Plain error'));
-  formatError({ message: 'Structural fields remain formatable' });
+  formatError({ message: 'Structural fields remain formattable' });
 
   // @ts-expect-error ordinary Error is not a recognized producer input
   buildErrorResponseData(new Error('Plain error'));

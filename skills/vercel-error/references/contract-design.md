@@ -94,7 +94,7 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 
 - Put client-approved text under `public`. `ErrorResponseDataInput` and `ErrorResponseInput` require it; `VercelError` may omit it.
 - Keep `VercelErrorLike` structural. `RecognizedVercelError` adds the existing package marker and is the tagged input accepted by response producers; `isVercelError()` narrows unknown values to it.
-- This producer type tightening starts in 0.6.0. Version 0.5.0 retains the existing runtime checks but its declarations can accept unrecognized errors.
+- Version 0.6.0 adds the recognized-error requirement to producer types. Version 0.5.0 retains the runtime checks, but its declarations accept unrecognized errors.
 - Explicit response inputs exclude `name` and `stack`. With `exactOptionalPropertyTypes` disabled, `name: undefined` and `stack: undefined` can still typecheck, but runtime validation rejects both.
 - `public.message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings. Omit blank optional values and keep other text unchanged.
 - State what happened and a supported next step. Exclude implementation details, topology, raw provider text, secrets, and promises the application cannot guarantee.

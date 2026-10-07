@@ -139,9 +139,10 @@ export function createGitHubIssueReporter(
 }
 
 /**
- * Create a one-attempt GitHub issue lookup using injected provider operations.
- * Missing configuration and operation failures are reported after the
- * provider-operation catch; successful lookups are returned without reporting.
+ * Create a GitHub issue lookup that makes at most one request.
+ * Reports missing configuration and operation failures outside the catch for
+ * initialization and issue retrieval. Returns successful lookups without
+ * reporting.
  */
 export function createGitHubIssueTool(
   dependencies: GitHubIssueToolDependencies,

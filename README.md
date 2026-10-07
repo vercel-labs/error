@@ -97,7 +97,9 @@ Preserve an original failure through `cause`. Put nested debugging context in `m
 
 ### Structural fields and producer recognition
 
-`VercelErrorLike` describes error fields without requiring the package tag, so formatters and field inspection can use structural values. `RecognizedVercelError` adds the existing package marker and is accepted by response producers. `VercelError` instances and subclasses satisfy it, as do factory results whose custom constructors use current declarations.
+`VercelErrorLike` describes error fields without requiring the package tag. Formatters and callers inspecting fields can use structural values.
+
+`RecognizedVercelError` adds the existing package marker and is accepted by response producers. `VercelError` instances and subclasses satisfy it, as do factory results whose custom constructors use current declarations.
 
 ```ts
 import {
@@ -120,9 +122,11 @@ if (isVercelError(fields)) {
 }
 ```
 
-`isVercelError()` narrows unknown values to `RecognizedVercelError`. A value annotated only as `VercelErrorLike` has lost that marker in its static type; retain its concrete type or recognize it before producing a response. Recognition does not provide class methods, validate diagnostic contents, authenticate the producer, or approve disclosure.
+`isVercelError()` narrows unknown values to `RecognizedVercelError`. `VercelErrorLike` does not carry the package marker in its static type, so keep a concrete error type or call the guard before producing a response.
 
-The producer type tightening ships in 0.6.0. Version 0.5.0 already rejects plain `Error` at runtime, but its producer signatures do not catch that mistake during typechecking.
+Recognition does not provide class methods or validate diagnostic contents. It also does not authenticate the producer or approve disclosure.
+
+Version 0.6.0 adds the recognized-error requirement to the producer types. Version 0.5.0 allows a plain `Error` call in TypeScript, then rejects it at runtime.
 
 For migration guidance, see [Core errors](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/core.md#recognition-and-extraction). The [executable GitHub issue tool](https://github.com/vercel-labs/error/blob/main/examples/github-issue-tool/index.ts) shows setup, reporting, provider classification, and the tool result. The [allowlisted logging reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging) covers the logging boundary.
 

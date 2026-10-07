@@ -140,9 +140,8 @@ export interface VercelErrorLike<
 }
 
 /**
- * A `VercelErrorLike` value with the existing package tag still observable.
+ * A `VercelErrorLike` value whose package tag remains observable.
  *
- * - Includes the fields of `VercelErrorLike` and the existing package tag.
  * - Does not guarantee class methods or validate diagnostic contents.
  * - Does not authenticate the producer, approve disclosure, or authorize an
  *   action.

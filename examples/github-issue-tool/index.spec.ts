@@ -55,7 +55,7 @@ describe('GitHub issue tool', () => {
     });
   });
 
-  it('returns the retrieved issue without reporting success', async () => {
+  it('returns the retrieved issue without reporting', async () => {
     const harness = makeHarness();
 
     const result = await harness.tool(42);
@@ -163,7 +163,7 @@ describe('GitHub issue tool', () => {
     expect(harness.log).toHaveBeenCalledTimes(1);
   });
 
-  it('handles a non-Error request throw without inventing status', async () => {
+  it('handles a request that throws a non-Error value without inventing status', async () => {
     const harness = makeHarness({
       getGitHubIssue: async () => {
         throw 'PRIVATE_NON_ERROR';

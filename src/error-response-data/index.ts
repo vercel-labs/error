@@ -73,8 +73,8 @@ export type FromErrorResponseDataOptions = Pick<
  * Input:
  *
  * - `scope` and `code` are optional; defined values must be nonblank strings.
- * - Tagged input must be `RecognizedVercelError`; `VercelErrorLike` fields
- *   alone are not producer eligibility.
+ * - Tagged input must be `RecognizedVercelError`. Structural `VercelErrorLike`
+ *   fields alone do not make an error eligible for response production.
  * - Untagged input requires `public`; a top-level `message` never supplies
  *   public text. Explicit input excludes `name` and `stack`.
  * - Recognized errors without `public` use `An error occurred.`.

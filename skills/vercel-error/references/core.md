@@ -54,13 +54,19 @@ class PaymentError extends VercelError {
 - `isError`, `isErrorLike`, and `getMessage` handle unknown caught values without unsafe casts. `isErrorLike` guarantees only a string `message`.
 - `getRootCause` follows `cause` and stops on object cycles.
 
-`VercelErrorLike` describes fields and remains structural; it does not prove that a value carries the package marker. `RecognizedVercelError` adds the existing marker and is the tagged input accepted by `buildErrorResponseData()` and `errorResponse()`. Local `VercelError` instances, subclasses, and factory results satisfy that type. `isVercelError()` narrows an unknown or structurally annotated value to it.
+`VercelErrorLike` remains structural. It describes error fields but does not require the package marker.
 
-Older or duplicate package copies remain recognizable while their shared marker and valid fields are observable. Recognition still does not authenticate the producer or approve disclosure.
+`RecognizedVercelError` adds the marker and is the tagged input accepted by `buildErrorResponseData()` and `errorResponse()`.
 
-The stronger producer signatures ship in 0.6.0. Version 0.5.0 already rejects untagged errors at runtime, but its declarations do not reject them at compile time.
+Local `VercelError` instances, subclasses, and factory results satisfy the type. `isVercelError()` narrows unknown or structurally typed values to it.
 
-If a variable was annotated as `VercelErrorLike`, retain the concrete error type or narrow it with `isVercelError()` before response production. Do not add a cast. Plain errors and field objects remain usable with `formatError()`. A custom constructor compiled against older package declarations may need an update before its result is accepted by current response producer types.
+Errors from older or duplicate package copies remain recognizable while their shared marker and valid fields are observable.
+
+Version 0.6.0 requires recognized errors in producer types. Version 0.5.0 rejects untagged errors at runtime, but its declarations allow those calls.
+
+If a variable was annotated as `VercelErrorLike`, retain the concrete error type or narrow it with `isVercelError()` before response production. Do not add a cast. Plain errors and field objects remain usable with `formatError()`.
+
+A custom constructor compiled against older package declarations may need a dependency update before it can be passed to the current `createErrors()`. Recognizing an instance with `isVercelError()` does not change its constructor type.
 
 The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure. Tagged metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics.
 
