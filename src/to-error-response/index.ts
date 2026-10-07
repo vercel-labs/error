@@ -5,10 +5,10 @@ import {
   type ErrorResponseDataInput,
 } from '../error-response-data';
 import { formatError } from '../format/index';
-import type { VercelErrorLike } from '../types';
+import type { RecognizedVercelError } from '../types';
 import { wantsAnsi, type HeadersLike } from '../wants-ansi';
 
-/** Public input to `errorResponse()` when no tagged error is available. */
+/** Public input to `errorResponse()` when no recognized error is available. */
 export interface ErrorResponseInput extends ErrorResponseDataInput {
   /** Status mapping; defaults to 500 or throws `RangeError` unless 400-599. */
   readonly statusCode?: number;
@@ -19,9 +19,12 @@ export interface ErrorResponseOptions {
   /** Headers for format selection. Defaults to JSON; adds `Vary` when supplied. */
   readonly request?: Request | HeadersLike;
 
-  /** Runs after the response is built. Errors propagate; return `undefined`. */
+  /**
+   * Receives the same recognized error or explicit input after the response is
+   * built. Runs synchronously, returns `undefined`, and propagates errors.
+   */
   readonly onSerialize?: (
-    source: VercelErrorLike | ErrorResponseInput,
+    source: RecognizedVercelError | ErrorResponseInput,
     context: {
       /** Concrete HTTP status selected for this response. */
       readonly status: number;
@@ -50,16 +53,16 @@ const VARY_HEADERS = {
 } as const;
 
 /**
- * Build HTTP response fields from tagged errors or explicit `public` input.
- * - Body: approved text and optional `scope` and `code`. Tagged errors without
- *   `public` use a generic message; untagged input requires it.
+ * Build HTTP response fields from recognized errors or explicit `public` input.
+ * - Body: approved text and optional `scope` and `code`. Recognized errors
+ *   without `public` use a generic message; untagged input requires it.
  * - Status: 500 by default; only integers from 400 to 599 are allowed.
  * - Format: JSON by default; `request` selects ANSI via {@link wantsAnsi}.
  *
  * Invalid input throws `TypeError`; invalid status throws `RangeError`.
  */
 export function errorResponse(
-  source: VercelErrorLike | ErrorResponseInput,
+  source: RecognizedVercelError | ErrorResponseInput,
   options: ErrorResponseOptions = {},
 ): ErrorResponse {
   const status = resolveStatus(source);
@@ -90,7 +93,9 @@ export function errorResponse(
   return result;
 }
 
-function resolveStatus(source: VercelErrorLike | ErrorResponseInput): number {
+function resolveStatus(
+  source: RecognizedVercelError | ErrorResponseInput,
+): number {
   const value = isObject(source) ? source['statusCode'] : undefined;
   const status = value === undefined ? 500 : value;
 

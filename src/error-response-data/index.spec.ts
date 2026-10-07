@@ -129,6 +129,21 @@ describe('error response data', () => {
       expect(() => buildErrorResponseData(source as never)).toThrow(TypeError);
     });
 
+    it.each(['name', 'stack'] as const)(
+      'rejects explicit undefined %s at runtime',
+      (field) => {
+        const source: Record<PropertyKey, unknown> = {
+          public: { message: 'Public message' },
+        };
+        source[field] = undefined;
+
+        expect(() => buildErrorResponseData(source as never)).toThrow(
+          TypeError,
+        );
+        expect(() => errorResponse(source as never)).toThrow(TypeError);
+      },
+    );
+
     it('uses a fixed generic message when public details are absent', () => {
       const error = new VercelError('Secret developer detail', {
         code: 'internal',

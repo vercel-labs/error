@@ -58,7 +58,7 @@ Installing the npm package does not activate the skill.
 
 | Import                 | Exports                                                                                                                                                                             |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, shared types                                                                                                                     |
+| `@vercel/error`        | `VercelError`, `createErrors`, guards, extractors, `VercelErrorLike`, `RecognizedVercelError`, and shared types                                                                     |
 | `@vercel/error/client` | `fromHttpResponse`, `parseErrorResponseData`, `fromErrorResponseData`, `ErrorResponseData`, and option types                                                                        |
 | `@vercel/error/server` | `buildErrorResponseData`, `errorResponse`, `wantsAnsi`, `ErrorResponseDataInput`, `ErrorResponseData`, `ErrorResponseInput`, `ErrorResponse`, `ErrorResponseOptions`, `HeadersLike` |
 | `@vercel/error/format` | `formatError`, `frame`, `hint`, `fix`, `link`, format and section types                                                                                                             |
@@ -95,9 +95,40 @@ The constructor `message` and optional `reason`, `hint`, `fix`, and `link` are d
 
 Preserve an original failure through `cause`. Put nested debugging context in `metadata` and flat telemetry values in `attributes`.
 
+### Structural fields and producer recognition
+
+`VercelErrorLike` describes error fields without requiring the package tag, so formatters and field inspection can use structural values. `RecognizedVercelError` adds the existing package marker and is accepted by response producers. `VercelError` instances and subclasses satisfy it, as do factory results whose custom constructors use current declarations.
+
+```ts
+import {
+  isVercelError,
+  VercelError,
+  type VercelErrorLike,
+} from '@vercel/error';
+import { formatError } from '@vercel/error/format';
+import { buildErrorResponseData, errorResponse } from '@vercel/error/server';
+
+const error = new VercelError('GitHub issue lookup failed', {
+  public: { message: 'We could not retrieve the GitHub issue.' },
+});
+const fields: VercelErrorLike = error;
+formatError(fields);
+
+if (isVercelError(fields)) {
+  const data = buildErrorResponseData(fields);
+  const response = errorResponse(fields);
+}
+```
+
+`isVercelError()` narrows unknown values to `RecognizedVercelError`. A value annotated only as `VercelErrorLike` has lost that marker in its static type; retain its concrete type or recognize it before producing a response. Recognition does not provide class methods, validate diagnostic contents, authenticate the producer, or approve disclosure.
+
+The producer type tightening ships in 0.6.0. Version 0.5.0 already rejects plain `Error` at runtime, but its producer signatures do not catch that mistake during typechecking.
+
+For migration guidance, see [Core errors](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/core.md#recognition-and-extraction). The [executable GitHub issue tool](https://github.com/vercel-labs/error/blob/main/examples/github-issue-tool/index.ts) shows setup, reporting, provider classification, and the tool result. The [allowlisted logging reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging) covers the logging boundary.
+
 ### Recipient-facing details (`public`)
 
-The data builder and `errorResponse()` use only `public` text from a `VercelError` as response prose. Its `message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
+Both producers take authored response prose from nested `public` details. `public.message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings; blank values are omitted and other text is preserved.
 
 The constructor throws `TypeError` for invalid details. It drops unknown fields and freezes a copy, so later input changes cannot alter the approved text.
 
@@ -111,7 +142,7 @@ interface PublicErrorDetails {
 }
 ```
 
-Without `public`, a `VercelError` or tagged value sends `An error occurred.` instead of developer text. Untagged input requires `public`. `docsBaseUrl` sets only the developer `link`; set `public.link` explicitly for clients. `scope`, `code`, and HTTP status still reach clients.
+Without `public`, a recognized error sends `An error occurred.` instead of developer text. Explicit input requires `public`. `docsBaseUrl` sets only the developer `link`; set `public.link` explicitly for clients. `scope`, `code`, and HTTP status still reach clients.
 
 ### Transport
 
@@ -314,41 +345,13 @@ interface ErrorResponse {
 
 Use `buildErrorResponseData()` when you need error data for a tool result or message.
 
-- Accepts a `VercelError`, valid tagged error data, or an `ErrorResponseDataInput` object.
+- Accepts a recognized error, including a local `VercelError` or a value narrowed by `isVercelError()`, or explicit `ErrorResponseDataInput`.
 - Returns `scope`, `code`, and approved `public` text. Developer details, diagnostics, and HTTP status are excluded.
 - Works in browsers, workers, edge runtimes, and Node.
 
 ### Example: a GitHub issue tool
 
-A coding agent calls `getGitHubIssue` to read an issue before fixing a bug. This example builds the tool's error result when GitHub returns HTTP 503, using `unavailable` as the error code:
-
-```ts
-import { buildErrorResponseData } from '@vercel/error/server';
-
-const data = buildErrorResponseData({
-  scope: 'github',
-  code: 'unavailable',
-  public: { message: 'We could not retrieve the GitHub issue.' },
-});
-const toolResult = { success: false, ...data };
-```
-
-The agent receives this tool result:
-
-```json
-{
-  "success": false,
-  "error": {
-    "scope": "github",
-    "code": "unavailable",
-    "message": "We could not retrieve the GitHub issue."
-  }
-}
-```
-
-The tool adds `success: false`; the builder supplies `error`. Adapt the wrapper to your tool's schema. For an existing message field, use `data.error.message`.
-
-See the [data producer reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/http.md#data-producer) for validation, fallback messages, and HTTP status rules.
+The [complete executable example](https://github.com/vercel-labs/error/blob/main/examples/github-issue-tool/index.ts) injects client setup, issue retrieval, and a synchronous log sink. Its colocated spec is included in `pnpm validate`; run it alone with `pnpm exec vitest run examples/github-issue-tool/index.spec.ts`. The tests cover the result union, 503 classification, private-field exclusion, and reporting failures. The [focused logging reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging) shows the field allowlist pattern.
 
 ## Consuming responses
 
@@ -391,14 +394,14 @@ Parsing requires a nonblank string `message`, plus nonblank `scope` and `code` w
 
 All utilities below are exported from `@vercel/error`:
 
-| Function                       | Behavior                                                                |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `isVercelError(value)`         | Recognize local instances or tagged data while the tag remains visible  |
-| `isError(value)`               | Recognize standard errors across realms (iframes, workers, VM contexts) |
-| `isErrorLike(value)`           | Recognize an object with a string `message`                             |
-| `hasCode(error, codeOrCodes)`  | Narrow an error by one code or a readonly list                          |
-| `getMessage(error, fallback?)` | Extract a message from an unknown value                                 |
-| `getRootCause(error)`          | Follow `cause` to the root while stopping object cycles                 |
+| Function                       | Behavior                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| `isVercelError(value)`         | Recognize and narrow local instances or tagged data while the tag remains visible |
+| `isError(value)`               | Recognize standard errors across realms (iframes, workers, VM contexts)           |
+| `isErrorLike(value)`           | Recognize an object with a string `message`                                       |
+| `hasCode(error, codeOrCodes)`  | Narrow an error by one code or a readonly list                                    |
+| `getMessage(error, fallback?)` | Extract a message from an unknown value                                           |
+| `getRootCause(error)`          | Follow `cause` to the root while stopping object cycles                           |
 
 `isError` recognizes standard errors across realms. It uses `Error.isError` when available and falls back on older runtimes. `errorResponse()` applies separate disclosure checks, so fallback differences cannot expose developer details.
 

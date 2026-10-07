@@ -14,6 +14,25 @@ describe('isVercelError', () => {
     expect(isVercelError(new AppError('test'))).toBe(true);
   });
 
+  it('recognizes an error from another package copy through the shared marker', () => {
+    class OtherCopyVercelError extends Error {
+      readonly code = 'timeout';
+      readonly scope = 'api';
+
+      constructor() {
+        super('other package copy');
+        Object.defineProperty(this, Symbol.for('@vercel/error/VercelError'), {
+          configurable: false,
+          enumerable: false,
+          value: true,
+          writable: false,
+        });
+      }
+    }
+
+    expect(isVercelError(new OtherCopyVercelError())).toBe(true);
+  });
+
   it('returns false for plain Error', () => {
     expect(isVercelError(new Error('test'))).toBe(false);
   });

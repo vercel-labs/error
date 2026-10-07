@@ -4,10 +4,14 @@ import {
   hasCode,
   isErrorLike,
   isVercelError,
+  type ErrorAttributes,
   type ErrorMetadata,
   type ErrorResponseData,
+  type RecognizedVercelError,
+  type VercelErrorLike,
   type VercelErrorOptions,
 } from '@vercel/error';
+import * as root from '@vercel/error';
 import {
   fromErrorResponseData,
   fromHttpResponse,
@@ -29,6 +33,11 @@ import {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  !('VERCEL_ERROR_TAG' in root),
+  'the runtime recognition tag became a public export',
+);
 
 type VisitorCode = 'bad_request' | 'unavailable';
 let reportedCode: VisitorCode | undefined;
@@ -109,6 +118,9 @@ class CliError extends VercelError<'cli_failure'> {
 }
 const cliErrors = createErrors({ ErrorClass: CliError, scope: 'cli' });
 const cliError = cliErrors.create('CLI failed', { code: 'cli_failure' });
+const directCustomError = new CliError('Direct custom error');
+buildErrorResponseData(directCustomError);
+errorResponse(directCustomError);
 assert(cliError.retryable, 'custom CliError instance was not retryable');
 assert(hasCode(cliError, 'cli_failure'), 'hasCode failed');
 assert(isErrorLike(cliError), 'isErrorLike failed');
@@ -205,6 +217,109 @@ assert(
   'public details were not reconstructed',
 );
 
+function verifyRecognizedProducerContracts(
+  structural: VercelErrorLike,
+  unknownError: unknown,
+): void {
+  const local = new VercelError('Local error');
+  const inferredData: ServerErrorResponseData = buildErrorResponseData(local);
+  const inferredResponse: ErrorResponse = errorResponse(local);
+  const tagged: RecognizedVercelError = local;
+  // @ts-expect-error recognition does not grant class methods
+  tagged.toJSON();
+  const unvalidatedAttributes: unknown = tagged.attributes;
+  // @ts-expect-error recognized diagnostics stay unknown
+  const typedAttributes: ErrorAttributes | undefined = tagged.attributes;
+  buildErrorResponseData(tagged);
+  errorResponse(tagged);
+  buildErrorResponseData(reconstructed);
+  errorResponse(reconstructed);
+  formatError(new Error('Plain error'));
+  formatError({ message: 'Structural fields remain formatable' });
+
+  // @ts-expect-error ordinary Error is not a recognized producer input
+  buildErrorResponseData(new Error('Plain error'));
+  // @ts-expect-error ordinary Error is not a recognized producer input
+  errorResponse(new Error('Plain error'));
+  // @ts-expect-error flat message input does not make a disclosure decision
+  buildErrorResponseData({ message: 'Developer detail' });
+  // @ts-expect-error flat message input does not make a disclosure decision
+  errorResponse({ message: 'Developer detail' });
+  // @ts-expect-error explicit input requires public details
+  buildErrorResponseData({});
+  // @ts-expect-error explicit input requires public details
+  errorResponse({});
+
+  const decoratedError = Object.assign(new Error('Private'), {
+    public: { message: 'Approved' },
+  });
+  // @ts-expect-error Error name and stack are not explicit input fields
+  buildErrorResponseData(decoratedError);
+  // @ts-expect-error Error name and stack are not explicit input fields
+  errorResponse(decoratedError);
+  // @ts-expect-error untagged name is excluded
+  buildErrorResponseData({ public: { message: 'Approved' }, name: 'Custom' });
+  // @ts-expect-error untagged name is excluded
+  errorResponse({ public: { message: 'Approved' }, name: 'Custom' });
+  // @ts-expect-error untagged stack is excluded
+  buildErrorResponseData({ public: { message: 'Approved' }, stack: 'trace' });
+  // @ts-expect-error untagged stack is excluded
+  errorResponse({ public: { message: 'Approved' }, stack: 'trace' });
+
+  const withTopLevelMessage = {
+    message: 'Ignored developer detail',
+    public: { message: 'Approved' },
+  };
+  buildErrorResponseData(withTopLevelMessage);
+  errorResponse(withTopLevelMessage);
+
+  // @ts-expect-error structural fields alone do not prove recognition
+  buildErrorResponseData(structural);
+  // @ts-expect-error structural fields alone do not prove recognition
+  errorResponse(structural);
+  if (isVercelError(structural)) {
+    buildErrorResponseData(structural);
+    errorResponse(structural);
+  }
+  if (hasCode(unknownError, 'unavailable')) {
+    // @ts-expect-error a matching code alone does not prove recognition
+    buildErrorResponseData(unknownError);
+  }
+  if (isVercelError(unknownError) && hasCode(unknownError, 'cli_failure')) {
+    const narrowedCode: 'cli_failure' = unknownError.code;
+    buildErrorResponseData(unknownError);
+    errorResponse(unknownError);
+    assert(narrowedCode === 'cli_failure', 'composed guard lost the code');
+  }
+
+  const callbackResponse = errorResponse(local, {
+    onSerialize: (source) => {
+      const callbackData: ServerErrorResponseData =
+        buildErrorResponseData(source);
+      assert(callbackData.error.message, 'onSerialize source was not accepted');
+    },
+  });
+  assert(inferredData.error.message, 'builder return type changed');
+  assert(inferredResponse.body, 'HTTP producer return type changed');
+  assert(callbackResponse.body, 'serialization callback contract changed');
+  assert(unvalidatedAttributes === undefined, 'diagnostics became validated');
+  assert(typedAttributes === undefined, 'recognized diagnostics became typed');
+}
+assert(
+  typeof verifyRecognizedProducerContracts === 'function',
+  'recognized producer type fixture was not defined',
+);
+
+// oxlint-disable-next-line typescript-eslint/explicit-module-boundary-types -- declaration emission must infer this public recognized return type
+export function makeInferredRecognizedError() {
+  return new VercelError('Inferred public return type');
+}
+
+// oxlint-disable-next-line typescript-eslint/explicit-module-boundary-types -- declaration emission must infer the guard's public return type
+export function narrowInferredRecognizedError(value: unknown) {
+  return isVercelError(value) ? value : undefined;
+}
+
 const fallback = errorResponse(new VercelError('Secret developer prose'));
 assert(
   JSON.parse(fallback.body).error.message === 'An error occurred.',
@@ -216,7 +331,8 @@ for (const untaggedError of [
 ]) {
   let untaggedErrorRejected = false;
   try {
-    errorResponse(untaggedError);
+    // Bypass the new producer type to retain a runtime rejection check.
+    errorResponse(untaggedError as never);
   } catch (error) {
     untaggedErrorRejected = error instanceof TypeError;
   }

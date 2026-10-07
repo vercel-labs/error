@@ -1,16 +1,22 @@
 import { isObject } from '../_internal';
-import type { PublicErrorDetails, VercelErrorLike } from '../types';
+import type {
+  PublicErrorDetails,
+  RecognizedVercelError,
+  VercelErrorLike,
+} from '../types';
 import { VercelError } from '../vercel-error';
 import { VERCEL_ERROR_TAG } from '../vercel-error/tag';
 
 /**
  * Match a local `VercelError` or tagged data with valid authored field types.
- * Diagnostic object contents are not validated. Any object can forge the tag,
- * so use `instanceof VercelError` before calling methods or relying on typed
- * local diagnostics. Tagged `public.message` may be blank; serialization checks
- * it later. Property-access exceptions propagate.
+ * Narrows to `RecognizedVercelError`, which adds the package tag to the
+ * structural `VercelErrorLike` fields. Diagnostic object contents are not
+ * validated. Any object can forge the tag, so use `instanceof VercelError`
+ * before calling methods or relying on typed local diagnostics. Tagged
+ * `public.message` may be blank; serialization checks it later. Property-access
+ * exceptions propagate.
  */
-export function isVercelError(error: unknown): error is VercelErrorLike {
+export function isVercelError(error: unknown): error is RecognizedVercelError {
   if (error instanceof VercelError) {
     return true;
   }
@@ -23,7 +29,10 @@ export function isVercelError(error: unknown): error is VercelErrorLike {
   );
 }
 
-/** @internal Validate the data fields consumed from a tagged value. */
+/**
+ * @internal Validate tagged error fields without requiring the package marker.
+ * This structural guard does not grant response-producer eligibility.
+ */
 export function isVercelErrorLikeData(
   error: unknown,
 ): error is VercelErrorLike {

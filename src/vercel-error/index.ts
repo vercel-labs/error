@@ -4,13 +4,25 @@ import type {
   ErrorAttributes,
   ErrorMetadata,
   PublicErrorDetails,
+  RecognizedVercelError,
   VercelErrorOptions,
 } from '../types';
 import { VERCEL_ERROR_TAG } from './tag';
 
 /**
+ * Type declaration for the existing package marker on local instances.
+ * The marker provides recognition, not producer authentication or disclosure
+ * approval.
+ */
+/* oxlint-disable-next-line typescript-eslint/no-unsafe-declaration-merging -- required for isolated declaration emission without adding a runtime field */
+export interface VercelError<TCode extends string = string> {
+  readonly [VERCEL_ERROR_TAG]: RecognizedVercelError<TCode>[typeof VERCEL_ERROR_TAG];
+}
+
+/**
  * An `Error` with stable identity and separate developer and client text.
  * Construction validates `scope` and `code`, and freezes a copy of `public`.
+ * Local instances satisfy `RecognizedVercelError` for response producers.
  * Use `instanceof` before calling methods on tagged data.
  *
  * @template TCode - Strongly typed error code union

@@ -22,10 +22,19 @@ const consumerDirectory = join(workspace, 'consumer');
 async function main() {
   try {
     execFileSync('mkdir', [packDirectory, consumerDirectory]);
-    execFileSync('pnpm', ['pack', '--pack-destination', packDirectory], {
-      cwd: packageRoot,
-      stdio: 'inherit',
-    });
+    execFileSync(
+      'pnpm',
+      [
+        '--config.ignore-scripts=true',
+        'pack',
+        '--pack-destination',
+        packDirectory,
+      ],
+      {
+        cwd: packageRoot,
+        stdio: 'inherit',
+      },
+    );
 
     const tarballName = readdirSync(packDirectory).find((name) =>
       name.endsWith('.tgz'),
@@ -35,7 +44,11 @@ async function main() {
 
     writeFileSync(
       join(consumerDirectory, 'package.json'),
-      JSON.stringify({ name: 'vercel-error-packed-consumer', private: true }),
+      JSON.stringify({
+        name: 'vercel-error-packed-consumer',
+        private: true,
+        type: 'module',
+      }),
     );
     execFileSync(
       'npm',
@@ -47,7 +60,14 @@ async function main() {
         '--no-package-lock',
         tarball,
       ],
-      { cwd: consumerDirectory, stdio: 'inherit' },
+      {
+        cwd: consumerDirectory,
+        env: {
+          ...process.env,
+          npm_config_cache: join(workspace, 'npm-cache'),
+        },
+        stdio: 'inherit',
+      },
     );
     const installedPackageRoot = join(
       consumerDirectory,
@@ -64,17 +84,21 @@ async function main() {
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
           outDir: 'build',
+          declaration: true,
           strict: true,
           target: 'ES2022',
         },
-        include: ['consumer.ts'],
+        include: ['consumer.ts', 'github-issue-tool-check.ts'],
       }),
     );
     for (const fixture of [
       'browser.ts',
       'consumer.ts',
+      'github-issue-tool-check.ts',
       'tsconfig.browser.json',
       'tsdown.browser.config.mjs',
+      'types-exact-optional-off.ts',
+      'types-exact-optional-on.ts',
       'utility.ts',
     ]) {
       copyFileSync(
@@ -82,12 +106,54 @@ async function main() {
         join(consumerDirectory, fixture),
       );
     }
+    copyFileSync(
+      join(packageRoot, 'examples/github-issue-tool/index.ts'),
+      join(consumerDirectory, 'github-issue-tool.ts'),
+    );
 
     const tsc = join(packageRoot, 'node_modules', 'typescript', 'bin', 'tsc');
-    execFileSync(process.execPath, [tsc, '--project', 'tsconfig.json'], {
-      cwd: consumerDirectory,
-      stdio: 'inherit',
-    });
+    for (const exactOptionalPropertyTypes of ['true', 'false']) {
+      execFileSync(
+        process.execPath,
+        [
+          tsc,
+          '--project',
+          'tsconfig.json',
+          '--exactOptionalPropertyTypes',
+          exactOptionalPropertyTypes,
+        ],
+        {
+          cwd: consumerDirectory,
+          stdio: 'inherit',
+        },
+      );
+    }
+    writeFileSync(
+      join(consumerDirectory, 'tsconfig.exact-optional-off.json'),
+      JSON.stringify({
+        extends: './tsconfig.json',
+        compilerOptions: { exactOptionalPropertyTypes: false },
+        include: ['types-exact-optional-off.ts'],
+      }),
+    );
+    execFileSync(
+      process.execPath,
+      [tsc, '--project', 'tsconfig.exact-optional-off.json'],
+      { cwd: consumerDirectory, stdio: 'inherit' },
+    );
+    writeFileSync(
+      join(consumerDirectory, 'tsconfig.exact-optional-on.json'),
+      JSON.stringify({
+        extends: './tsconfig.json',
+        compilerOptions: { exactOptionalPropertyTypes: true },
+        include: ['types-exact-optional-on.ts'],
+      }),
+    );
+    execFileSync(
+      process.execPath,
+      [tsc, '--project', 'tsconfig.exact-optional-on.json'],
+      { cwd: consumerDirectory, stdio: 'inherit' },
+    );
     execFileSync(
       process.execPath,
       [tsc, '--project', 'tsconfig.browser.json'],
@@ -101,6 +167,11 @@ async function main() {
     const runtimeEnvironment = { ...process.env, NO_COLOR: '1' };
     delete runtimeEnvironment.FORCE_COLOR;
     execFileSync(process.execPath, ['build/consumer.js'], {
+      cwd: consumerDirectory,
+      env: runtimeEnvironment,
+      stdio: 'inherit',
+    });
+    execFileSync(process.execPath, ['build/github-issue-tool-check.js'], {
       cwd: consumerDirectory,
       env: runtimeEnvironment,
       stdio: 'inherit',
