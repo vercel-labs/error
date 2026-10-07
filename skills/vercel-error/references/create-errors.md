@@ -32,8 +32,6 @@ A supplied `onReport` receives the original error synchronously, returns `undefi
 
 A coding agent reads a GitHub issue before fixing a bug. If the request fails, its tool reports once and returns approved error data. Use `onReport` to allowlist log fields and values; types alone do not make provider data safe.
 
-For the full injected client flow, including setup failures, request classification, result mapping, and tested sink behavior, see the [executable GitHub issue tool](https://github.com/vercel-labs/error/blob/main/examples/github-issue-tool/index.ts). Its recognized producer types ship in 0.6.0; the existing logging pattern also works with 0.5.0.
-
 ```ts
 import { createErrors, hasCode } from '@vercel/error';
 

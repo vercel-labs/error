@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Require recognized errors for response production and add the tested GitHub issue tool example.
+- Require recognized errors for response production.
 
 ## 0.5.0
 

@@ -128,7 +128,7 @@ Recognition does not provide class methods or validate diagnostic contents. It a
 
 Version 0.6.0 adds the recognized-error requirement to the producer types. Version 0.5.0 allows a plain `Error` call in TypeScript, then rejects it at runtime.
 
-For migration guidance, see [Core errors](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/core.md#recognition-and-extraction). The [executable GitHub issue tool](https://github.com/vercel-labs/error/blob/main/examples/github-issue-tool/index.ts) shows setup, reporting, provider classification, and the tool result. The [allowlisted logging reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging) covers the logging boundary.
+For migration guidance, see [Core errors](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/core.md#recognition-and-extraction) and the [allowlisted logging reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging).
 
 ### Recipient-facing details (`public`)
 
@@ -355,7 +355,35 @@ Use `buildErrorResponseData()` when you need error data for a tool result or mes
 
 ### Example: a GitHub issue tool
 
-The [complete executable example](https://github.com/vercel-labs/error/blob/main/examples/github-issue-tool/index.ts) injects client setup, issue retrieval, and a synchronous log sink. Its colocated spec is included in `pnpm validate`; run it alone with `pnpm exec vitest run examples/github-issue-tool/index.spec.ts`. The tests cover the result union, 503 classification, private-field exclusion, and reporting failures. The [focused logging reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/create-errors.md#allowlisted-logging) shows the field allowlist pattern.
+A coding agent calls `getGitHubIssue` to read an issue before fixing a bug. This example builds the tool's error result when GitHub returns HTTP 503, using `unavailable` as the error code:
+
+```ts
+import { buildErrorResponseData } from '@vercel/error/server';
+
+const data = buildErrorResponseData({
+  scope: 'github',
+  code: 'unavailable',
+  public: { message: 'We could not retrieve the GitHub issue.' },
+});
+const toolResult = { success: false, ...data };
+```
+
+The agent receives this tool result:
+
+```json
+{
+  "success": false,
+  "error": {
+    "scope": "github",
+    "code": "unavailable",
+    "message": "We could not retrieve the GitHub issue."
+  }
+}
+```
+
+The tool adds `success: false`; the builder supplies `error`. Adapt the wrapper to your tool's schema. For an existing message field, use `data.error.message`.
+
+See the [data producer reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/http.md#data-producer) for validation, fallback messages, and HTTP status rules.
 
 ## Consuming responses
 

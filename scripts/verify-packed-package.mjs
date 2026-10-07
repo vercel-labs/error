@@ -47,7 +47,6 @@ async function main() {
       JSON.stringify({
         name: 'vercel-error-packed-consumer',
         private: true,
-        type: 'module',
       }),
     );
     execFileSync(
@@ -88,13 +87,12 @@ async function main() {
           strict: true,
           target: 'ES2022',
         },
-        include: ['consumer.ts', 'github-issue-tool-check.ts'],
+        include: ['consumer.ts'],
       }),
     );
     for (const fixture of [
       'browser.ts',
       'consumer.ts',
-      'github-issue-tool-check.ts',
       'tsconfig.browser.json',
       'tsdown.browser.config.mjs',
       'types-exact-optional-off.ts',
@@ -106,11 +104,6 @@ async function main() {
         join(consumerDirectory, fixture),
       );
     }
-    copyFileSync(
-      join(packageRoot, 'examples/github-issue-tool/index.ts'),
-      join(consumerDirectory, 'github-issue-tool.ts'),
-    );
-
     const tsc = join(packageRoot, 'node_modules', 'typescript', 'bin', 'tsc');
     for (const exactOptionalPropertyTypes of ['true', 'false']) {
       execFileSync(
@@ -171,12 +164,6 @@ async function main() {
       env: runtimeEnvironment,
       stdio: 'inherit',
     });
-    execFileSync(process.execPath, ['build/github-issue-tool-check.js'], {
-      cwd: consumerDirectory,
-      env: runtimeEnvironment,
-      stdio: 'inherit',
-    });
-
     verifyBuiltImports(
       join(consumerDirectory, 'node_modules/@vercel/error/dist'),
     );
