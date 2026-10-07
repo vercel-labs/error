@@ -93,6 +93,9 @@ Authored fields declared by `VercelError` are readonly; pass values at construct
 ### `public`
 
 - Put client-approved text under `public`. `ErrorResponseDataInput` and `ErrorResponseInput` require it; `VercelError` may omit it.
+- Keep `VercelErrorLike` structural. `RecognizedVercelError` adds the existing package marker and is the tagged input accepted by response producers; `isVercelError()` narrows unknown values to it.
+- Version 0.6.0 adds the recognized-error requirement to producer types. Version 0.5.0 retains the runtime checks, but its declarations accept unrecognized errors.
+- Explicit response inputs exclude `name` and `stack`. With `exactOptionalPropertyTypes` disabled, `name: undefined` and `stack: undefined` can still typecheck, but runtime validation rejects both.
 - `public.message` must be nonblank. Optional `reason`, `hint`, `fix`, and `link` fields must be strings. Omit blank optional values and keep other text unchanged.
 - State what happened and a supported next step. Exclude implementation details, topology, raw provider text, secrets, and promises the application cannot guarantee.
 - If no approved client copy exists on a `VercelError`, omit `public`; `buildErrorResponseData()` and `errorResponse()` use the fixed generic message. Untagged data and HTTP inputs must always provide `public`.
@@ -165,7 +168,7 @@ Report once at the final operation boundary. Terminal formatting removes control
 - Approve every `public` field for clients. JSON and ANSI use the same fields. `Vary` lists the headers that can affect format selection; headers do not grant disclosure permission.
 - Parsing validates fields, not who sent them or whether they are safe. Apply the Recovery authority rules before acting on error text or links.
 - Automation should branch on stable fields and rules defined by the receiving application, never rendered text.
-- `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. It can cross serialization channels after source validation, but tagged `VercelErrorLike` data cannot rely on its Symbol tag surviving. When rebuilding an error from HTTP, use the observed response status and add only context the receiving application already knows.
+- `ErrorResponseData` includes scope and code but omits HTTP status, request ID, cause, developer name, stack, metadata, and attributes. It can cross serialization channels after source validation, but recognized errors cannot rely on their Symbol tag surviving. When rebuilding an error from HTTP, use the observed response status and add only context the receiving application already knows.
 
 ## Audit output
 

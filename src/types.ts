@@ -1,3 +1,5 @@
+import type { VERCEL_ERROR_TAG } from './vercel-error/tag';
+
 /**
  * Values allowed in nested error metadata.
  */
@@ -99,11 +101,10 @@ export interface VercelErrorOptions<TCode extends string = string> {
 }
 
 /**
- * Fields read from tagged errors while their symbol-keyed tag remains
- * observable. Recognition validates authored fields but leaves diagnostic
- * contents unknown. Any object can forge the tag; use
- * `instanceof VercelError` before calling class methods or relying on local
- * diagnostic types.
+ * Structural error fields for inspection and formatting. This type does not
+ * require the package tag and cannot be passed to response producers unless
+ * the value is also recognized. Diagnostic contents remain unknown even when
+ * the same value carries the tag.
  */
 export interface VercelErrorLike<
   TCode extends string = string,
@@ -136,4 +137,21 @@ export interface VercelErrorLike<
   metadata?: unknown;
   /** Mutable telemetry data whose contents are not validated. */
   attributes?: unknown;
+}
+
+/**
+ * A `VercelErrorLike` value whose package tag remains observable.
+ *
+ * - Does not guarantee class methods or validate diagnostic contents.
+ * - Does not authenticate the producer, approve disclosure, or authorize an
+ *   action.
+ *
+ * Use this type for response producers. Use `VercelErrorLike` for structural
+ * error fields that do not require package recognition.
+ */
+export interface RecognizedVercelError<
+  TCode extends string = string,
+> extends VercelErrorLike<TCode> {
+  /** Existing namespaced recognition marker. */
+  readonly [VERCEL_ERROR_TAG]: true;
 }

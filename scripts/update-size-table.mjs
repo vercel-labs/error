@@ -22,7 +22,11 @@ const groupByPath = {
 };
 
 function runPnpm(args, options = {}) {
-  return execFileSync(process.execPath, [pnpmCli, ...args], {
+  const isJavaScriptEntrypoint = /\.(?:cjs|mjs|js)$/iu.test(pnpmCli);
+  const command = isJavaScriptEntrypoint ? process.execPath : pnpmCli;
+  const commandArgs = isJavaScriptEntrypoint ? [pnpmCli, ...args] : args;
+
+  return execFileSync(command, commandArgs, {
     cwd: root,
     ...options,
   });

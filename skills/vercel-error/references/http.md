@@ -25,9 +25,21 @@ const toolResult = { success: false, ...data };
 
 The result does not establish whether the issue exists or authorize a retry. The application owns retry policy. To preserve and report the original failure, pass the error returned by [`reportGitHubIssueFailure`](create-errors.md#allowlisted-logging) to the builder.
 
-The builder accepts valid tagged errors, including local `VercelError` instances. Tagged errors without `public` keep their identity and use `An error occurred.` Untagged input requires nested `public`; a top-level `message` never substitutes for it.
+The builder accepts `RecognizedVercelError` or explicit `ErrorResponseDataInput`. `VercelErrorLike` remains structural and does not prove recognition.
 
-Non-object input, invalid identity or public details, malformed tagged data, plain `Error` values, untagged objects with `name` or `stack`, and missing `public` throw `TypeError`. The structural signature cannot prove a value carries a valid tag.
+Local `VercelError` instances, subclasses, and factory results satisfy the recognized input. `isVercelError()` narrows unknown values to that type.
+
+Recognized errors without `public` keep their identity and use `An error occurred.` Explicit input requires nested `public`; a top-level `message` never substitutes for it.
+
+Version 0.6.0 adds the recognized-error requirement to the producer types. Version 0.5.0 applies the same runtime recognition and disclosure checks, but its types allow plain `Error` inputs that the builder rejects at runtime.
+
+The builder throws `TypeError` for non-object input, invalid identity or public details, malformed tagged data, plain `Error` values, untagged objects with `name` or `stack`, or missing `public`.
+
+Explicit input excludes `name` and `stack`. When `exactOptionalPropertyTypes` is off, `name: undefined` and `stack: undefined` may typecheck, but runtime validation rejects them.
+
+If a value is annotated only as `VercelErrorLike`, keep its concrete type or recognize it before producing response data.
+
+A custom constructor compiled against older declarations may need a dependency update before it can be passed to the current `createErrors()`. Recognizing an instance does not change its constructor type.
 
 Each call returns fresh mutable plain data containing only identity and approved text. It does not write to the source, report, perform I/O, negotiate a format, or call source methods. Getters and Proxy traps can run; their exceptions propagate.
 
@@ -123,7 +135,9 @@ const result = errorResponse(error, {
 });
 ```
 
-The callback receives the original source plus `{ status, bodyFormat }`. `bodyFormat` is `json` or `ansi` and describes the serialized body. Tagged cross-realm metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics. The callback returns `undefined`; TypeScript rejects async callbacks. Synchronous callback errors propagate and replace the response the caller would otherwise receive.
+The callback receives the same recognized error or explicit `ErrorResponseInput` accepted by `buildErrorResponseData()`. It also receives `{ status, bodyFormat }`, where `bodyFormat` is `json` or `ansi`.
+
+Metadata and attributes on tagged cross-realm errors remain `unknown`. Validate them or use `instanceof VercelError` for typed local diagnostics. The callback returns `undefined`, so TypeScript rejects async callbacks. Callback exceptions propagate instead of returning the response.
 
 ## Response data contract
 

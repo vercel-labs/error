@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.6.0
+
+### Minor Changes
+
+- Require recognized errors for response production.
+
 ## 0.5.0
 
 ### Minor Changes

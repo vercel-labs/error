@@ -8,7 +8,7 @@ import { isError } from '../is-error';
 import { isVercelError, isVercelErrorLikeData } from '../is-vercel-error';
 import type {
   PublicErrorDetails,
-  VercelErrorLike,
+  RecognizedVercelError,
   VercelErrorOptions,
 } from '../types';
 import { VercelError } from '../vercel-error';
@@ -44,6 +44,9 @@ export interface ErrorResponseData {
 /**
  * Caller-authored identity and recipient-approved text, without an HTTP status
  * mapping. Identity is also disclosed; approve it for the intended recipient.
+ * Explicit input excludes error `name` and `stack` fields. With
+ * `exactOptionalPropertyTypes` disabled, an explicit `undefined` may still
+ * typecheck; runtime validation rejects it.
  */
 export interface ErrorResponseDataInput {
   /** Optional nonblank error scope, preserved without trimming. */
@@ -52,6 +55,10 @@ export interface ErrorResponseDataInput {
   readonly code?: string;
   /** Required approved details with a nonblank message. */
   readonly public: PublicErrorDetails;
+  /** Error names belong only to recognized errors, not explicit input. */
+  readonly name?: never;
+  /** Error stacks belong only to recognized errors, not explicit input. */
+  readonly stack?: never;
 }
 
 /** Local context for a reconstructed error. Set `statusCode` from the HTTP response. */
@@ -61,14 +68,16 @@ export type FromErrorResponseDataOptions = Pick<
 >;
 
 /**
- * Build response data from a valid tagged error or explicit `public` input.
+ * Build response data from a recognized error or explicit `public` input.
  *
  * Input:
  *
  * - `scope` and `code` are optional; defined values must be nonblank strings.
+ * - Tagged input must be `RecognizedVercelError`. Structural `VercelErrorLike`
+ *   fields alone do not make an error eligible for response production.
  * - Untagged input requires `public`; a top-level `message` never supplies
- *   public text.
- * - Tagged errors without `public` use `An error occurred.`.
+ *   public text. Explicit input excludes `name` and `stack`.
+ * - Recognized errors without `public` use `An error occurred.`.
  *
  * Output:
  *
@@ -110,7 +119,7 @@ export type FromErrorResponseDataOptions = Pick<
  * ```
  */
 export function buildErrorResponseData(
-  source: VercelErrorLike | ErrorResponseDataInput,
+  source: RecognizedVercelError | ErrorResponseDataInput,
 ): ErrorResponseData {
   if (!isObject(source)) {
     throw new TypeError(

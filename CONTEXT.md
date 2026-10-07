@@ -30,7 +30,10 @@ _Avoid_: Diagnostic enrichment
 A group of related structured error conditions treated as one vocabulary by producers and handlers. Its members may share scope, diagnostic context, documentation, and reporting policy.
 
 **VercelError-like data**:
-Structured error fields recognized across package or realm seams while the original tagged value remains intact. Recognition leaves diagnostic contents unknown and does not establish producer trust, disclosure approval, or action authority.
+The structural error fields described by `VercelErrorLike`. The type does not require the package tag or make the value eligible for response production.
+
+**Recognized Vercel error**:
+A VercelError-like value whose package-namespaced marker remains observable. Recognition permits typed response production but does not validate diagnostic contents, authenticate the producer, approve disclosure, or grant action authority.
 _Avoid_: Cross-realm error
 
 ### Response Roles
@@ -40,7 +43,7 @@ A prospective HTTP error status associated with an authored error or explicit re
 _Avoid_: calling the authored mapping "status"
 
 **Error response data input**:
-Caller-authored identity and required `public` details for response data production without a tagged error. It has no HTTP status mapping. Approve identity and text for the intended recipient.
+Caller-authored identity and required `public` details for response data production without a recognized error. It has no HTTP status mapping. Approve identity and text for the intended recipient.
 _Avoid_: Public error input
 
 **Error response input**:

@@ -54,6 +54,20 @@ class PaymentError extends VercelError {
 - `isError`, `isErrorLike`, and `getMessage` handle unknown caught values without unsafe casts. `isErrorLike` guarantees only a string `message`.
 - `getRootCause` follows `cause` and stops on object cycles.
 
+`VercelErrorLike` remains structural. It describes error fields but does not require the package marker.
+
+`RecognizedVercelError` adds the marker and is the tagged input accepted by `buildErrorResponseData()` and `errorResponse()`.
+
+Local `VercelError` instances, subclasses, and factory results satisfy the type. `isVercelError()` narrows unknown or structurally typed values to it.
+
+Errors from older or duplicate package copies remain recognizable while their shared marker and valid fields are observable.
+
+Version 0.6.0 requires recognized errors in producer types. Version 0.5.0 rejects untagged errors at runtime, but its declarations allow those calls.
+
+If a variable was annotated as `VercelErrorLike`, retain the concrete error type or narrow it with `isVercelError()` before response production. Do not add a cast. Plain errors and field objects remain usable with `formatError()`.
+
+A custom constructor compiled against older package declarations may need a dependency update before it can be passed to the current `createErrors()`. Recognizing an instance with `isVercelError()` does not change its constructor type.
+
 The Symbol tag is forgeable. Recognition does not authenticate the producer or authorize disclosure. Tagged metadata and attributes remain `unknown`; validate them or use `instanceof VercelError` for typed local diagnostics.
 
 `VercelError#toJSON()` includes developer and diagnostic details, though it excludes `cause`; it may contain private data. Use `buildErrorResponseData()` for recipient-approved data or `errorResponse()` for HTTP. See [Response data and HTTP](http.md) and the separate [log allowlist](create-errors.md#allowlisted-logging).

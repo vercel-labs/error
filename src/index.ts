@@ -19,6 +19,7 @@ export type {
   ErrorLike,
   ErrorMetadata,
   PublicErrorDetails,
+  RecognizedVercelError,
   SerializableValue,
   VercelErrorLike,
   VercelErrorOptions,
