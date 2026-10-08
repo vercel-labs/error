@@ -476,3 +476,13 @@ Tagged matches do not prove the producer is trusted. Their metadata and attribut
 | `link`                   |              51 B |
 
 <!-- SIZE-TABLE:END -->
+
+## Development
+
+Prepare a fresh checkout with Node.js 24 or newer and Corepack:
+
+```bash
+bash .codex/setup.sh
+```
+
+The script selects the version in `.nvmrc` when fnm is available, installs dependencies with the pinned pnpm version and frozen lockfile, and builds the package exports. Codex Desktop can run it through the checked-in Local Environment. Run it manually in CLI or IDE checkouts.
