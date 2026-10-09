@@ -44,6 +44,8 @@ export async function handleCheckout(
 
 Read the [project narrative](https://github.com/vercel-labs/error/blob/main/docs/narrative.md) for the problem, alternatives, and adoption path.
 
+The [GitHub issue tool example](https://github.com/vercel-labs/error/tree/main/examples/github-issue-tool) runs end-to-end tool tests with mocked GitHub, demonstrating local classification, cause retention, approved logging, and result mapping. Run its tests alone with `pnpm test examples/github-issue-tool/index.spec.ts`.
+
 ## Agent guidance
 
 The optional vercel-error skill helps coding agents choose fields, migrate existing errors, and review which details reach clients:
@@ -353,35 +355,7 @@ Use `buildErrorResponseData()` when you need error data for a tool result or mes
 - Returns `scope`, `code`, and approved `public` text. Developer details, diagnostics, and HTTP status are excluded.
 - Works in browsers, workers, edge runtimes, and Node.
 
-### Example: a GitHub issue tool
-
-A coding agent calls `getGitHubIssue` to read an issue before fixing a bug. This example builds the tool's error result when GitHub returns HTTP 503, using `unavailable` as the error code:
-
-```ts
-import { buildErrorResponseData } from '@vercel/error/server';
-
-const data = buildErrorResponseData({
-  scope: 'github',
-  code: 'unavailable',
-  public: { message: 'We could not retrieve the GitHub issue.' },
-});
-const toolResult = { success: false, ...data };
-```
-
-The agent receives this tool result:
-
-```json
-{
-  "success": false,
-  "error": {
-    "scope": "github",
-    "code": "unavailable",
-    "message": "We could not retrieve the GitHub issue."
-  }
-}
-```
-
-The tool adds `success: false`; the builder supplies `error`. Adapt the wrapper to your tool's schema. For an existing message field, use `data.error.message`.
+The [GitHub issue tool example](https://github.com/vercel-labs/error/tree/main/examples/github-issue-tool) reports a failure once, builds response data, and maps `data.error.message` to `{ success: false, reason: 'github_failed', nextStep }`. The application owns this result schema.
 
 See the [data producer reference](https://github.com/vercel-labs/error/blob/main/skills/vercel-error/references/http.md#data-producer) for validation, fallback messages, and HTTP status rules.
 

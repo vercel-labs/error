@@ -1,5 +1,11 @@
 # @vercel/error
 
+## 0.6.1
+
+### Patch Changes
+
+- Add a GitHub issue tool example with mocked HTTP tests, packed-package coverage, and allowlisted logging guidance.
+
 ## 0.6.0
 
 ### Minor Changes

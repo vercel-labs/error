@@ -14,11 +14,15 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "paths": {
+      "@vercel/error": ["./src/index.ts"],
+      "@vercel/error/server": ["./src/server.ts"]
+    },
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "outDir": "dist"
   },
-  "include": ["src"],
+  "include": ["src", "examples"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }

@@ -1,7 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import {
   copyFileSync,
+  cpSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -47,6 +49,7 @@ async function main() {
       JSON.stringify({
         name: 'vercel-error-packed-consumer',
         private: true,
+        type: 'module',
       }),
     );
     execFileSync(
@@ -164,6 +167,7 @@ async function main() {
       env: runtimeEnvironment,
       stdio: 'inherit',
     });
+    verifyGitHubIssueTool(consumerDirectory, tsc, runtimeEnvironment);
     verifyBuiltImports(
       join(consumerDirectory, 'node_modules/@vercel/error/dist'),
     );
@@ -174,6 +178,57 @@ async function main() {
   } finally {
     rmSync(workspace, { force: true, recursive: true });
   }
+}
+
+function verifyGitHubIssueTool(directory, tsc, runtimeEnvironment) {
+  const source = join(packageRoot, 'examples/github-issue-tool');
+  const example = join(directory, 'github-issue-tool');
+  const output = join(directory, 'github-issue-tool-build');
+  mkdirSync(example);
+  for (const file of ['index.ts', 'http-fixture.ts', 'test-cases.ts']) {
+    copyFileSync(join(source, file), join(example, file));
+  }
+  cpSync(join(source, 'fixtures'), join(example, 'fixtures'), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(directory, 'tsconfig.github-issue-tool.json'),
+    JSON.stringify({
+      extends: './tsconfig.json',
+      compilerOptions: {
+        rootDir: 'github-issue-tool',
+        outDir: 'github-issue-tool-build',
+        typeRoots: [join(packageRoot, 'node_modules/@types')],
+        types: ['node'],
+      },
+      include: ['github-issue-tool/*.ts'],
+    }),
+  );
+  execFileSync(
+    process.execPath,
+    [tsc, '--project', 'tsconfig.github-issue-tool.json'],
+    {
+      cwd: directory,
+      stdio: 'inherit',
+    },
+  );
+  cpSync(join(example, 'fixtures'), join(output, 'fixtures'), {
+    recursive: true,
+  });
+  execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      `
+    import { scenarios, runScenario, networkViolationChecks, runNetworkViolationCheck } from './github-issue-tool-build/test-cases.js';
+    for (const scenario of scenarios) await runScenario(scenario);
+    for (const mode of networkViolationChecks) await runNetworkViolationCheck(mode);
+    console.log('Packed GitHub issue tool: ' + (scenarios.length + networkViolationChecks.length) + ' mocked HTTP checks passed.');
+  `,
+    ],
+    { cwd: directory, env: runtimeEnvironment, stdio: 'inherit' },
+  );
 }
 
 function verifyPackedMetadata(installedPackageRoot) {

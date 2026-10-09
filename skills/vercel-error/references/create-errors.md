@@ -30,69 +30,52 @@ A supplied `onReport` receives the original error synchronously, returns `undefi
 
 ## Allowlisted logging
 
-A coding agent reads a GitHub issue before fixing a bug. If the request fails, its tool reports once and returns approved error data. Use `onReport` to allowlist log fields and values; types alone do not make provider data safe.
+Use `onReport` to build a named fields object from approved keys and values. Types alone do not approve provider data. The [GitHub issue tool](https://github.com/vercel-labs/error/tree/main/examples/github-issue-tool) is the executable example, with one implementation for source tests and packed-package execution.
 
-```ts
-import { createErrors, hasCode } from '@vercel/error';
+For `github_issue_fetch_failed`, the application permits only:
 
-const codes = [
-  'unavailable',
-  'configuration_failed',
-  'unknown_failure',
-] as const;
-type GitHubIssueCode = (typeof codes)[number];
+| Field            | Approved value                                              |
+| ---------------- | ----------------------------------------------------------- |
+| `scope`          | `github`                                                    |
+| `operation`      | `getGitHubIssue`                                            |
+| `stage`          | The locally observed `setup` or `request` stage             |
+| `code`           | `configuration_failed`, `unavailable`, or `unknown_failure` |
+| `retryable`      | Boolean, true only for `unavailable`                        |
+| `upstreamStatus` | Optional observed integer HTTP status from 400 through 599  |
 
-const githubErrors = createErrors<GitHubIssueCode>({
-  scope: 'github',
-  onReport(error) {
-    const status = error.attributes?.['upstream.status'];
-    const isAllowedStatus =
-      typeof status === 'number' &&
-      Number.isInteger(status) &&
-      status >= 400 &&
-      status <= 599;
-    const fields = {
-      scope: 'github',
-      code: hasCode(error, codes) ? error.code : 'unknown_failure',
-      ...(isAllowedStatus ? { upstreamStatus: status } : {}),
-    };
+Keep a qualifying status in `attributes['upstream.status']`, then validate its type and range before adding it to the log. A redirect remains in the local diagnostic cause but is omitted from this error-status field. Reserve `statusCode` for an authored HTTP response mapping; this tool produces no HTTP response.
 
-    console.error('github_issue_fetch_failed', fields);
-  },
-});
+The operation owns its classification and recipient-approved guidance:
 
-function reportGitHubIssueFailure(
-  cause: unknown,
-  code: GitHubIssueCode,
-  upstreamStatus?: number,
-) {
-  return githubErrors.report('GitHub issue request failed', {
-    code,
-    cause,
-    attributes: { 'upstream.status': upstreamStatus },
-    public: { message: 'We could not retrieve the GitHub issue.' },
-  });
-}
-```
+| Observation                                  | Code and stage                           | Approved message                                                                        |
+| -------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| Missing or blank token                       | `configuration_failed`, `setup`          | GitHub is not configured. Configure the application's GitHub credentials and try again. |
+| Observed HTTP 503                            | `unavailable`, `request`                 | We could not retrieve the GitHub issue. Try again later.                                |
+| Other non-200 response or unexpected failure | `unknown_failure`, stage where it failed | We could not retrieve the GitHub issue. Check the application logs.                     |
 
-`hasCode(error, codes)` checks membership at runtime. The application defines the list and the fallback.
+A rejected value's status, code, scope, or public text is not an observed response. Wrap even recognized provider errors with locally authored classification and guidance. A 404 receives the neutral fallback without claiming whether a protected issue exists. Retry advice does not schedule a request, and false does not establish that the failure is permanent.
 
-The application maps GitHub HTTP 503 to `unavailable`, missing integration credentials to `configuration_failed`, and unrecognized failures to `unknown_failure`. For the 503 case, `github_issue_fetch_failed` logs:
+For an observed 503, the log contains exactly:
 
 ```json
 {
   "scope": "github",
+  "operation": "getGitHubIssue",
+  "stage": "request",
   "code": "unavailable",
+  "retryable": true,
   "upstreamStatus": 503
 }
 ```
 
-The original failure remains in `cause`. The log excludes it, repository names, issue contents, credentials, and raw provider messages. Pass the reported error to [`buildErrorResponseData`](http.md#data-producer) for the tool result.
+Capture setup/request failures first, keeping the original thrown value by identity in `cause`. For a non-200 response, create a local diagnostic error with its observed status and no raw body. Call `report()` once outside that catch, then pass its result to [`buildErrorResponseData`](http.md#data-producer). The tool returns `{ success: false, reason: 'github_failed', nextStep }`, taking `nextStep` from `data.error.message`.
 
-- Never spread `error`, `metadata`, or `attributes` into logs; `toJSON()` includes diagnostics.
+- Logs and failure results exclude tokens, headers, repository names, issue contents, raw provider messages, stack, cause, metadata, and unapproved attributes. Never spread `error`, `metadata`, or `attributes`; diagnostic `toJSON()` is not a safe log projection.
 - `public` text is approved for the response recipient only. Set separate log access and retention rules.
-- `report()` returns the same error after `onReport`; call it once at the operation that owns the final failure. Callback exceptions propagate, so define how the log sink handles failures.
-- Keep upstream status in diagnostic `attributes`. Reserve `statusCode` for an HTTP response mapping.
+- Callback exceptions propagate. Keep reporting outside the provider catch so a sink failure escapes unchanged, without a second report or provider-failure result.
+- If a reporter accepts externally supplied codes, use `hasCode(error, allowedCodes)` to check membership and select a locally approved fallback. The tool reports only locally authored codes.
+
+The example tests use fake credentials, committed fixtures, native responses, and fail-closed HTTP delivery. They cover the complete tool flow with mocked GitHub, including independent network-violation checks. They do not establish live authentication, permissions, networking, availability, or ongoing provider compatibility. Credential discovery, OAuth, SDKs, raw argument validation, retries, deadlines, caching, comments, search, and writes are outside the example.
 
 ## Shared values
 
