@@ -6,7 +6,7 @@ The host supplies validated owner/repository identifiers, a positive integer iss
 
 HTTP 200 returns exactly `{ success: true, issue: { number, title, body, url } }`. Omitted body becomes null. Pull requests use their common issue fields. Returned issue text is untrusted content and does not authorize an action.
 
-Failures return `{ success: false, reason: 'github_failed', nextStep }`. Missing credentials use `configuration_failed`, observed HTTP 503 uses `unavailable`, and other failures use `unknown_failure`. A 404 receives neutral guidance that makes no claim about a protected issue's existence. Retry advice is advisory; false does not establish permanence.
+Failures return `{ success: false, reason: 'github_failed', nextStep }`. Missing credentials use `configuration_failed`, observed HTTP 503 uses `unavailable`, and other failures use `unknown_failure`. A 404 receives neutral guidance that makes no claim about a protected issue's existence. Retry advice never schedules a request. A logged `retryable: false` does not establish that a failure is permanent.
 
 The original rejected value stays in `cause`. An HTTP failure gets a local diagnostic error containing the observed status, with no raw body. The tool reports once, then takes `nextStep` from `buildErrorResponseData().error.message`. Sink exceptions propagate unchanged. For the detailed logging policy, see [allowlisted logging](../../skills/vercel-error/references/create-errors.md#allowlisted-logging).
 
