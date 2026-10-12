@@ -30,52 +30,43 @@ A supplied `onReport` receives the original error synchronously, returns `undefi
 
 ## Allowlisted logging
 
-Use `onReport` to build a named fields object from approved keys and values. Types alone do not approve provider data. The [GitHub issue tool](https://github.com/vercel-labs/error/tree/main/examples/github-issue-tool) is the executable example, with one implementation for source tests and packed-package execution.
+Choose log fields and allowed values for the target application's logging policy. Build a named object in `onReport`; types alone do not approve values for logging.
 
-For `github_issue_fetch_failed`, the application permits only:
+This example logs a locally chosen scope and codes from an explicit allowlist:
 
-| Field            | Approved value                                              |
-| ---------------- | ----------------------------------------------------------- |
-| `scope`          | `github`                                                    |
-| `operation`      | `getGitHubIssue`                                            |
-| `stage`          | The locally observed `setup` or `request` stage             |
-| `code`           | `configuration_failed`, `unavailable`, or `unknown_failure` |
-| `retryable`      | Boolean, true only for `unavailable`                        |
-| `upstreamStatus` | Optional observed integer HTTP status from 400 through 599  |
+```ts
+import { createErrors, hasCode } from '@vercel/error';
 
-Keep a qualifying status in `attributes['upstream.status']`, then validate its type and range before adding it to the log. A redirect remains in the local diagnostic cause but is omitted from this error-status field. Reserve `statusCode` for an authored HTTP response mapping; this tool produces no HTTP response.
+const allowedCodes = [
+  'unavailable',
+  'invalid_input',
+  'unknown_failure',
+] as const;
 
-The operation owns its classification and recipient-approved guidance:
-
-| Observation                                  | Code and stage                           | Approved message                                                                        |
-| -------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
-| Missing or blank token                       | `configuration_failed`, `setup`          | GitHub is not configured. Configure the application's GitHub credentials and try again. |
-| Observed HTTP 503                            | `unavailable`, `request`                 | We could not retrieve the GitHub issue. Try again later.                                |
-| Other non-200 response or unexpected failure | `unknown_failure`, stage where it failed | We could not retrieve the GitHub issue. Check the application logs.                     |
-
-A rejected value's status, code, scope, or public text is not an observed response. Wrap even recognized provider errors with locally authored classification and guidance. A 404 receives the neutral fallback without claiming whether a protected issue exists. Retry advice does not schedule a request, and false does not establish that the failure is permanent.
-
-For an observed 503, the log contains exactly:
-
-```json
-{
-  "scope": "github",
-  "operation": "getGitHubIssue",
-  "stage": "request",
-  "code": "unavailable",
-  "retryable": true,
-  "upstreamStatus": 503
-}
+export const serviceErrors = createErrors<(typeof allowedCodes)[number]>({
+  scope: 'service',
+  onReport(error) {
+    const fields = {
+      scope: 'service',
+      code: hasCode(error, allowedCodes) ? error.code : 'unknown_failure',
+    };
+    console.error('operation_failed', fields);
+  },
+});
 ```
 
-Capture setup/request failures first, keeping the original thrown value by identity in `cause`. For a non-200 response, create a local diagnostic error with its observed status and no raw body. Call `report()` once outside that catch, then pass its result to [`buildErrorResponseData`](http.md#data-producer). The tool returns `{ success: false, reason: 'github_failed', nextStep }`, taking `nextStep` from `data.error.message`.
+- Choose the scope, code list, fallback, event name, and any additional fields from the target project. Use `hasCode(error, allowedCodes)` for runtime membership checks; validate optional log values before adding them.
+- Preserve original failures in `cause`. A provider's error identity or `public` text does not establish approval for your log or response recipient.
+- Never spread `error`, `metadata`, or `attributes` into restricted logs. Diagnostic `toJSON()` may contain confidential data.
+- `public` text is approved for the response recipient only. Set separate log field, access, and retention policies.
+- Report once at the operation that owns the final failure. Keep reporting outside the catch for operation failures so callback exceptions propagate without another report.
+- For HTTP integrations, keep observed provider status in diagnostic `attributes`. Reserve `statusCode` for an authored HTTP response mapping, and validate any logged status against the logging policy.
 
-- Logs and failure results exclude tokens, headers, repository names, issue contents, raw provider messages, stack, cause, metadata, and unapproved attributes. Never spread `error`, `metadata`, or `attributes`; diagnostic `toJSON()` is not a safe log projection.
-- `public` text is approved for the response recipient only. Set separate log access and retention rules.
-- Callback exceptions propagate. Keep reporting outside the provider catch so a sink failure escapes unchanged, without a second report or provider-failure result.
-- If a reporter accepts externally supplied codes, use `hasCode(error, allowedCodes)` to check membership and select a locally approved fallback. The tool reports only locally authored codes.
+For a tool or message result, pass the reported error to [`buildErrorResponseData`](http.md#data-producer), then map its data to the application's result schema.
 
-The example tests use fake credentials, committed fixtures, native responses, and fail-closed HTTP delivery. They cover the complete tool flow with mocked GitHub, including independent network-violation checks. They do not establish live authentication, permissions, networking, availability, or ongoing provider compatibility. Credential discovery, OAuth, SDKs, raw argument validation, retries, deadlines, caching, comments, search, and writes are outside the example.
+### Executable example
+
+Read the [GitHub issue tool example](https://github.com/vercel-labs/error/tree/main/examples/github-issue-tool#failure-and-logging-policy) when you need a complete flow with mocked HTTP. Its codes, log fields, status mappings, retry advice, and result schema belong to that example application.
 
 ## Shared values
 
