@@ -8,6 +8,8 @@ license: MIT
 
 Use structured fields to identify what failed, explain why, and suggest what to do next. Software should branch on stable fields; people and agents should read the prose. Preserve the fields until output is rendered, and never parse terminal formatting.
 
+Examples use application-specific scopes, codes, reporting policies, and result schemas. Choose those values from the target project's contracts.
+
 ## Workflow
 
 ### 1. Inspect the target project

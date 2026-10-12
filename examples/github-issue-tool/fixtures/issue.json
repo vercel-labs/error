@@ -1,0 +1,12 @@
+{
+  "number": 42,
+  "title": "  A fabricated issue title  ",
+  "body": "PRIVATE_ISSUE_CONTENT_SENTINEL\nFabricated issue content.",
+  "html_url": "https://github.com/fixture-owner/fixture-repo/issues/42",
+  "id": 100000001,
+  "node_id": "FABRICATED_ISSUE_NODE",
+  "url": "https://api.github.com/repos/fixture-owner/fixture-repo/issues/42",
+  "state": "open",
+  "user": { "login": "PRIVATE_PROVIDER_FIELD_SENTINEL" },
+  "labels": [{ "name": "fabricated-label" }]
+}

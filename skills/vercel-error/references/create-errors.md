@@ -30,69 +30,43 @@ A supplied `onReport` receives the original error synchronously, returns `undefi
 
 ## Allowlisted logging
 
-A coding agent reads a GitHub issue before fixing a bug. If the request fails, its tool reports once and returns approved error data. Use `onReport` to allowlist log fields and values; types alone do not make provider data safe.
+Choose log fields and allowed values for the target application's logging policy. Build a named object in `onReport`; types alone do not approve values for logging.
+
+This example logs a locally chosen scope and codes from an explicit allowlist:
 
 ```ts
 import { createErrors, hasCode } from '@vercel/error';
 
-const codes = [
+const allowedCodes = [
   'unavailable',
-  'configuration_failed',
+  'invalid_input',
   'unknown_failure',
 ] as const;
-type GitHubIssueCode = (typeof codes)[number];
 
-const githubErrors = createErrors<GitHubIssueCode>({
-  scope: 'github',
+export const serviceErrors = createErrors<(typeof allowedCodes)[number]>({
+  scope: 'service',
   onReport(error) {
-    const status = error.attributes?.['upstream.status'];
-    const isAllowedStatus =
-      typeof status === 'number' &&
-      Number.isInteger(status) &&
-      status >= 400 &&
-      status <= 599;
     const fields = {
-      scope: 'github',
-      code: hasCode(error, codes) ? error.code : 'unknown_failure',
-      ...(isAllowedStatus ? { upstreamStatus: status } : {}),
+      scope: 'service',
+      code: hasCode(error, allowedCodes) ? error.code : 'unknown_failure',
     };
-
-    console.error('github_issue_fetch_failed', fields);
+    console.error('operation_failed', fields);
   },
 });
-
-function reportGitHubIssueFailure(
-  cause: unknown,
-  code: GitHubIssueCode,
-  upstreamStatus?: number,
-) {
-  return githubErrors.report('GitHub issue request failed', {
-    code,
-    cause,
-    attributes: { 'upstream.status': upstreamStatus },
-    public: { message: 'We could not retrieve the GitHub issue.' },
-  });
-}
 ```
 
-`hasCode(error, codes)` checks membership at runtime. The application defines the list and the fallback.
+- Choose the scope, code list, fallback, event name, and any additional fields from the target project. Use `hasCode(error, allowedCodes)` for runtime membership checks; validate optional log values before adding them.
+- Preserve original failures in `cause`. A provider's error identity or `public` text does not establish approval for your log or response recipient.
+- Never spread `error`, `metadata`, or `attributes` into restricted logs. Diagnostic `toJSON()` may contain confidential data.
+- `public` text is approved for the response recipient only. Set separate log field, access, and retention policies.
+- Report once at the operation that owns the final failure. Keep reporting outside the catch for operation failures so callback exceptions propagate without another report.
+- For HTTP integrations, keep observed provider status in diagnostic `attributes`. Reserve `statusCode` for an authored HTTP response mapping, and validate any logged status against the logging policy.
 
-The application maps GitHub HTTP 503 to `unavailable`, missing integration credentials to `configuration_failed`, and unrecognized failures to `unknown_failure`. For the 503 case, `github_issue_fetch_failed` logs:
+For a tool or message result, pass the reported error to [`buildErrorResponseData`](http.md#data-producer), then map its data to the application's result schema.
 
-```json
-{
-  "scope": "github",
-  "code": "unavailable",
-  "upstreamStatus": 503
-}
-```
+### Executable example
 
-The original failure remains in `cause`. The log excludes it, repository names, issue contents, credentials, and raw provider messages. Pass the reported error to [`buildErrorResponseData`](http.md#data-producer) for the tool result.
-
-- Never spread `error`, `metadata`, or `attributes` into logs; `toJSON()` includes diagnostics.
-- `public` text is approved for the response recipient only. Set separate log access and retention rules.
-- `report()` returns the same error after `onReport`; call it once at the operation that owns the final failure. Callback exceptions propagate, so define how the log sink handles failures.
-- Keep upstream status in diagnostic `attributes`. Reserve `statusCode` for an HTTP response mapping.
+Read the [GitHub issue tool example](https://github.com/vercel-labs/error/tree/main/examples/github-issue-tool#failure-and-logging-policy) when you need a complete flow with mocked HTTP. Its codes, log fields, status mappings, retry advice, and result schema belong to that example application.
 
 ## Shared values
 

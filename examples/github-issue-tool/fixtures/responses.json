@@ -1,0 +1,27 @@
+{
+  "redirect": {
+    "status": 301,
+    "body": {
+      "message": "PRIVATE_PROVIDER_MESSAGE_SENTINEL",
+      "documentation_url": "https://docs.github.com/rest"
+    }
+  },
+  "notFound": {
+    "status": 404,
+    "body": {
+      "message": "PRIVATE_PROVIDER_MESSAGE_SENTINEL",
+      "documentation_url": "https://docs.github.com/rest"
+    }
+  },
+  "unavailable": {
+    "status": 503,
+    "body": "{PRIVATE_MALFORMED_PROVIDER_BODY_SENTINEL"
+  },
+  "malformedSuccess": "{PRIVATE_MALFORMED_PROVIDER_BODY_SENTINEL",
+  "invalidSuccess": {
+    "number": 0,
+    "title": "fabricated",
+    "body": null,
+    "html_url": "https://github.com/fixture-owner/fixture-repo/issues/42"
+  }
+}

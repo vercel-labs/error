@@ -6,7 +6,7 @@ Use this reference for producing and consuming `ErrorResponseData`, building HTT
 
 `buildErrorResponseData()` is available from `@vercel/error/server` in 0.5.0 and later. Check the installed version and exports first. The entry works in browser, worker, edge, and Node runtimes.
 
-A `getGitHubIssue` tool can return this data when its application classifies a failed GitHub request as `unavailable` (for example, HTTP 503):
+An application can build approved error data for a tool or message result:
 
 ```ts
 import {
@@ -15,15 +15,15 @@ import {
 } from '@vercel/error/server';
 
 const input: ErrorResponseDataInput = {
-  scope: 'github',
+  scope: 'service',
   code: 'unavailable',
-  public: { message: 'We could not retrieve the GitHub issue.' },
+  public: { message: 'The service is temporarily unavailable.' },
 };
 const data = buildErrorResponseData(input);
 const toolResult = { success: false, ...data };
 ```
 
-The result does not establish whether the issue exists or authorize a retry. The application owns retry policy. To preserve and report the original failure, pass the error returned by [`reportGitHubIssueFailure`](create-errors.md#allowlisted-logging) to the builder.
+The application chooses the code, public text, result schema, and retry policy. Returned guidance does not authorize a retry. To preserve and report an original failure, pass the error returned by [`report()`](create-errors.md#typed-factory) to the builder.
 
 The builder accepts `RecognizedVercelError` or explicit `ErrorResponseDataInput`. `VercelErrorLike` remains structural and does not prove recognition.
 
