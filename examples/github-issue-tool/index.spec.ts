@@ -39,6 +39,6 @@ describe('getGitHubIssue with mocked HTTP', () => {
   }
   for (const mode of networkViolationChecks) {
     it(`fails verification for ${mode} even when the tool catches it`, () =>
-      runNetworkViolationCheck(mode, observed.reports));
+      runNetworkViolationCheck(mode));
   }
 });

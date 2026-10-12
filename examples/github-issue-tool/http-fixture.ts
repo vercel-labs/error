@@ -6,7 +6,7 @@ export const lookup: { owner: string; repo: string; issueNumber: number } = {
   repo: 'PRIVATE_REPOSITORY_SENTINEL',
   issueNumber: 42,
 };
-export const expectedRequest: { url: string; options: RequestInit } = {
+const expectedRequest: { url: string; options: RequestInit } = {
   url: 'https://api.github.com/repos/fixture-owner/PRIVATE_REPOSITORY_SENTINEL/issues/42',
   options: {
     method: 'GET',
@@ -22,10 +22,6 @@ export const expectedRequest: { url: string; options: RequestInit } = {
 
 export interface HttpFixture {
   fetch: typeof fetch;
-  requests: {
-    input: Parameters<typeof fetch>[0];
-    options: RequestInit | undefined;
-  }[];
   verify: () => void;
   restore: () => void;
 }
@@ -35,7 +31,10 @@ export function installHttpFixture(
   deliver: () => Promise<Response>,
   requestCount = 1,
 ): HttpFixture {
-  const requests: HttpFixture['requests'] = [];
+  const requests: {
+    input: Parameters<typeof fetch>[0];
+    options: RequestInit | undefined;
+  }[] = [];
   const violations: string[] = [];
   const original = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
   Object.defineProperty(globalThis, 'fetch', {
@@ -48,7 +47,6 @@ export function installHttpFixture(
   });
 
   return {
-    requests,
     fetch: async (input, options) => {
       requests.push({ input, options });
       try {

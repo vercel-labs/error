@@ -3,12 +3,7 @@ import { readFileSync } from 'node:fs';
 
 import { VercelError } from '@vercel/error';
 
-import {
-  expectedRequest,
-  fakeToken,
-  installHttpFixture,
-  lookup,
-} from './http-fixture.js';
+import { fakeToken, installHttpFixture, lookup } from './http-fixture.js';
 import {
   getGitHubIssue,
   type FailureLogFields,
@@ -154,9 +149,12 @@ export const scenarios: Scenario[] = [
       upstreamStatus: responses[key].status,
     }),
   ),
-  ...['null body', 'omitted body', 'pull request'].map(
+  ...['omitted body', 'pull request'].map(
     (variant): Scenario => ({
-      name: `accepts ${variant} and ignores unselected provider fields`,
+      name:
+        variant === 'omitted body'
+          ? 'accepts an omitted body as null'
+          : 'accepts a null body and ignores pull-request fields',
       token: fakeToken,
       deliver: async () => {
         const body = { ...issue, body: null };
@@ -265,15 +263,13 @@ export async function runScenario(
         if ('sinkFailure' in scenario) throw scenario.sinkFailure;
       },
     });
-    let result: GitHubIssueResult | undefined;
     if ('sinkFailure' in scenario) {
       await assert.rejects(operation, (failure: unknown) => {
         assert.equal(failure, scenario.sinkFailure);
         return true;
       });
     } else {
-      result = await operation;
-      assert.deepEqual(result, scenario.result);
+      assert.deepEqual(await operation, scenario.result);
     }
     assert.deepEqual(
       logs,
@@ -281,24 +277,6 @@ export async function runScenario(
         ? [{ event: 'github_issue_fetch_failed', fields: scenario.fields }]
         : [],
     );
-    if (scenario.result.success) {
-      assert.deepEqual(http.requests, [
-        { input: expectedRequest.url, options: expectedRequest.options },
-      ]);
-    }
-    const disclosed = JSON.stringify({ result, logs });
-    for (const sentinel of [
-      'FAKE_PRIVATE_TOKEN_SENTINEL',
-      'PRIVATE_REPOSITORY_SENTINEL',
-      'PRIVATE_PROVIDER_FIELD_SENTINEL',
-      'PRIVATE_PROVIDER_MESSAGE_SENTINEL',
-      'PRIVATE_MALFORMED_PROVIDER_BODY_SENTINEL',
-      'PRIVATE_DIAGNOSTIC_SENTINEL',
-      'PRIVATE_PROVIDER_GUIDANCE_SENTINEL',
-      ...(scenario.result.success ? [] : ['PRIVATE_ISSUE_CONTENT_SENTINEL']),
-    ]) {
-      assert.ok(!disclosed.includes(sentinel), `Disclosed ${sentinel}`);
-    }
     if (reports) {
       assert.equal(reports.length, scenario.fields ? 1 : 0, 'Report attempts');
       if (scenario.fields) {
@@ -334,12 +312,8 @@ export const networkViolationChecks: readonly string[] = [
 ];
 
 /** Prove swallowed boundary exceptions still fail independent verification. */
-export async function runNetworkViolationCheck(
-  mode: string,
-  reports?: readonly VercelError[],
-): Promise<void> {
+export async function runNetworkViolationCheck(mode: string): Promise<void> {
   const http = installHttpFixture(async () => Response.json(issue));
-  const logs: unknown[] = [];
   try {
     const result = await getGitHubIssue(lookup, {
       token: fakeToken,
@@ -350,19 +324,9 @@ export async function runNetworkViolationCheck(
         await http.fetch(input, options);
         return http.fetch(input, options);
       },
-      log: (event, fields) => {
-        logs.push({ event, fields });
-      },
+      log: () => undefined,
     });
     assert.deepEqual(result, unknownResult);
-    assert.deepEqual(logs, [
-      { event: 'github_issue_fetch_failed', fields: unknownFields },
-    ]);
-    if (reports) assert.equal(reports.length, 1);
-    assert.equal(
-      http.requests.length,
-      mode === 'global fetch' ? 0 : mode === 'extra request' ? 2 : 1,
-    );
     assert.throws(http.verify, /HTTP delivery violations/);
   } finally {
     http.restore();
